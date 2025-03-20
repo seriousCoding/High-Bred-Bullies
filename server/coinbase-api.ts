@@ -653,6 +653,7 @@ class CoinbaseApiClient {
       ask: '0'  // Not directly available in Exchange API
     }));
   }
+  
   // OAuth Methods
   
   public async getUserProfile(accessToken: string): Promise<any> {
