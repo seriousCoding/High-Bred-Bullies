@@ -249,6 +249,7 @@ export class CoinbaseClient {
     const ts = timestamp || Math.floor(Date.now() / 1000).toString();
     
     // Ensure path is correctly formatted for Advanced API
+    // The path should start with /api/v3/brokerage/
     let fullPath = requestPath;
     if (!fullPath.startsWith('/api/v3/brokerage')) {
       // Remove any leading slashes to avoid double slashes
@@ -263,6 +264,9 @@ export class CoinbaseClient {
       fullPath = parts[0];
       queryParams = `?${parts[1]}`;
     }
+    
+    // Log the full path for debugging
+    console.log(`Creating Advanced API signature for: ${method} ${fullPath}${queryParams}`);
     
     // Create the message to sign: timestamp + HTTP method + request path + body
     const signatureMessage = ts + method + fullPath + queryParams + body;
@@ -331,16 +335,18 @@ export class CoinbaseClient {
       }
       
       // Create request headers with authentication
+      const dataString = data ? JSON.stringify(data) : '';
       const headers = this.createAdvancedHeaders(
         method,
         fullPath,
-        data ? JSON.stringify(data) : ''
+        dataString
       );
       
+      // Make sure to use the same URL path that was used for the signature
       const response = await advancedApi.request({
         method,
-        url: path,
-        params,
+        url: path, // Use the base path for the URL
+        params,    // Let axios add the params
         data,
         headers
       });
