@@ -74,13 +74,23 @@ export default function AuthPage() {
 
   // Handle login form submission
   const onLoginSubmit = (values: LoginFormValues) => {
-    loginMutation.mutate(values);
+    loginMutation.mutate(values, {
+      onSuccess: () => {
+        // After successful login, redirect to Coinbase connection page
+        setLocation("/connect-coinbase");
+      }
+    });
   };
 
   // Handle register form submission
   const onRegisterSubmit = (values: RegisterFormValues) => {
     const { username, password } = values;
-    registerMutation.mutate({ username, password });
+    registerMutation.mutate({ username, password }, {
+      onSuccess: () => {
+        // After successful registration, redirect to Coinbase connection page
+        setLocation("/connect-coinbase");
+      }
+    });
   };
 
   return (

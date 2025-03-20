@@ -16,21 +16,27 @@ import ApiKeyAuthPage from "@/pages/api-key-auth";
 import AddApiKeyPage from "@/pages/add-api-key";
 import { ApiKeysProvider } from "@/context/ApiKeysContext";
 import { MarketsProvider } from "@/context/MarketsContext";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { UnifiedAuthProvider } from "@/hooks/use-unified-auth";
 import { ProtectedRoute, ApiKeyRequiredRoute } from "@/lib/protected-route";
 
-function Router() {
+const RouterWithAuth = () => {
+  const { user } = useAuth();
+  
   return (
     <Switch>
-      {/* Public Routes */}
+      {/* Public Routes - Always accessible */}
       <Route path="/auth" component={AuthPage} />
-      <Route path="/unified-auth" component={UnifiedAuthPage} />
-      <Route path="/api-key-auth" component={ApiKeyAuthPage} />
       <Route path="/auth/callback" component={OAuthCallback} />
       
-      {/* Authentication Required Routes */}
-      <ApiKeyRequiredRoute path="/add-api-key" component={AddApiKeyPage} />
+      {/* Routes that require user login but not API keys */}
+      {user ? (
+        <>
+          <Route path="/connect-coinbase" component={UnifiedAuthPage} />
+          <Route path="/api-key-auth" component={ApiKeyAuthPage} />
+          <Route path="/add-api-key" component={AddApiKeyPage} />
+        </>
+      ) : null}
       
       {/* Protected Routes (require auth + API keys) */}
       <ProtectedRoute path="/" component={Dashboard} />
@@ -42,6 +48,30 @@ function Router() {
       
       {/* Fallback Route */}
       <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+// Router needs to be inside the AuthProvider context to use the useAuth hook
+function Router() {
+  return (
+    <Switch>
+      {/* Public Routes - Always accessible */}
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/auth/callback" component={OAuthCallback} />
+      
+      {/* All other routes should be protected and check for login */}
+      <Route path="/connect-coinbase" component={UnifiedAuthPage} />
+      <Route path="/api-key-auth" component={ApiKeyAuthPage} />
+      <Route path="/add-api-key" component={AddApiKeyPage} />
+      
+      {/* Dashboard and other pages */}
+      <Route path="/markets" component={Markets} />
+      <Route path="/portfolio" component={Portfolio} />
+      <Route path="/orders" component={Orders} />
+      <Route path="/history" component={History} />
+      <Route path="/settings" component={Settings} />
+      <Route path="/" component={Dashboard} />
     </Switch>
   );
 }
