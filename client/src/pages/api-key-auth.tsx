@@ -36,18 +36,28 @@ export default function ApiKeyAuthPage() {
     setIsSubmitting(true);
     
     try {
-      const response = await apiRequest('POST', '/api/keys', {
-        userId: 1, // This should be properly handled on the server side
-        label: values.label,
-        apiKey: values.apiKey,
-        apiSecret: values.apiSecret,
-        isActive: true
+      // Use direct fetch with credentials to ensure cookies are sent
+      const response = await fetch('/api/keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include', // Important for session cookies
+        body: JSON.stringify({
+          userId: 1, // The server should get this from session
+          label: values.label,
+          apiKey: values.apiKey,
+          apiSecret: values.apiSecret,
+          priority: 1 // Default priority
+        })
       });
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to add API key');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add API key');
       }
+      
+      const data = await response.json();
       
       toast({
         title: "API Key Added",
