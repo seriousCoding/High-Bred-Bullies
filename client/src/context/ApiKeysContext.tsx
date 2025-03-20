@@ -212,55 +212,43 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   };
   
   // Initiate OAuth login flow
-  const initiateOAuthFlow = () => {
-    console.log("---------------------------------------------");
-    console.log("STARTING COINBASE OAUTH CONNECTION FLOW");
-    
-    // Generate random state for CSRF protection
-    const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem(OAUTH_STATE_KEY, state);
-    
-    console.log("Starting OAuth flow with state:", state.substring(0, 5) + "...");
-    console.log("Will redirect to:", REDIRECT_URI);
-    
-    if (!CLIENT_ID) {
-      console.error("ERROR: Client ID is missing or empty");
-      console.error("Please ensure VITE_COINBASE_OAUTH_CLIENT_ID environment variable is set");
-      alert("OAuth configuration is incomplete. Please contact support.");
-      return;
+  const initiateOAuthFlow = async () => {
+    try {
+      console.log("---------------------------------------------");
+      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA SERVER PROXY");
+      console.log("Will redirect to:", REDIRECT_URI);
+      
+      // Use server-side proxy to generate the OAuth URL
+      // This helps avoid CORS/connection issues by having the server make the initial request
+      const response = await fetch(`/api/oauth/init?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Server OAuth initialization failed:", errorData);
+        throw new Error(errorData.message || "Failed to initialize OAuth flow");
+      }
+      
+      const data = await response.json();
+      
+      // Store the state for CSRF protection
+      localStorage.setItem(OAUTH_STATE_KEY, data.state);
+      
+      console.log("Received OAuth URL from server");
+      console.log("Starting OAuth flow with state:", data.state.substring(0, 5) + "...");
+      
+      // Redirect user to authorization page
+      const authUrl = data.auth_url;
+      console.log("Redirecting to authorization URL:", authUrl.substring(0, 60) + "...");
+      
+      // Redirect user to authorization page
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error("---------------------------------------------");
+      console.error("OAUTH INITIALIZATION ERROR:");
+      console.error(error);
+      console.error("---------------------------------------------");
+      throw error; // Re-throw so the component can handle it
     }
-    
-    // Build authorization URL
-    const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
-    authUrl.searchParams.append("response_type", "code");
-    authUrl.searchParams.append("client_id", CLIENT_ID);
-    authUrl.searchParams.append("redirect_uri", REDIRECT_URI);
-    authUrl.searchParams.append("state", state);
-    
-    // Required scopes for accessing different Coinbase API endpoints
-    const scopes = [
-      "wallet:accounts:read",
-      "wallet:user:read",
-      "wallet:buys:read",
-      "wallet:sells:read",
-      "wallet:transactions:read",
-      "wallet:payment-methods:read",
-      "wallet:addresses:read",
-      "wallet:orders:read",
-      "wallet:orders:create",
-      "wallet:orders:update",
-      "wallet:trades:read",
-      "offline_access"
-    ];
-    
-    console.log("Requesting the following scopes:", scopes.join(", "));
-    authUrl.searchParams.append("scope", scopes.join(","));
-    
-    const finalUrl = authUrl.toString();
-    console.log("Redirecting to authorization URL:", finalUrl.substring(0, 60) + "...");
-    
-    // Redirect user to authorization page
-    window.location.href = finalUrl;
   };
   
   return (

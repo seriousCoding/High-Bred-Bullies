@@ -18,10 +18,6 @@ const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
 // Debug OAuth configuration
-console.log("OAuth credentials status:", {
-  client_id_available: !!COINBASE_OAUTH_CLIENT_ID,
-  client_secret_available: !!COINBASE_OAUTH_CLIENT_SECRET
-});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -324,6 +320,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // OAuth2 Flow Endpoints
+  
+  // OAuth initialization proxy endpoint
+  app.get('/api/oauth/init', (req: Request, res: Response) => {
+    try {
+      console.log("---------------------------------------------");
+      console.log("SERVER-SIDE OAUTH INITIALIZATION");
+      
+      if (!COINBASE_OAUTH_CLIENT_ID) {
+        console.error("Missing OAuth client ID in server configuration");
+        return res.status(500).json({ message: 'OAuth client credentials are not configured' });
+      }
+      
+      // Generate state for CSRF protection
+      const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      // Build the redirect URL
+      const redirectUri = req.query.redirect_uri as string;
+      if (!redirectUri) {
+        return res.status(400).json({ message: 'Redirect URI is required' });
+      }
+      
+      console.log("Initializing OAuth with redirect URI:", redirectUri);
+      
+      // Create authorization URL
+      const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
+      authUrl.searchParams.append("response_type", "code");
+      authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
+      authUrl.searchParams.append("redirect_uri", redirectUri);
+      authUrl.searchParams.append("state", state);
+      
+      // Add required scopes
+      const scopes = [
+        "wallet:accounts:read",
+        "wallet:user:read",
+        "wallet:buys:read",
+        "wallet:sells:read",
+        "wallet:transactions:read",
+        "wallet:payment-methods:read",
+        "wallet:addresses:read",
+        "wallet:orders:read",
+        "wallet:orders:create",
+        "wallet:orders:update",
+        "wallet:trades:read",
+        "offline_access"
+      ];
+      authUrl.searchParams.append("scope", scopes.join(","));
+      
+      // Return auth URL and state
+      console.log("Generated OAuth URL:", authUrl.toString().substring(0, 60) + "...");
+      console.log("---------------------------------------------");
+      
+      res.json({ 
+        auth_url: authUrl.toString(),
+        state
+      });
+    } catch (error) {
+      console.error("Error initializing OAuth:", error);
+      res.status(500).json({ message: 'Failed to initialize OAuth flow' });
+    }
+  });
+  
   app.post('/api/oauth/token', async (req: Request, res: Response) => {
     try {
       console.log('---------------------------------------------');

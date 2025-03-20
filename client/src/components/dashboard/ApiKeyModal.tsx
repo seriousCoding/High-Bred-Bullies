@@ -36,18 +36,11 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
       console.log("---------------------------------------------");
       console.log("INITIATING OAUTH CONNECTION FROM MODAL");
       
-      // Verify Coinbase client ID is available
-      const clientId = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID;
-      if (!clientId) {
-        console.error("ERROR: Missing Coinbase OAuth client ID");
-        throw new Error("OAuth configuration is incomplete (missing client ID)");
-      }
-      
-      console.log("OAuth client configuration is present");
+      console.log("Using server-side proxy for OAuth initialization");
       console.log("Redirect URI:", window.location.origin + "/auth/callback");
       
-      // Start the OAuth flow - this will redirect to Coinbase
-      initiateOAuthFlow();
+      // Start the OAuth flow - this will redirect to Coinbase via the server proxy
+      await initiateOAuthFlow();
       
       // Note: The page will navigate away, so any code after initiateOAuthFlow()
       // won't execute unless there's an error that prevents navigation
