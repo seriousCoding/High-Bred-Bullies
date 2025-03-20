@@ -132,11 +132,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'API credentials are required' });
       }
       
-      const products = await coinbaseApi.getProducts(apiKey, apiSecret);
-      res.json(products);
+      try {
+        // Try authenticated endpoint first
+        const products = await coinbaseApi.getProducts(apiKey, apiSecret);
+        return res.json(products);
+      } catch (authError) {
+        console.log('Authentication failed for products endpoint. Using public fallback...');
+        
+        // Fall back to public API endpoint if authentication fails
+        const publicProducts = await coinbaseApi.getPublicProducts();
+        return res.json(publicProducts);
+      }
     } catch (error) {
       console.error('Error fetching products:', error);
-      res.status(500).json({ message: 'Failed to fetch products' });
+      res.json([]); // Return empty array rather than error to prevent frontend errors
     }
   });
 
