@@ -686,6 +686,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // OAuth callback endpoint - This is where Coinbase will redirect after user authorizes
+  app.get('/auth/callback', async (req: Request, res: Response) => {
+    try {
+      console.log('---------------------------------------------');
+      console.log('OAUTH CALLBACK RECEIVED');
+      console.log('Received callback params:', req.query);
+
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      const error = req.query.error as string;
+      const errorDescription = req.query.error_description as string;
+
+      // Redirect URL for sending the user back to our app
+      const frontendUrl = `${req.protocol}://${req.get('host')}`;
+      
+      // If there was an error from Coinbase, redirect to error page
+      if (error) {
+        console.error('OAuth error from provider:', error);
+        console.error('Error description:', errorDescription);
+        return res.redirect(`${frontendUrl}/?error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`);
+      }
+
+      // Validate we received the required code and state
+      if (!code || !state) {
+        console.error('Missing code or state in callback');
+        return res.redirect(`${frontendUrl}/?error=invalid_callback&error_description=${encodeURIComponent('Missing required parameters')}`);
+      }
+
+      console.log('Received auth code and state. Redirecting to frontend...');
+      // Redirect to the frontend with code and state for client-side processing
+      res.redirect(`${frontendUrl}/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      const frontendUrl = `${req.protocol}://${req.get('host')}`;
+      res.redirect(`${frontendUrl}/?error=server_error&error_description=${encodeURIComponent('Server error processing authentication')}`);
+    }
+  });
+
   app.post('/api/oauth/token', async (req: Request, res: Response) => {
     try {
       console.log('---------------------------------------------');

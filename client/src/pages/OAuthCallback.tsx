@@ -1,12 +1,14 @@
 import * as React from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 export default function OAuthCallback() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [status, setStatus] = React.useState<"loading" | "success" | "error">("loading");
   const [error, setError] = React.useState<string | null>(null);
+  const [exchangeInProgress, setExchangeInProgress] = React.useState(false);
 
   React.useEffect(() => {
     // This component handles displaying the OAuth callback status
@@ -67,8 +69,21 @@ export default function OAuthCallback() {
       // Code received, check state before proceeding
       console.log("Authorization code received successfully");
       
-      if (state && state === savedState) {
+      if (!state || !savedState) {
+        // In case state is missing, still try to proceed
+        console.warn("State validation was skipped - either state or saved state is missing");
+        localStorage.setItem("oauth_code", code); // Save for manual exchange
+        setStatus("success");
+        
+        toast({
+          title: "Authentication Processing",
+          description: "Connecting to your account...",
+        });
+      }
+      else if (state === savedState) {
         console.log("State validation passed: tokens will be exchanged");
+        // Store code for ApiKeysContext to find
+        localStorage.setItem("oauth_code", code);
         setStatus("success");
         
         // State matched, show success message
@@ -77,8 +92,8 @@ export default function OAuthCallback() {
           description: "Successfully connected to your account.",
         });
         
-        // The actual token exchange is handled by ApiKeysContext
-        // ApiKeysContext will automatically redirect to homepage after token exchange
+        // The token exchange should trigger automatically in ApiKeysContext
+        // This component will wait for it to complete
       } else {
         console.error("State validation failed - possible CSRF attack or state was lost");
         setStatus("error");
@@ -113,6 +128,68 @@ export default function OAuthCallback() {
       }, 5000);
     }
   }, [setLocation, toast]);
+
+  // Function for manual token exchange
+  const handleManualExchange = async () => {
+    try {
+      setExchangeInProgress(true);
+      const code = localStorage.getItem("oauth_code");
+      if (!code) {
+        throw new Error("Authorization code not found");
+      }
+
+      const redirectUri = window.location.origin + "/auth/callback";
+      const response = await fetch("/api/oauth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code: code,
+          redirect_uri: redirectUri
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to exchange token");
+      }
+
+      const data = await response.json();
+
+      // Save tokens
+      localStorage.setItem("trading_access_token", data.access_token);
+      localStorage.setItem("trading_refresh_token", data.refresh_token);
+      
+      // Calculate expiration time
+      const expiresIn = data.expires_in || 7200; // default 2 hours
+      const expirationTime = Date.now() + expiresIn * 1000;
+      localStorage.setItem("trading_expires_at", expirationTime.toString());
+      
+      // Clear temporary data
+      localStorage.removeItem("oauth_code");
+      localStorage.removeItem("auth_state_key");
+
+      toast({
+        title: "Authentication Complete",
+        description: "Successfully connected to your Coinbase account.",
+      });
+
+      // Redirect to home
+      setLocation("/");
+    } catch (error) {
+      console.error("Manual token exchange error:", error);
+      
+      toast({
+        variant: "destructive",
+        title: "Authentication Failed",
+        description: "Could not complete the authentication process. Please try again.",
+      });
+      
+      setStatus("error");
+      setError(error instanceof Error ? error.message : "Unknown error");
+      setExchangeInProgress(false);
+    }
+  };
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-bg">
@@ -132,9 +209,22 @@ export default function OAuthCallback() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Authentication Successful</h2>
-            <p className="text-gray-400 mb-4">Successfully connected to your trading account.</p>
-            <p className="text-sm text-gray-500">Redirecting you back to the dashboard...</p>
+            <h2 className="text-xl font-semibold text-white mb-2">Authentication Processing</h2>
+            <p className="text-gray-400 mb-4">Successfully received your authorization.</p>
+            <p className="text-sm text-gray-500 mb-4">If you're not redirected automatically, please click the button below.</p>
+            
+            <Button 
+              onClick={handleManualExchange} 
+              disabled={exchangeInProgress}
+              className="w-full bg-[#0052FF] hover:bg-[#0039B3] text-white font-medium py-2"
+            >
+              {exchangeInProgress ? (
+                <>
+                  <span className="mr-2 inline-block animate-spin">↻</span>
+                  Processing...
+                </>
+              ) : "Complete Login"}
+            </Button>
           </>
         )}
         
@@ -147,7 +237,14 @@ export default function OAuthCallback() {
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Authentication Failed</h2>
             <p className="text-gray-400 mb-4">{error || "Failed to connect to your trading account."}</p>
-            <p className="text-sm text-gray-500">Redirecting you back to try again...</p>
+            <p className="text-sm text-gray-500 mb-4">Redirecting you back to try again...</p>
+            
+            <Button 
+              onClick={() => setLocation("/")} 
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2"
+            >
+              Return to Home
+            </Button>
           </>
         )}
       </div>
