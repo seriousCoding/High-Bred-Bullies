@@ -67,28 +67,55 @@ export function useWebSocket() {
         console.log("WebSocket connection established");
         setStatus("open");
         
-        // Always immediately send a heartbeat subscription to avoid "subscribe required" errors
-        const heartbeatSubscription = {
-          type: 'subscribe',
-          channel: 'heartbeat',
-          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
-        };
-        
+        // According to Coinbase WebSocket API documentation, we need to send a subscription
+        // within 5 seconds of connecting or the connection will be closed with "subscribe required" error
+        // We'll send two initial subscriptions to ensure the connection stays alive
         try {
-          console.log("Initializing heartbeat subscription");
+          // First subscription - heartbeat channel (lightweight)
+          const heartbeatSubscription = {
+            type: 'subscribe',
+            channel: 'heartbeat',
+            product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
+          };
+          console.log("Sending required heartbeat subscription");
           ws.send(JSON.stringify(heartbeatSubscription));
+          
+          // Second subscription after a short delay - ticker channel (provides useful price data)
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              const tickerSubscription = {
+                type: 'subscribe',
+                channel: 'ticker',
+                product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
+              };
+              console.log("Sending ticker subscription to maintain connection");
+              ws.send(JSON.stringify(tickerSubscription));
+            }
+          }, 1000);
+          
+          // Third subscription for market data
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              const level2Subscription = {
+                type: 'subscribe',
+                channel: 'level2',
+                product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
+              };
+              console.log("Sending level2 subscription for market data");
+              ws.send(JSON.stringify(level2Subscription));
+            }
+          }, 2000);
         } catch (error) {
-          console.error("Failed to send heartbeat subscription", error);
+          console.error("Failed to send required subscriptions", error);
         }
         
-        // Start processing queued messages with rate limiting
+        // Start processing message queue after initial subscriptions
         if (messageQueue.current.length > 0 && !isProcessingQueue.current && processQueueRef.current) {
-          // Add a small delay before starting to process the queue
           setTimeout(() => {
             if (processQueueRef.current) {
               processQueueRef.current();
             }
-          }, 500);
+          }, 3000); // Wait until after initial subscriptions
         }
       };
 
