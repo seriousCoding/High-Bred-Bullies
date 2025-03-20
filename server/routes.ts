@@ -14,13 +14,13 @@ import path from 'path';
 // Load environment variables
 dotenv.config();
 
-// OAuth configuration - using direct IDs for more reliable access
-const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID || "05a92dde-6f06-4571-9c00-3f2d2bd23906";
-const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET || "BclnHichGYmbkV_Fp1qkYqCkAC";
-// Secondary OAuth credentials as fallback
-const COINBASE_OAUTH_CLIENT_ID_ALT = "fb148f7f-d7bf-4538-b310-161ceefc213a";
-const COINBASE_OAUTH_CLIENT_SECRET_ALT = "faj-AiE2v94pO4EtgZrMoPyBDK";
-const COINBASE_CLIENT_API_KEY = "3RCxCpxADj5jSHikSRv6HSv2dOMjjakb"; // Client API key for UI access
+// OAuth configuration - using environment variables for secure access
+const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID;
+const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
+// We should not hardcode any OAuth credentials, use environment variables only
+const COINBASE_OAUTH_CLIENT_ID_ALT = process.env.COINBASE_OAUTH_CLIENT_ID_ALT;
+const COINBASE_OAUTH_CLIENT_SECRET_ALT = process.env.COINBASE_OAUTH_CLIENT_SECRET_ALT;
+const COINBASE_CLIENT_API_KEY = process.env.COINBASE_CLIENT_API_KEY; // Client API key for UI access
 const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
@@ -193,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/keys', async (req: Request, res: Response) => {
     try {
       // In a real app, you'd get userId from auth session
-      const userId = 1; // Placeholder
+      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
       const keys = await storage.getApiKeys(userId);
       
       // Only return partial key info for security
@@ -368,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/accounts', async (req: Request, res: Response) => {
     try {
       // For now, use user ID 1 for simplicity since we haven't implemented full user auth
-      const userId = 1;
+      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
       
       try {
         console.log('Fetching accounts using API key rotation system...');
@@ -518,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/favorites', async (req: Request, res: Response) => {
     try {
       // In a real app, you'd get userId from auth session
-      const userId = 1; // Placeholder
+      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
       const { productId } = req.body;
       
       if (!productId) {
@@ -536,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/favorites', async (req: Request, res: Response) => {
     try {
       // In a real app, you'd get userId from auth session
-      const userId = 1; // Placeholder
+      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
       const favorites = await storage.getFavoriteMarkets(userId);
       res.json(favorites);
     } catch (error) {
