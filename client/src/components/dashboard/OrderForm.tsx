@@ -119,8 +119,9 @@ export function OrderForm() {
     const price = orderType === "LIMIT" ? parseFloat(limitPrice) : parseFloat(selectedMarket.price);
     const amountValue = parseFloat(amount);
     
-    // For simplicity, assume 0.5% fee
-    const fee = (amountValue * 0.005);
+    // Fee should be fetched from the API in a real implementation
+    // Using 0% fee until we get the actual fee structure from the API
+    const fee = 0;
     
     // Calculate total and units based on mode (buy/sell)
     if (mode === "buy") {
@@ -134,7 +135,8 @@ export function OrderForm() {
     } else {
       // Selling
       const totalValue = amountValue * price;
-      const feeValue = totalValue * 0.005;
+      // Fee should be fetched from the API in a real implementation
+      const feeValue = 0;
       return {
         pricePerUnit: `$${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
         totalUnits: amountValue.toLocaleString(undefined, { maximumFractionDigits: 8 }),
@@ -293,7 +295,7 @@ export function OrderForm() {
                 disabled={!hasKeys}
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
-                {mode === 'buy' ? 'USD' : selectedMarket?.base_name || 'BTC'}
+                {mode === 'buy' ? 'USD' : (selectedMarket?.base_name || '')}
               </div>
             </div>
           </div>
@@ -337,11 +339,11 @@ export function OrderForm() {
           
           <div className="bg-dark-bg rounded-md p-3 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Price per {selectedMarket?.base_name || 'BTC'}</span>
+              <span className="text-gray-400">Price per {selectedMarket?.base_name || ''}</span>
               <span className="text-white font-mono">{orderDetails.pricePerUnit}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Total {selectedMarket?.base_name || 'BTC'}</span>
+              <span className="text-gray-400">Total {selectedMarket?.base_name || ''}</span>
               <span className="text-white font-mono">{orderDetails.totalUnits}</span>
             </div>
             <div className="flex justify-between text-sm">
@@ -369,7 +371,7 @@ export function OrderForm() {
                 Processing...
               </span>
             ) : (
-              `${mode === 'buy' ? 'Buy' : 'Sell'} ${selectedMarket?.base_name || 'BTC'}`
+              selectedMarket?.base_name ? `${mode === 'buy' ? 'Buy' : 'Sell'} ${selectedMarket.base_name}` : `${mode === 'buy' ? 'Buy' : 'Sell'}`
             )}
           </button>
         </div>
