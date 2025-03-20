@@ -9,21 +9,21 @@ async function throwIfResNotOk(res: Response) {
 
 // Updated API request function with flexible options
 export async function apiRequest(
+  method: string,
   url: string,
+  body?: any,
   options?: {
-    method?: string;
-    body?: string | object;
     headers?: Record<string, string>;
     token?: string | null;
     userId?: number | null;
   }
-): Promise<any> {
+): Promise<Response> {
   const headers: Record<string, string> = {
     ...(options?.headers || {})
   };
   
   // Add content type for JSON if we have a body
-  if (options?.body && !headers['Content-Type']) {
+  if (body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
   
@@ -45,16 +45,16 @@ export async function apiRequest(
   
   // Prepare the fetch options
   const fetchOptions: RequestInit = {
-    method: options?.method || 'GET',
+    method,
     headers,
     credentials: 'include'
   };
   
   // Add body if provided
-  if (options?.body) {
-    fetchOptions.body = typeof options.body === 'string' 
-      ? options.body 
-      : JSON.stringify(options.body);
+  if (body) {
+    fetchOptions.body = typeof body === 'string' 
+      ? body 
+      : JSON.stringify(body);
   }
   
   // Make the request
@@ -63,13 +63,8 @@ export async function apiRequest(
   // Check if the response is OK
   await throwIfResNotOk(res);
   
-  // Try to parse as JSON if possible
-  try {
-    return await res.json();
-  } catch (e) {
-    // Return the response object if not JSON
-    return res;
-  }
+  // Return the response
+  return res;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

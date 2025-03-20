@@ -44,35 +44,32 @@ export default function AddApiKeyPage() {
 
     setIsLoading(true);
     try {
-      const res = await apiRequest("POST", "/api/keys", {
+      const payload = {
         label,
         apiKey,
         apiSecret,
-      });
+      };
       
+      const res = await apiRequest("POST", "/api/keys", payload);
       const data = await res.json();
       
-      if (res.ok) {
-        toast({
-          title: "API Key Added",
-          description: "Your Coinbase API key has been added successfully",
-        });
-        setIsSuccess(true);
-        
-        // Refetch the user data to update the hasApiKeys status
-        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-        
-        // Clear sensitive form data
-        setApiKey("");
-        setApiSecret("");
-        
-        // Wait a moment before redirecting so the user sees the success state
-        setTimeout(() => {
-          setLocation("/");
-        }, 1500);
-      } else {
-        throw new Error(data.message || "Failed to add API key");
-      }
+      toast({
+        title: "API Key Added",
+        description: "Your Coinbase API key has been added successfully",
+      });
+      setIsSuccess(true);
+      
+      // Refetch the user data to update the hasApiKeys status
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
+      // Clear sensitive form data
+      setApiKey("");
+      setApiSecret("");
+      
+      // Wait a moment before redirecting so the user sees the success state
+      setTimeout(() => {
+        setLocation("/");
+      }, 1500);
     } catch (error) {
       toast({
         title: "Error adding API key",

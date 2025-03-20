@@ -4,18 +4,24 @@ import {
   useMutation,
   UseMutationResult,
 } from "@tanstack/react-query";
-import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+// Extended User type including hasApiKeys flag
+interface AuthUser {
+  id: number;
+  username: string;
+  hasApiKeys: boolean;
+}
+
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
   error: Error | null;
   hasApiKeys: boolean;
-  loginMutation: UseMutationResult<User, Error, LoginData>;
+  loginMutation: UseMutationResult<AuthUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<User, Error, RegisterData>;
+  registerMutation: UseMutationResult<AuthUser, Error, RegisterData>;
 };
 
 type LoginData = {
@@ -38,18 +44,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     isLoading,
     refetch: refetchUser
-  } = useQuery<User | null, Error>({
+  } = useQuery<AuthUser | null>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
+    // Important: Set initial data to null rather than undefined
+    initialData: null,
   });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const data = await res.json();
+      return data as AuthUser;
     },
-    onSuccess: (user: User) => {
+    onSuccess: (user: AuthUser) => {
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Login successful",
@@ -68,9 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async (credentials: RegisterData) => {
       const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
+      const data = await res.json();
+      return data as AuthUser;
     },
-    onSuccess: (user: User) => {
+    onSuccess: (user: AuthUser) => {
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Registration successful",
@@ -88,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      await apiRequest("POST", "/api/logout", {});
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
@@ -121,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLoading, refetchUser]);
 
   // Determine if the user has API keys
-  const hasApiKeys = user ? user.hasApiKeys || false : false;
+  const hasApiKeys = user?.hasApiKeys || false;
 
   return (
     <AuthContext.Provider
