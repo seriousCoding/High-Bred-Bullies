@@ -108,7 +108,7 @@ export function AccountOverview() {
         name: getCurrencyName(account.currency),
         amount: account.available_balance.value,
         value: "$" + (parseFloat(account.available_balance.value) * getCurrencyPrice(account.currency)).toFixed(2),
-        change: getRandomChange(), // In a real app, this would come from price data
+        change: getPriceChange(account.currency), // This should come from real price data
         icon: currencyColors[account.currency] || "bg-gray-600"
       }))
       .sort((a, b) => parseFloat(b.value.substring(1)) - parseFloat(a.value.substring(1)));
@@ -122,8 +122,9 @@ export function AccountOverview() {
     };
   };
   
-  // Mock function to get currency name
+  // Get currency name from currency code
   const getCurrencyName = (currency: string): string => {
+    // Common cryptocurrency names
     const names: Record<string, string> = {
       BTC: "Bitcoin",
       ETH: "Ethereum",
@@ -134,23 +135,20 @@ export function AccountOverview() {
     return names[currency] || currency;
   };
   
-  // Mock function to get currency price
+  // Function to get currency price - in a real implementation this should use real market data
   const getCurrencyPrice = (currency: string): number => {
-    const prices: Record<string, number> = {
-      BTC: 42000,
-      ETH: 3200,
-      SOL: 84,
-      USDC: 1,
-      USD: 1
-    };
-    return prices[currency] || 1;
+    // For now, we'll use 1:1 for USD and USDC as they're stablecoins
+    if (currency === 'USD' || currency === 'USDC') {
+      return 1;
+    }
+    // For other currencies, we should ideally fetch this from the API
+    // but for now return 0 to avoid showing incorrect values
+    return 0;
   };
   
-  // Mock function to generate a random price change
-  // In a real app, this would come from historical price data
-  const getRandomChange = (): string => {
-    const change = (Math.random() * 5 - 2).toFixed(2);
-    return parseFloat(change) >= 0 ? `+${change}%` : `${change}%`;
+  // Get price change percentage - should come from API in real implementation
+  const getPriceChange = (currency: string): string => {
+    return "0.00%";  // Default to 0% change until we have real data
   };
   
   const { totalBalance, balances } = formatAccountData();
@@ -193,7 +191,8 @@ export function AccountOverview() {
             <div className="mb-4">
               <div className="text-sm text-gray-400">Total Balance (USD)</div>
               <div className="text-2xl font-medium font-mono text-white">{totalBalance}</div>
-              <div className="text-xs font-medium text-[#05B169]">+3.25% today</div>
+              {/* This should be updated with real daily performance data */}
+              <div className="text-xs font-medium">0.00% today</div>
             </div>
             
             <div className="space-y-3">

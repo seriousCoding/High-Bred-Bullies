@@ -79,14 +79,22 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
+          // Filter out products with placeholder/default/zero values
+          const realProducts = data.filter(product => {
+            return product.price !== "0" && 
+                  parseFloat(product.price || "0") > 0 &&
+                  product.volume_24h !== "0" && 
+                  parseFloat(product.volume_24h || "0") > 0;
+          });
+          
           // Sort products by volume (descending)
-          const sortedProducts = [...data].sort((a, b) => {
+          const sortedProducts = [...realProducts].sort((a, b) => {
             const volumeA = parseFloat(a.volume_24h) || 0;
             const volumeB = parseFloat(b.volume_24h) || 0;
             return volumeB - volumeA;
           });
           
-          console.log(`Loaded ${sortedProducts.length} markets from API`);
+          console.log(`Loaded ${sortedProducts.length} active markets from API`);
           setMarkets(sortedProducts);
           
           // Set BTC-USD as default selected market, or first product if not available
