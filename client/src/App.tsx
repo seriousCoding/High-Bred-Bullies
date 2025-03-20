@@ -10,19 +10,32 @@ import Orders from "@/pages/Orders";
 import History from "@/pages/History";
 import Settings from "@/pages/Settings";
 import OAuthCallback from "@/pages/OAuthCallback";
+import AuthPage from "@/pages/auth-page";
+import AddApiKeyPage from "@/pages/add-api-key";
 import { ApiKeysProvider } from "@/context/ApiKeysContext";
 import { MarketsProvider } from "@/context/MarketsContext";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute, ApiKeyRequiredRoute } from "@/lib/protected-route";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/markets" component={Markets} />
-      <Route path="/portfolio" component={Portfolio} />
-      <Route path="/orders" component={Orders} />
-      <Route path="/history" component={History} />
-      <Route path="/settings" component={Settings} />
+      {/* Public Routes */}
+      <Route path="/auth" component={AuthPage} />
       <Route path="/auth/callback" component={OAuthCallback} />
+      
+      {/* Authentication Required Routes */}
+      <ApiKeyRequiredRoute path="/add-api-key" component={AddApiKeyPage} />
+      
+      {/* Protected Routes (require auth + API keys) */}
+      <ProtectedRoute path="/" component={Dashboard} />
+      <ProtectedRoute path="/markets" component={Markets} />
+      <ProtectedRoute path="/portfolio" component={Portfolio} />
+      <ProtectedRoute path="/orders" component={Orders} />
+      <ProtectedRoute path="/history" component={History} />
+      <ProtectedRoute path="/settings" component={Settings} />
+      
+      {/* Fallback Route */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -31,14 +44,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ApiKeysProvider>
-        <MarketsProvider>
-          <div className="min-h-screen bg-dark-bg text-gray-200 flex">
-            <Router />
-          </div>
-          <Toaster />
-        </MarketsProvider>
-      </ApiKeysProvider>
+      <AuthProvider>
+        <ApiKeysProvider>
+          <MarketsProvider>
+            <div className="min-h-screen bg-background text-foreground flex">
+              <Router />
+            </div>
+            <Toaster />
+          </MarketsProvider>
+        </ApiKeysProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
