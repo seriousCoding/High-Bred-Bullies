@@ -794,8 +794,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
       </html>
       `;
       
-      // Serve the HTML page
-      res.send(callbackHtml);
+      // Create a more user-friendly HTML that clearly displays the code
+      const codeDisplayHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication Code</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0D0D0D;
+            color: #FFFFFF;
+            text-align: center;
+            padding: 40px 20px;
+            line-height: 1.6;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #1A1A1A;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          h1 {
+            color: #FFFFFF;
+            font-size: 24px;
+            margin-bottom: 20px;
+          }
+          p {
+            color: #CCCCCC;
+            margin-bottom: 25px;
+          }
+          .code-display {
+            background-color: #0D0D0D;
+            border: 1px solid #3A3A3A;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 18px;
+            word-break: break-all;
+            color: #0052FF;
+            text-align: center;
+          }
+          .button {
+            background-color: #0052FF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: background-color 0.2s;
+          }
+          .button:hover {
+            background-color: #0039B3;
+          }
+          .button.secondary {
+            background-color: #3A3A3A;
+          }
+          .button.secondary:hover {
+            background-color: #505050;
+          }
+          .success-icon {
+            color: #0052FF;
+            font-size: 48px;
+            margin-bottom: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success-icon">✓</div>
+          <h1>Authentication Successful</h1>
+          <p>Please copy the authorization code below and paste it into the app:</p>
+          
+          <div class="code-display" id="authCode">${code}</div>
+          
+          <button class="button" id="copyButton">Copy Code</button>
+          <button class="button secondary" id="returnButton">Return to App</button>
+        </div>
+        
+        <script>
+          // Copy code to clipboard
+          document.getElementById('copyButton').addEventListener('click', function() {
+            const codeEl = document.getElementById('authCode');
+            const code = codeEl.innerText;
+            
+            // Try the modern clipboard API first
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(code)
+                .then(() => {
+                  this.innerText = 'Copied!';
+                  setTimeout(() => { this.innerText = 'Copy Code'; }, 2000);
+                })
+                .catch(err => {
+                  console.error('Could not copy text with Clipboard API:', err);
+                  // Fall back to the older method
+                  fallbackCopy();
+                });
+            } else {
+              // Fall back to the older method for browsers that don't support clipboard API
+              fallbackCopy();
+            }
+            
+            // Fallback copy method
+            function fallbackCopy() {
+              const selection = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(codeEl);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              
+              try {
+                document.execCommand('copy');
+                document.getElementById('copyButton').innerText = 'Copied!';
+                setTimeout(() => { 
+                  document.getElementById('copyButton').innerText = 'Copy Code'; 
+                }, 2000);
+              } catch (err) {
+                console.error('execCommand Error:', err);
+                document.getElementById('copyButton').innerText = 'Failed to copy';
+                alert('Please select and copy the code manually');
+              }
+              
+              selection.removeAllRanges();
+            }
+          });
+          
+          // Return to app
+          document.getElementById('returnButton').addEventListener('click', function() {
+            window.location.href = '${frontendUrl}';
+          });
+        </script>
+      </body>
+      </html>
+      `;
+      
+      // Serve the user-friendly HTML page
+      res.send(codeDisplayHtml);
     } catch (error) {
       console.error('OAuth callback error:', error);
       const frontendUrl = `${req.protocol}://${req.get('host')}`;
