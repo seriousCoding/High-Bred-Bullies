@@ -174,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Product Trades Endpoint - using Coinbase Core API
+  // Product Trades Endpoint - using Coinbase Exchange API (public, no auth needed)
   app.get('/api/products/:productId/trades', async (req: Request, res: Response) => {
     try {
       const { productId } = req.params;
@@ -183,7 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Trades API request received for ${productId}`);
       
       try {
-        // Use the getProductTrades method from Coinbase Core API (no auth needed)
+        // Use the getProductTrades method which uses Coinbase Exchange API (no auth needed)
         const trades = await coinbaseApi.getProductTrades(productId, limit);
         console.log(`Successfully fetched ${trades.length} trades for ${productId}`);
         return res.json(trades);

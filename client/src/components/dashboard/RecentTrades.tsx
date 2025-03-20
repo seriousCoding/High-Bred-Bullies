@@ -13,54 +13,69 @@ type Trade = {
 
 export function RecentTrades() {
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
   const { selectedMarket } = useMarkets();
-  const { apiKey, apiSecret } = useApiKeys();
   const { subscribe, messages, status } = useWebSocket();
+  const lastFetchedMarketRef = React.useRef<string | null>(null);
   
-  // Subscribe to market trades via WebSocket
-  useEffect(() => {
-    if (!selectedMarket || !apiKey || !apiSecret) return;
+  // Use layout effect to run synchronously before rendering and prevent the rerender cycle
+  React.useLayoutEffect(() => {
+    let isMounted = true;
     
-    const fetchInitialTrades = async () => {
+    const fetchTrades = async () => {
+      if (!selectedMarket) return;
+      
+      // Skip fetching if we've already fetched for this market
+      if (lastFetchedMarketRef.current === selectedMarket.product_id) return;
+      
+      setLoading(true);
+      
       try {
-        const response = await fetch(`/api/products/${selectedMarket.product_id}/trades`, {
-          headers: {
-            'x-api-key': apiKey,
-            'x-api-secret': apiSecret
-          }
-        });
+        // This endpoint does not require API credentials anymore as it uses the public Exchange API
+        const response = await fetch(`/api/products/${selectedMarket.product_id}/trades`);
         
         if (!response.ok) {
           throw new Error(`Error fetching trades: ${response.statusText}`);
         }
         
         const data = await response.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && isMounted) {
           setTrades(data.slice(0, 10)); // Show only 10 most recent trades
+          lastFetchedMarketRef.current = selectedMarket.product_id;
         }
       } catch (error) {
         console.error("Failed to fetch trades:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     
-    fetchInitialTrades();
-    
-    // Subscribe to matches channel
-    subscribe({
-      type: "subscribe",
-      product_ids: [selectedMarket.product_id],
-      channel: "matches"
-    });
-    
-    return () => {
-      // Unsubscribe when unmounting or changing market
+    if (selectedMarket) {
+      fetchTrades();
+      
+      // Subscribe to matches channel
       subscribe({
-        type: "unsubscribe",
+        type: "subscribe",
         product_ids: [selectedMarket.product_id],
         channel: "matches"
       });
+    }
+    
+    return () => {
+      isMounted = false;
+      
+      // Unsubscribe when unmounting or changing market
+      if (selectedMarket) {
+        subscribe({
+          type: "unsubscribe",
+          product_ids: [selectedMarket.product_id],
+          channel: "matches"
+        });
+      }
     };
-  }, [selectedMarket, apiKey, apiSecret]);
+  }, [selectedMarket?.product_id, subscribe]);
   
   // Process WebSocket messages for new trades
   useEffect(() => {
