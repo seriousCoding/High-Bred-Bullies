@@ -18,8 +18,8 @@ interface ApiKeysProviderProps {
 
 // OAuth2 configuration
 const CLIENT_ID = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID || ""; // Should be provided by environment variable
-const REDIRECT_URI = window.location.origin + "/oauth/callback";
-const OAUTH_STATE_KEY = "coinbase_oauth_state";
+const REDIRECT_URI = window.location.origin + "/auth/callback";
+const OAUTH_STATE_KEY = "auth_state_key";
 
 export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   const [accessToken, setAccessToken] = React.useState<string | null>(null);
