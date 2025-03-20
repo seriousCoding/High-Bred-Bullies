@@ -188,26 +188,56 @@ class CoinbaseApiClient {
     accessToken: string,
     body?: any
   ): Promise<T> {
+    console.log(`Making OAuth request to ${endpoint}`);
+    
     const url = `${COINBASE_API_URL}${endpoint}`;
     const bodyString = body ? JSON.stringify(body) : null;
     
     const headers: HeadersInit = {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'CB-VERSION': '2021-10-05' // Specify API version for consistent behavior
     };
     
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: bodyString,
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Coinbase API error (${response.status}): ${errorText}`);
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: bodyString,
+      });
+      
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        console.error(`Coinbase OAuth API error: Status ${response.status}`);
+        
+        // Just log the content-type header which is most relevant
+        console.error(`Response content-type:`, response.headers.get('content-type'));
+        console.error(`Response body:`, responseText);
+        
+        // Check for token expiration
+        if (response.status === 401) {
+          throw new Error('OAuth token expired or invalid. Please re-authenticate.');
+        }
+        
+        throw new Error(`Coinbase API error (${response.status}): ${responseText}`);
+      }
+      
+      // Parse the JSON response
+      let jsonResponse: T;
+      try {
+        jsonResponse = JSON.parse(responseText);
+      } catch (error) {
+        console.error('Failed to parse JSON response:', responseText);
+        throw new Error('Invalid JSON response from Coinbase API');
+      }
+      
+      return jsonResponse;
+    } catch (error) {
+      console.error('OAuth request failed:', error);
+      throw error;
     }
-    
-    return response.json();
   }
   
   // Products API
@@ -657,7 +687,15 @@ class CoinbaseApiClient {
   // OAuth Methods
   
   public async getUserProfile(accessToken: string): Promise<any> {
-    return this.makeOAuthRequest<any>('GET', '/user', accessToken);
+    console.log('Getting user profile with OAuth token');
+    try {
+      const userData = await this.makeOAuthRequest<any>('GET', '/user', accessToken);
+      console.log('User profile data received successfully');
+      return userData;
+    } catch (error) {
+      console.error('Failed to get user profile:', error);
+      throw new Error(`Failed to get user profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
   
   public async getOAuthAccounts(accessToken: string): Promise<Account[]> {
