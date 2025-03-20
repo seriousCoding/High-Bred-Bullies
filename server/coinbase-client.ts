@@ -118,6 +118,18 @@ export class CoinbaseClient {
             }
           }, 30000); // Send ping every 30 seconds
           
+          // Subscribe to heartbeat channel by default to avoid "subscribe required" errors
+          try {
+            this.ws.send(JSON.stringify({
+              type: 'subscribe',
+              channel: 'heartbeat',
+              product_ids: ['BTC-USD']
+            }));
+            console.log('Subscribed to heartbeat channel');
+          } catch (error) {
+            console.error('Failed to subscribe to heartbeat channel:', error);
+          }
+          
           resolve();
         });
         
