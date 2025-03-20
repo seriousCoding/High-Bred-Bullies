@@ -14,6 +14,7 @@ import AuthPage from "@/pages/auth-page";
 import UnifiedAuthPage from "@/pages/unified-auth-page";
 import ApiKeyAuthPage from "@/pages/api-key-auth";
 import AddApiKeyPage from "@/pages/add-api-key";
+import CoinbaseConnectPage from "@/pages/coinbase-connect";
 import { ApiKeysProvider } from "@/context/ApiKeysContext";
 import { MarketsProvider } from "@/context/MarketsContext";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
@@ -61,7 +62,8 @@ function Router() {
       <Route path="/auth/callback" component={OAuthCallback} />
       
       {/* All other routes should be protected and check for login */}
-      <Route path="/connect-coinbase" component={UnifiedAuthPage} />
+      <Route path="/connect-coinbase" component={CoinbaseConnectPage} />
+      <Route path="/unified-auth" component={UnifiedAuthPage} />
       <Route path="/api-key-auth" component={ApiKeyAuthPage} />
       <Route path="/add-api-key" component={AddApiKeyPage} />
       
