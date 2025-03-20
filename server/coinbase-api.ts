@@ -515,7 +515,7 @@ class CoinbaseApiClient {
     }
   }
   
-  // Example method to get public products
+  // Get public products (no authentication required)
   public async getPublicProducts(): Promise<Product[]> {
     try {
       console.log('Fetching products from Coinbase Exchange API');
@@ -532,10 +532,459 @@ class CoinbaseApiClient {
         throw new Error(`Failed to fetch products: ${response.status}`);
       }
       
-      const data = await response.json();
-      return data as Product[];
+      const exchangeProducts = await response.json() as CoinbaseExchangeProduct[];
+      
+      // Transform exchange products to match Product interface
+      const products: Product[] = exchangeProducts.map(p => ({
+        product_id: p.id,
+        price: '0', // Will be updated via WebSocket
+        price_percentage_change_24h: '0',
+        volume_24h: '0',
+        volume_percentage_change_24h: '0',
+        base_increment: p.base_increment,
+        quote_increment: p.quote_increment,
+        quote_min_size: p.min_market_funds,
+        quote_max_size: p.max_market_funds,
+        base_min_size: p.base_min_size,
+        base_max_size: p.base_max_size,
+        base_name: p.base_currency,
+        quote_name: p.quote_currency,
+        status: p.status,
+        cancel_only: p.cancel_only,
+        limit_only: p.limit_only,
+        post_only: p.post_only,
+        trading_disabled: p.trading_disabled
+      }));
+      
+      return products;
     } catch (error) {
       console.error('Error fetching public products:', error);
+      throw error;
+    }
+  }
+  
+  // Get products (authenticated version)
+  public async getProducts(apiKey: string, apiSecret: string): Promise<Product[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = '/api/v3/brokerage/products';
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${REST_API_URL}/products`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (!data.products || !Array.isArray(data.products)) {
+        throw new Error('Invalid response format');
+      }
+      
+      return data.products;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      // Fall back to public products
+      return this.getPublicProducts();
+    }
+  }
+  
+  // Get product trades
+  public async getProductTrades(productId: string, apiKey: string, apiSecret: string): Promise<Trade[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = `/products/${productId}/trades`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${EXCHANGE_API_URL}${requestPath}`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch trades: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data as Trade[];
+    } catch (error) {
+      console.error(`Error fetching trades for ${productId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Get product order book
+  public async getProductBook(productId: string, level: number = 2, apiKey: string, apiSecret: string): Promise<ProductBook> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = `/products/${productId}/book?level=${level}`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${EXCHANGE_API_URL}${requestPath}`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch order book: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data as ProductBook;
+    } catch (error) {
+      console.error(`Error fetching order book for ${productId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Get candles for a product
+  public async getCandles(
+    productId: string, 
+    start: string, 
+    end: string, 
+    granularity: number = 3600,
+    apiKey: string, 
+    apiSecret: string
+  ): Promise<Candle[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = `/products/${productId}/candles?start=${start}&end=${end}&granularity=${granularity}`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${EXCHANGE_API_URL}${requestPath}`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch candles: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transform the raw candle data to match our Candle interface
+      return data.map((candle: any) => ({
+        start: new Date(candle[0] * 1000).toISOString(),
+        low: candle[1].toString(),
+        high: candle[2].toString(),
+        open: candle[3].toString(),
+        close: candle[4].toString(),
+        volume: candle[5].toString()
+      }));
+    } catch (error) {
+      console.error(`Error fetching candles for ${productId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Get user accounts with key rotation
+  public async getAccountsWithRotation(userId: number): Promise<Account[]> {
+    try {
+      // Get API keys with rotation
+      const apiCredentials = await this.getApiKeysWithRotation(userId);
+      
+      if (!apiCredentials) {
+        throw new Error('No valid API credentials found');
+      }
+      
+      const { apiKey, apiSecret } = apiCredentials;
+      
+      return this.getAccounts(apiKey, apiSecret);
+    } catch (error) {
+      console.error('Error fetching accounts with rotation:', error);
+      throw error;
+    }
+  }
+  
+  // Get user accounts
+  public async getAccounts(apiKey: string, apiSecret: string): Promise<Account[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = '/api/v3/brokerage/accounts';
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${REST_API_URL}/accounts`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch accounts: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.accounts || !Array.isArray(data.accounts)) {
+        throw new Error('Invalid accounts response format');
+      }
+      
+      return data.accounts;
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      throw error;
+    }
+  }
+  
+  // Create a new order
+  public async createOrder(order: CreateOrderRequest, apiKey: string, apiSecret: string): Promise<Order> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'POST';
+      const requestPath = '/api/v3/brokerage/orders';
+      const body = JSON.stringify(order);
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        body
+      );
+      
+      const response = await fetch(`${REST_API_URL}/orders`, {
+        method,
+        headers,
+        body
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to create order: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.order) {
+        throw new Error('Invalid order response format');
+      }
+      
+      return data.order;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw error;
+    }
+  }
+  
+  // Get user orders
+  public async getOrders(limit: number, apiKey: string, apiSecret: string): Promise<Order[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = `/api/v3/brokerage/orders?limit=${limit}`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${REST_API_URL}/orders?limit=${limit}`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.orders || !Array.isArray(data.orders)) {
+        throw new Error('Invalid orders response format');
+      }
+      
+      return data.orders;
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      throw error;
+    }
+  }
+  
+  // Cancel an order
+  public async cancelOrder(orderId: string, apiKey: string, apiSecret: string): Promise<{success: boolean}> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'DELETE';
+      const requestPath = `/api/v3/brokerage/orders/${orderId}`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${REST_API_URL}/orders/${orderId}`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to cancel order: ${response.status}`);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error(`Error cancelling order ${orderId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Get order fills
+  public async getFills(orderId: string, apiKey: string, apiSecret: string): Promise<any[]> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = 'GET';
+      const requestPath = `/api/v3/brokerage/orders/${orderId}/fills`;
+      
+      const headers = this.createAuthHeaders(
+        apiKey,
+        apiSecret,
+        timestamp,
+        method,
+        requestPath,
+        ''
+      );
+      
+      const response = await fetch(`${REST_API_URL}/orders/${orderId}/fills`, {
+        method,
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch fills: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.fills || !Array.isArray(data.fills)) {
+        throw new Error('Invalid fills response format');
+      }
+      
+      return data.fills;
+    } catch (error) {
+      console.error(`Error fetching fills for order ${orderId}:`, error);
+      throw error;
+    }
+  }
+  
+  // OAuth methods
+  public async getUserProfile(accessToken: string): Promise<any> {
+    try {
+      const response = await fetch(`${COINBASE_API_URL}/user`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user profile: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  }
+  
+  public async getOAuthAccounts(accessToken: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${COINBASE_API_URL}/accounts`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch OAuth accounts: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching OAuth accounts:', error);
+      throw error;
+    }
+  }
+  
+  public async getOAuthTransactions(accountId: string, accessToken: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${COINBASE_API_URL}/accounts/${accountId}/transactions`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transactions: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error(`Error fetching transactions for account ${accountId}:`, error);
       throw error;
     }
   }
