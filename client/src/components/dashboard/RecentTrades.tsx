@@ -53,11 +53,11 @@ export function RecentTrades() {
     // Fetch trades for the selected market
     fetchTrades(productId);
     
-    // Subscribe to matches channel
+    // Subscribe to matches channel using channels array format
     subscribe({
       type: "subscribe",
       product_ids: [productId],
-      channel: "matches"
+      channels: ["matches"]
     });
     
     return () => {
@@ -65,7 +65,7 @@ export function RecentTrades() {
       subscribe({
         type: "unsubscribe",
         product_ids: [productId],
-        channel: "matches"
+        channels: ["matches"]
       });
     };
   }, [selectedMarket, subscribe, fetchTrades]);
@@ -80,9 +80,9 @@ export function RecentTrades() {
     // Get only the new messages since last check
     const newMessages = messages.slice(-5); // Just check the last 5 messages to avoid performance issues
     
-    // Find match messages for the selected market
+    // Find match messages for the selected market - support both channel and channels array format
     const matchMessages = newMessages.filter(msg => 
-      msg.channel === "matches" && 
+      (msg.channel === "matches" || (msg.channels && msg.channels.includes("matches"))) && 
       msg.events && 
       msg.events.length > 0 &&
       msg.events[0]?.trades && 

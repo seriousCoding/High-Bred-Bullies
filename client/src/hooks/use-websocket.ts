@@ -38,7 +38,12 @@ export function useWebSocket() {
     
     try {
       if (message) {
-        console.log(`Sending subscription for channel: ${message.channel || 'unknown'}`);
+        // Log which channels we're working with
+        const channelsStr = message.channels 
+          ? message.channels.join(', ') 
+          : (message.channel ? message.channel : 'unknown');
+        
+        console.log(`Sending ${message.type} for channels: ${channelsStr}`);
         socketRef.current.send(JSON.stringify(message));
       }
     } catch (error) {
@@ -210,23 +215,21 @@ export function useWebSocket() {
     // We don't need to add authentication details to the client-side messages
     // This prevents sensitive API keys from being exposed in the browser
     
-    // Convert the message to use the channels array format
-    const formattedMessage = {
-      ...message,
-      channels: [message.channel],
-    };
-    
-    // If the original message has a channel property, ensure we keep it for backward compatibility
-    if (!message.channels) {
-      // Remove the original channel property if we're using the channels array
-      const { channel, ...restOfMessage } = formattedMessage;
+    // Handle message format conversion properly
+    if (message.channels) {
+      // If message already has channels array, use it as is
+      messageQueue.current.push(message);
+    } else if (message.channel) {
+      // Convert channel property to channels array
+      const { channel, ...restOfMessage } = message;
       messageQueue.current.push({
         ...restOfMessage,
         channels: [channel],
       });
     } else {
-      // Message already has channels array
-      messageQueue.current.push(formattedMessage);
+      // Neither channel nor channels specified, push as is
+      console.warn('Message missing both channel and channels:', message);
+      messageQueue.current.push(message);
     }
     
     // Start processing if not already doing so and socket is ready

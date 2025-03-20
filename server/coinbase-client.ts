@@ -127,8 +127,8 @@ export class CoinbaseClient {
               if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: 'subscribe',
-                  channel: 'heartbeat',
-                  product_ids: ['BTC-USD']
+                  channels: ['heartbeat'],
+                  product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
                 }));
                 console.log('Subscribed to heartbeat channel');
               } else {
@@ -209,10 +209,11 @@ export class CoinbaseClient {
         return reject(new Error('WebSocket not connected'));
       }
       
+      // Use channels array format according to Coinbase Advanced Trade API
       const subscribeMessage: any = {
         type: 'subscribe',
         product_ids: productIds,
-        channel: channel
+        channels: [channel]
       };
       
       // Add authentication for authenticated channels
@@ -232,7 +233,7 @@ export class CoinbaseClient {
         return reject(new Error('Authentication required for user channel'));
       }
       
-      console.log(`Subscribing to ${channel} for ${productIds.length} products`);
+      console.log(`Subscribing to channel: ${channel} for ${productIds.length} products`);
       this.ws.send(JSON.stringify(subscribeMessage));
       resolve();
     });
