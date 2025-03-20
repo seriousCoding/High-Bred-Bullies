@@ -41,18 +41,25 @@ export function AccountOverview() {
   useEffect(() => {
     if (!hasKeys) return;
     
-    // Subscribe to user channel for account updates
+    // Note: We've temporarily disabled the user channel subscription
+    // until we resolve authentication issues with the WebSocket API
+    // Once fixed, we'll re-enable this to get real-time account updates
+    /*
     subscribe({
       type: "subscribe",
       channel: "user"
     });
+    */
     
+    // We're also not unsubscribing since we're not subscribing in the first place
     return () => {
-      // Unsubscribe when unmounting
+      // This is temporarily commented out until we resolve authentication issues
+      /*
       subscribe({
         type: "unsubscribe",
         channel: "user"
       });
+      */
     };
   }, [hasKeys]);
   

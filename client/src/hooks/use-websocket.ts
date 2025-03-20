@@ -151,6 +151,12 @@ export function useWebSocket() {
       return;
     }
 
+    // Skip user channel subscriptions until we resolve authentication issues
+    if (message.channel === 'user') {
+      console.log(`Skipping ${message.type} for user channel temporarily`);
+      return;
+    }
+
     // The authentication is handled by the server-side proxy
     // We don't need to add authentication details to the client-side messages
     // This prevents sensitive API keys from being exposed in the browser
