@@ -35,6 +35,16 @@ export class KeyVault {
    */
   public async getNextKey(userId: number): Promise<{ apiKey: string, apiSecret: string, keyId: number } | null> {
     try {
+      // Clear the used keys if we've cycled through all available keys
+      if (this.usedKeyIds.size > 0) {
+        // Check if we need to reset rotation (if too many keys have been used)
+        const allKeys = await storage.getActiveApiKeys(userId);
+        if (this.usedKeyIds.size >= allKeys.length) {
+          console.log('All keys have been tried in this rotation, resetting rotation');
+          this.resetRotation();
+        }
+      }
+      
       // Get all active keys for the user
       const keys = await storage.getActiveApiKeys(userId);
       
@@ -62,13 +72,18 @@ export class KeyVault {
         return true;
       });
       
-      // If no available keys after filtering, use any key as a last resort
+      // If no available keys after filtering, reset and try again with any key
       if (availableKeys.length === 0) {
-        console.log('No available keys after filtering, using any key');
+        console.log('No available keys after filtering, resetting rotation');
+        this.resetRotation();
         
+        // Try again with the first key
         if (keys.length > 0) {
           const key = keys[0];
-          console.log(`Using key ${key.id} despite previous failure`);
+          console.log(`Using key ${key.id} after rotation reset`);
+          
+          // Mark as used
+          this.usedKeyIds.add(key.id);
           
           return {
             apiKey: key.apiKey,
@@ -80,7 +95,7 @@ export class KeyVault {
         return null;
       }
       
-      // Select the first available key
+      // Select the best available key (should be sorted by priority already)
       const selectedKey = availableKeys[0];
       
       // Mark this key as used in the current rotation cycle
