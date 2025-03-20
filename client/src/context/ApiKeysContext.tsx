@@ -30,18 +30,8 @@ interface ApiKeysContextType {
   initiateOAuthFlow: () => Promise<void>;
 }
 
-// Create the context with a default empty value
-export const ApiKeysContext = React.createContext<ApiKeysContextType>({
-  activeApiKey: null,
-  apiKeys: [],
-  isLoading: false,
-  isAuthenticated: false,
-  addNewApiKey: async () => {},
-  removeApiKeyById: async () => {},
-  selectApiKey: () => {},
-  logout: () => {},
-  initiateOAuthFlow: async () => {},
-});
+// Create the context with null as initial value
+export const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null);
 
 interface ApiKeysProviderProps {
   children: React.ReactNode;
@@ -146,13 +136,13 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
       // Register the key with the server (if needed)
       await apiRequest('/api/keys', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           userId: 1, // In a real app, this would come from auth
           apiKey: apiKey,
           apiSecret: apiSecret,
           label: label,
           isActive: true
-        })
+        }
       });
       
       // Update the local state

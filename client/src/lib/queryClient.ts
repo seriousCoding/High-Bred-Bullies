@@ -7,31 +7,57 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Updated API request function with flexible options
 export async function apiRequest(
-  method: string,
   url: string,
-  data?: unknown | undefined,
-  token?: string | null,
-): Promise<Response> {
-  const headers: HeadersInit = {};
+  options?: {
+    method?: string;
+    body?: string | object;
+    headers?: Record<string, string>;
+    token?: string | null;
+  }
+): Promise<any> {
+  const headers: Record<string, string> = {
+    ...(options?.headers || {})
+  };
   
-  if (data) {
-    headers["Content-Type"] = "application/json";
+  // Add content type for JSON if we have a body
+  if (options?.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
   }
   
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // Add token if provided
+  if (options?.token) {
+    headers['Authorization'] = `Bearer ${options.token}`;
   }
   
-  const res = await fetch(url, {
-    method,
+  // Prepare the fetch options
+  const fetchOptions: RequestInit = {
+    method: options?.method || 'GET',
     headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
-
+    credentials: 'include'
+  };
+  
+  // Add body if provided
+  if (options?.body) {
+    fetchOptions.body = typeof options.body === 'string' 
+      ? options.body 
+      : JSON.stringify(options.body);
+  }
+  
+  // Make the request
+  const res = await fetch(url, fetchOptions);
+  
+  // Check if the response is OK
   await throwIfResNotOk(res);
-  return res;
+  
+  // Try to parse as JSON if possible
+  try {
+    return await res.json();
+  } catch (e) {
+    // Return the response object if not JSON
+    return res;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

@@ -9,7 +9,7 @@ interface WebSocketMessage {
 }
 
 export function useWebSocket() {
-  const { accessToken, isAuthenticated } = useApiKeys();
+  const { isAuthenticated, apiKey, currentKey } = useApiKeys();
   const [status, setStatus] = React.useState<WebSocketStatus>("closed");
   const [messages, setMessages] = React.useState<any[]>([]);
   const socketRef = React.useRef<WebSocket | null>(null);
@@ -17,7 +17,7 @@ export function useWebSocket() {
 
   // Initialize WebSocket connection
   React.useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !apiKey) return;
 
     const connectWebSocket = () => {
       setStatus("connecting");
@@ -68,7 +68,7 @@ export function useWebSocket() {
         
         // Attempt to reconnect after a delay
         setTimeout(() => {
-          if (isAuthenticated && !socketRef.current) {
+          if (isAuthenticated && apiKey && !socketRef.current) {
             connectWebSocket();
           }
         }, 5000);
@@ -84,7 +84,7 @@ export function useWebSocket() {
         socketRef.current = null;
       }
     };
-  }, [isAuthenticated, accessToken]);
+  }, [isAuthenticated, apiKey, currentKey?.id]);
 
   // Function to send subscription messages
   const subscribe = React.useCallback((message: WebSocketMessage) => {
@@ -95,8 +95,8 @@ export function useWebSocket() {
 
     // Add authentication to subscription message if needed
     if (message.type === "subscribe") {
-      // Add OAuth token to subscription message
-      message.access_token = accessToken || '';
+      // Add API key to subscription message
+      message.api_key = apiKey || '';
     }
 
     // Send the message if socket is ready, otherwise queue it
@@ -105,7 +105,7 @@ export function useWebSocket() {
     } else {
       messageQueue.current.push(message);
     }
-  }, [isAuthenticated, accessToken]);
+  }, [isAuthenticated, apiKey]);
 
   // Clear messages, useful when changing subscriptions
   const clearMessages = React.useCallback(() => {
