@@ -137,12 +137,23 @@ class CoinbaseApiClient {
   ) {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     
-    // For Advanced Trade API, the path must include /api/v3/brokerage prefix
-    // Remove any leading slashes from requestPath to avoid double slashes
-    const sanitizedPath = requestPath.startsWith('/') ? requestPath.substring(1) : requestPath;
-    const fullPath = `/api/v3/brokerage/${sanitizedPath}`;
+    // For Advanced API, the path must be formatted exactly as required by Coinbase:
+    // The prefix must be exact: /api/v3/brokerage
+    let fullPath = '';
     
-    // Create the message to sign according to Coinbase Advanced documentation
+    // Handle different path formats
+    if (requestPath.startsWith('/api/v3/brokerage')) {
+      // Path already has the correct prefix
+      fullPath = requestPath;
+    } else {
+      // Path needs the prefix
+      // Remove any leading slashes to avoid double slashes
+      const trimmedPath = requestPath.replace(/^\/+/, '');
+      fullPath = `/api/v3/brokerage/${trimmedPath}`;
+    }
+    
+    // Create the message to sign exactly as Coinbase expects:
+    // timestamp + HTTP method + request path + body (if present)
     let signatureMessage = timestamp + method + fullPath;
     
     // Add the body to the message if present
@@ -151,6 +162,7 @@ class CoinbaseApiClient {
     }
     
     console.log(`Creating signature for: ${method} ${fullPath}`);
+    console.log(`Signature message: ${timestamp} + ${method} + ${fullPath}`);
     
     // Create the signature using HMAC-SHA256 and hex encoding
     const signature = crypto
@@ -178,29 +190,52 @@ class CoinbaseApiClient {
     try {
       console.log(`Making ${method} request to: ${endpoint}`);
       
-      // For Advanced API, ensure the endpoint doesn't already have the prefix
-      const sanitizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-      const url = `${REST_API_URL}${sanitizedEndpoint}`;
+      // The REST_API_URL should be 'https://api.coinbase.com'
+      // But endpoint paths need to include '/api/v3/brokerage' for Advanced API
+      let fullEndpoint: string;
       
+      if (endpoint.startsWith('/api/v3/brokerage')) {
+        // Endpoint already has the full path
+        fullEndpoint = endpoint;
+      } else {
+        // Add the prefix
+        const trimmedEndpoint = endpoint.replace(/^\/+/, '');
+        fullEndpoint = `/api/v3/brokerage/${trimmedEndpoint}`;
+      }
+      
+      // Construct the full URL
+      const baseUrl = 'https://api.coinbase.com'; // Use directly instead of constant to ensure correctness
+      const url = `${baseUrl}${fullEndpoint}`;
+      
+      // Create body string and headers
       const bodyString = body ? JSON.stringify(body) : null;
-      const headers = this.createAuthHeaders(method, endpoint, bodyString, apiKey, apiSecret);
+      const headers = this.createAuthHeaders(method, fullEndpoint, bodyString, apiKey, apiSecret);
       
-      console.log(`Request URL: ${url}`);
-      // Don't log the actual API key, just whether it exists
+      console.log(`Full request URL: ${url}`);
       console.log(`API Key present: ${!!apiKey}, Headers set: ${Object.keys(headers).join(', ')}`);
       
+      // Make the API request
       const response = await fetch(url, {
         method,
         headers,
         body: bodyString,
       });
       
+      // Get response text first to help with debugging
       const responseText = await response.text();
       
+      // Handle non-OK responses
       if (!response.ok) {
         console.error(`Coinbase API error ${response.status}: ${responseText}`);
-        console.error(`Request headers: `, Object.keys(headers));
-        console.error(`Request endpoint: ${endpoint}`);
+        console.error(`Request endpoint: ${fullEndpoint}`);
+        
+        // Special handling for common errors
+        if (response.status === 401) {
+          console.error('Authentication failed. Check API key permissions and signature generation.');
+        } else if (response.status === 400) {
+          console.error('Bad request. Check request parameters and format.');
+        }
+        
         throw new Error(`Coinbase API error (${response.status}): ${responseText}`);
       }
       
@@ -283,6 +318,57 @@ class CoinbaseApiClient {
   }
   
   // Products API
+  
+  // Public method that doesn't require authentication - for development fallback
+  public async getPublicProducts(): Promise<Product[]> {
+    try {
+      console.log('Fetching products from public API endpoint...');
+      
+      // Use the public Coinbase API endpoint
+      const response = await fetch('https://api.exchange.coinbase.com/products');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch public products: ${response.status}`);
+      }
+      
+      const exchangeProducts = await response.json();
+      
+      if (!Array.isArray(exchangeProducts)) {
+        console.error('Unexpected response format from public products API');
+        return [];
+      }
+      
+      // Convert to our standardized format
+      const products: Product[] = exchangeProducts.map((product: any) => {
+        return {
+          product_id: product.id || '',
+          price: '0', // Public API doesn't provide price
+          price_percentage_change_24h: '0',
+          volume_24h: '0',
+          volume_percentage_change_24h: '0',
+          base_increment: product.base_increment || '0.00000001',
+          quote_increment: product.quote_increment || '0.01',
+          quote_min_size: product.min_market_funds || '0',
+          quote_max_size: product.max_market_funds || '0',
+          base_min_size: product.base_min_size || '0',
+          base_max_size: product.base_max_size || '0',
+          base_name: product.base_currency || '',
+          quote_name: product.quote_currency || '',
+          status: product.status || 'online',
+          cancel_only: product.cancel_only || false,
+          limit_only: product.limit_only || false,
+          post_only: product.post_only || false,
+          trading_disabled: product.trading_disabled || false
+        };
+      });
+      
+      console.log(`Public API returned ${products.length} products`);
+      return products;
+    } catch (error) {
+      console.error('Error fetching public products:', error);
+      return [];
+    }
+  }
   
   public async getProducts(apiKey: string, apiSecret: string): Promise<Product[]> {
     try {
