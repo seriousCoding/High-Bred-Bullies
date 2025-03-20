@@ -70,6 +70,88 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
     }
   };
   
+  // Handle manual authorization code submission
+  const handleManualCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authCode.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing Code",
+        description: "Please enter the authorization code from Coinbase.",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError("");
+    
+    try {
+      console.log("---------------------------------------------");
+      console.log("MANUAL OAUTH CODE SUBMISSION");
+      console.log("Processing authorization code manually");
+      
+      const redirectUri = window.location.origin + "/auth/callback";
+      console.log("Using redirect URI:", redirectUri);
+      
+      // Exchange the authorization code for access token
+      const response = await fetch("/api/oauth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code: authCode,
+          redirect_uri: redirectUri
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to exchange code for token");
+      }
+      
+      const data = await response.json();
+      console.log("Token exchange successful");
+      
+      // Calculate token expiration time
+      const expiresIn = data.expires_in || 7200; // default 2 hours
+      const remember = true; // Always remember for OAuth tokens
+      
+      // Save tokens to context
+      saveTokens(data.access_token, data.refresh_token, expiresIn, remember);
+      
+      toast({
+        title: "Authentication Successful",
+        description: "Successfully connected to your Coinbase account.",
+      });
+      
+      onClose(); // Close the modal
+    } catch (error) {
+      console.error("---------------------------------------------");
+      console.error("MANUAL CODE EXCHANGE ERROR");
+      console.error("Error during manual code exchange:", error);
+      
+      // Show detailed error to help with debugging
+      let errorMessage = 'Failed to authenticate with Coinbase. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error('Error details:', error.stack);
+      }
+      
+      console.error("Error message shown to user:", errorMessage);
+      console.error("---------------------------------------------");
+      
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Authentication Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-card-bg border-[#3A3A3A] text-white sm:max-w-md">
