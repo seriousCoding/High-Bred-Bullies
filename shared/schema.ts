@@ -21,6 +21,10 @@ export const apiKeys = pgTable("api_keys", {
   apiSecret: text("api_secret").notNull(),
   isActive: boolean("is_active").default(true),
   label: text("label"),
+  priority: integer("priority").default(0),
+  failCount: integer("fail_count").default(0),
+  lastAttempt: timestamp("last_attempt"),
+  lastSuccess: timestamp("last_success"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -29,6 +33,7 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
   apiKey: true,
   apiSecret: true,
   label: true,
+  priority: true,
 });
 
 // Favorites for quick access

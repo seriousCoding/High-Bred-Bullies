@@ -13,7 +13,9 @@ export interface IStorage {
   // API Key methods
   storeApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
   getApiKeys(userId: number): Promise<ApiKey[]>;
+  getActiveApiKeys(userId: number): Promise<ApiKey[]>;
   getApiKeyById(id: number): Promise<ApiKey | undefined>;
+  updateApiKeyStatus(id: number, success: boolean): Promise<ApiKey | undefined>;
   deleteApiKey(id: number): Promise<void>;
   
   // Favorite markets methods
@@ -69,18 +71,64 @@ export class MemStorage implements IStorage {
     const id = this.apiKeyIdCounter++;
     const createdAt = new Date();
     
-    // Create a properly typed ApiKey object without spreading
+    // Create a properly typed ApiKey object with our new fields
     const apiKey: ApiKey = { 
       id,
       userId: insertApiKey.userId, 
       apiKey: insertApiKey.apiKey,
       apiSecret: insertApiKey.apiSecret,
       label: insertApiKey.label || null,
+      priority: insertApiKey.priority || 0, 
       isActive: true, 
+      failCount: 0,
+      lastAttempt: null,
+      lastSuccess: null,
       createdAt
     };
     this.apiKeys.set(id, apiKey);
     return apiKey;
+  }
+  
+  async updateApiKeyStatus(id: number, success: boolean): Promise<ApiKey | undefined> {
+    const apiKey = await this.getApiKeyById(id);
+    if (!apiKey) return undefined;
+    
+    const now = new Date();
+    const updatedKey: ApiKey = {
+      ...apiKey,
+      lastAttempt: now,
+      failCount: success ? 0 : (apiKey.failCount || 0) + 1,
+      lastSuccess: success ? now : apiKey.lastSuccess
+    };
+    
+    this.apiKeys.set(id, updatedKey);
+    return updatedKey;
+  }
+  
+  async getActiveApiKeys(userId: number): Promise<ApiKey[]> {
+    const keys = await this.getApiKeys(userId);
+    return keys
+      .filter(key => key.isActive)
+      .sort((a, b) => {
+        // First by priority (higher first)
+        if ((a.priority || 0) !== (b.priority || 0)) {
+          return (b.priority || 0) - (a.priority || 0);
+        }
+        // Then by fail count (less failures first)
+        if ((a.failCount || 0) !== (b.failCount || 0)) {
+          return (a.failCount || 0) - (b.failCount || 0);
+        }
+        // Then by last success (more recent first)
+        if (a.lastSuccess && b.lastSuccess) {
+          return b.lastSuccess.getTime() - a.lastSuccess.getTime();
+        } else if (a.lastSuccess) {
+          return -1;
+        } else if (b.lastSuccess) {
+          return 1;
+        }
+        // Finally by creation date (newer first)
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
   }
   
   async getApiKeys(userId: number): Promise<ApiKey[]> {
