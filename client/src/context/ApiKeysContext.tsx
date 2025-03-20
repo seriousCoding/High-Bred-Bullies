@@ -180,7 +180,7 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     authUrl.searchParams.append("client_id", CLIENT_ID);
     authUrl.searchParams.append("redirect_uri", REDIRECT_URI);
     authUrl.searchParams.append("state", state);
-    authUrl.searchParams.append("scope", "wallet:accounts:read,wallet:user:read,wallet:buys:read,wallet:sells:read,wallet:transactions:read,wallet:payment-methods:read,wallet:addresses:read,offline_access");
+    authUrl.searchParams.append("scope", "wallet:accounts:read,wallet:user:read,wallet:buys:read,wallet:sells:read,wallet:transactions:read,wallet:payment-methods:read,wallet:addresses:read,wallet:orders:read,wallet:orders:create,wallet:orders:update,wallet:trades:read,offline_access");
     
     // Redirect user to authorization page
     window.location.href = authUrl.toString();

@@ -83,8 +83,17 @@ export function TopBar({ onApiKeyModalOpen }: TopBarProps) {
           onClick={onApiKeyModalOpen}
           className="bg-[#0052FF] bg-opacity-10 text-[#0052FF] px-3 py-1.5 rounded-md text-sm font-medium hover:bg-opacity-20 flex items-center"
         >
-          <span className="material-icons text-sm mr-1">vpn_key</span>
-          <span className="hidden sm:inline">API Keys</span>
+          {hasKeys ? (
+            <>
+              <span className="material-icons text-sm mr-1">check_circle</span>
+              <span className="hidden sm:inline">Connected</span>
+            </>
+          ) : (
+            <>
+              <span className="material-icons text-sm mr-1">link</span>
+              <span className="hidden sm:inline">Connect</span>
+            </>
+          )}
         </button>
         
         <div className="relative ml-4">
