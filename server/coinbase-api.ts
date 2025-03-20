@@ -1018,9 +1018,9 @@ class CoinbaseApiClient {
               }));
               
               resolve(accounts);
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error processing Coinbase SDK accounts (fallback):', error);
-              resolve([]);
+              reject(new Error(`Error processing Coinbase SDK fallback account data: ${error.message || 'Unknown error'}`));
             }
           });
         });
