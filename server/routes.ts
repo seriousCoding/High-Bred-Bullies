@@ -321,6 +321,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth2 Flow Endpoints
   
+  // HTML redirect page for OAuth
+  app.get('/auth/redirect', (req: Request, res: Response) => {
+    try {
+      console.log("---------------------------------------------");
+      console.log("SERVING OAUTH REDIRECT HTML PAGE");
+      
+      const authUrl = req.query.auth_url as string;
+      const state = req.query.state as string;
+      
+      if (!authUrl || !state) {
+        return res.status(400).send('Missing required parameters: auth_url and state');
+      }
+      
+      // Create a simple HTML page that will redirect the user to Coinbase
+      const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Redirecting to Coinbase...</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <script>
+          // Store the state in localStorage for CSRF protection
+          localStorage.setItem("auth_state_key", "${state}");
+          
+          // Redirect to Coinbase after a short delay
+          setTimeout(function() {
+            window.location.href = "${authUrl}";
+          }, 500);
+        </script>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1b1e;
+            color: #eaeaea;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+          }
+          .container {
+            max-width: 600px;
+            padding: 40px;
+            background-color: #272a30;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+          }
+          h1 {
+            color: #0052FF;
+            margin-bottom: 20px;
+          }
+          p {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+          }
+          .logo {
+            width: 180px;
+            margin-bottom: 30px;
+          }
+          .spinner {
+            border: 4px solid rgba(0, 82, 255, 0.2);
+            border-left: 4px solid #0052FF;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <img src="https://www.coinbase.com/assets/logos/coinbase.svg" alt="Coinbase Logo" class="logo">
+          <h1>Redirecting to Coinbase...</h1>
+          <p>You will be redirected to Coinbase to authorize this application. Please wait a moment.</p>
+          <div class="spinner"></div>
+          <p>If you are not redirected automatically, <a href="${authUrl}" style="color: #0052FF;">click here</a>.</p>
+        </div>
+      </body>
+      </html>
+      `;
+      
+      // Set appropriate headers and send the HTML page
+      res.setHeader('Content-Type', 'text/html');
+      res.send(html);
+      
+      console.log("HTML redirect page served successfully");
+      console.log("---------------------------------------------");
+    } catch (error) {
+      console.error("Error serving redirect HTML:", error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+  
   // OAuth initialization proxy endpoint
   app.get('/api/oauth/init', (req: Request, res: Response) => {
     try {
@@ -332,7 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'OAuth client credentials are not configured' });
       }
       
-      // Generate state for CSRF protection
+      // Generate state for CSRF protection - must be at least 8 characters long per docs
       const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
       // Build the redirect URL
@@ -343,14 +445,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log("Initializing OAuth with redirect URI:", redirectUri);
       
-      // Create authorization URL
+      // Create authorization URL - exactly as specified in the Coinbase docs
       const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
       authUrl.searchParams.append("response_type", "code");
       authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
       authUrl.searchParams.append("redirect_uri", redirectUri);
       authUrl.searchParams.append("state", state);
       
-      // Add required scopes
+      // Add required scopes - using comma separation as specified in the docs
       const scopes = [
         "wallet:accounts:read",
         "wallet:user:read",
@@ -365,8 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "wallet:trades:read",
         "offline_access"
       ];
-      // According to docs, scope params should use '+' as separator rather than comma
-      authUrl.searchParams.append("scope", scopes.join("+"));
+      authUrl.searchParams.append("scope", scopes.join(","));
       
       // Return auth URL and state
       console.log("Generated OAuth URL:", authUrl.toString().substring(0, 60) + "...");
