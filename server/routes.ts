@@ -89,8 +89,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle subscription requests
         if (data.type === 'subscribe') {
-          // Add to queue instead of sending immediately
-          subscriptionQueue.push(data);
+          // Check if this is an authenticated channel requiring signature
+          if (data.channel === 'user') {
+            // Extract API key and API secret from headers or environment variables
+            // Use environment variables if available to ensure we have access to secrets
+            const apiKey = process.env.COINBASE_API_KEY;
+            const apiSecret = process.env.COINBASE_API_SECRET;
+            
+            if (!apiKey || !apiSecret) {
+              console.error('Cannot authenticate WebSocket: Missing API credentials');
+              ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'Missing API credentials for authenticated channel' 
+              }));
+              return;
+            }
+            
+            // Calculate the timestamp (seconds since Unix epoch)
+            const timestamp = Math.floor(Date.now() / 1000).toString();
+            
+            // Create the message to sign per Advanced Trade API docs
+            const signatureMessage = timestamp + 'GET' + '/ws';
+            
+            // Create the signature using HMAC-SHA256 and base64 encoding
+            const crypto = require('crypto');
+            const signature = crypto
+              .createHmac('sha256', apiSecret)
+              .update(signatureMessage)
+              .digest('base64');
+            
+            // Create authenticated message
+            const authMessage = {
+              type: 'subscribe',
+              channel: 'user',
+              api_key: apiKey,
+              timestamp: timestamp,
+              signature: signature
+            };
+            
+            // Replace the original message with authenticated one
+            subscriptionQueue.push(authMessage);
+          } else {
+            // For public channels, use the message as-is
+            subscriptionQueue.push(data);
+          }
           
           // Start processing queue if not already running
           if (!isProcessingQueue) {
