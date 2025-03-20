@@ -118,7 +118,7 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         channel: "ticker"
       });
     };
-  }, [hasKeys, markets.length > 0, subscribe]);
+  }, [hasKeys, markets.length, subscribe]);
   
   // Process WebSocket messages for ticker updates
   React.useEffect(() => {
@@ -136,6 +136,8 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
       // Update markets with latest ticker data
       setMarkets((prev: Product[]) => {
         const updatedMarkets = [...prev];
+        let shouldUpdateSelectedMarket = false;
+        let updatedSelectedMarket: Product | null = null;
         
         tickerMessages.forEach(msg => {
           msg.events[0].tickers.forEach((ticker: any) => {
@@ -150,18 +152,27 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
                 // Other ticker fields can be updated here
               };
               
-              // Also update selected market if it's the one that changed
+              // Store the updated market if it's the selected one
               if (selectedMarket && selectedMarket.product_id === ticker.product_id) {
-                setSelectedMarket(updatedMarkets[marketIndex]);
+                shouldUpdateSelectedMarket = true;
+                updatedSelectedMarket = updatedMarkets[marketIndex];
               }
             }
           });
         });
         
+        // Update the selected market outside the loop to avoid multiple state updates
+        if (shouldUpdateSelectedMarket && updatedSelectedMarket) {
+          // Use setTimeout to avoid state updates during render
+          setTimeout(() => {
+            setSelectedMarket(updatedSelectedMarket);
+          }, 0);
+        }
+        
         return updatedMarkets;
       });
     }
-  }, [messages, selectedMarket]);
+  }, [messages]); // Removed selectedMarket from dependencies
 
   return (
     <MarketsContext.Provider
