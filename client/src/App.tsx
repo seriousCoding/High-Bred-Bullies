@@ -22,7 +22,7 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
-      <Route path="/oauth/callback" component={OAuthCallback} />
+      <Route path="/auth/callback" component={OAuthCallback} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -25,7 +25,7 @@ export default function OAuthCallback() {
       toast({
         variant: "destructive",
         title: "Authentication Failed",
-        description: errorDescription || "Failed to authenticate with Coinbase.",
+        description: errorDescription || "Failed to authenticate with your account.",
       });
       
       // Redirect back to home after a short delay
@@ -38,7 +38,7 @@ export default function OAuthCallback() {
       // If no error, show success message and redirect will happen in ApiKeysContext
       toast({
         title: "Authentication Successful",
-        description: "Successfully connected to Coinbase.",
+        description: "Successfully connected to your account.",
       });
     }
   }, [setLocation, toast]);
@@ -50,7 +50,7 @@ export default function OAuthCallback() {
           <>
             <div className="animate-spin h-10 w-10 border-4 border-[#0052FF] border-t-transparent rounded-full mx-auto mb-4"></div>
             <h2 className="text-xl font-semibold text-white mb-2">Authenticating...</h2>
-            <p className="text-gray-400">Connecting to your Coinbase account.</p>
+            <p className="text-gray-400">Connecting to your trading account.</p>
           </>
         )}
         
@@ -62,7 +62,7 @@ export default function OAuthCallback() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Authentication Successful</h2>
-            <p className="text-gray-400 mb-4">Successfully connected to your Coinbase account.</p>
+            <p className="text-gray-400 mb-4">Successfully connected to your trading account.</p>
             <p className="text-sm text-gray-500">Redirecting you back to the dashboard...</p>
           </>
         )}
@@ -75,7 +75,7 @@ export default function OAuthCallback() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Authentication Failed</h2>
-            <p className="text-gray-400 mb-4">{error || "Failed to connect to your Coinbase account."}</p>
+            <p className="text-gray-400 mb-4">{error || "Failed to connect to your trading account."}</p>
             <p className="text-sm text-gray-500">Redirecting you back to try again...</p>
           </>
         )}

@@ -28,9 +28,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   
   // Load saved tokens from localStorage on initial render
   React.useEffect(() => {
-    const savedAccessToken = localStorage.getItem("coinbase_access_token");
-    const savedRefreshToken = localStorage.getItem("coinbase_refresh_token");
-    const savedExpiresAt = localStorage.getItem("coinbase_expires_at");
+    const savedAccessToken = localStorage.getItem("trading_access_token");
+    const savedRefreshToken = localStorage.getItem("trading_refresh_token");
+    const savedExpiresAt = localStorage.getItem("trading_expires_at");
     
     if (savedAccessToken && savedRefreshToken && savedExpiresAt) {
       try {
@@ -58,7 +58,7 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   
   // Check if current URL contains OAuth response
   const checkForOAuthResponse = () => {
-    if (window.location.pathname === "/oauth/callback") {
+    if (window.location.pathname === "/auth/callback") {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       const state = urlParams.get("state");
