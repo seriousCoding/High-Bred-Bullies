@@ -323,30 +323,55 @@ class CoinbaseApiClient {
   // Public method that doesn't require authentication - for development fallback
   public async getPublicProducts(): Promise<Product[]> {
     try {
-      console.log('Fetching products from public API endpoint...');
+      console.log('Fetching products from public API endpoints...');
       
-      // Use the public Coinbase API endpoint
-      const response = await fetch('https://api.exchange.coinbase.com/products');
+      // Use the public Coinbase API endpoint for product listing
+      const productResponse = await fetch('https://api.exchange.coinbase.com/products');
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch public products: ${response.status}`);
+      if (!productResponse.ok) {
+        throw new Error(`Failed to fetch public products: ${productResponse.status}`);
       }
       
-      const exchangeProducts = await response.json();
+      const exchangeProducts = await productResponse.json();
       
       if (!Array.isArray(exchangeProducts)) {
         console.error('Unexpected response format from public products API');
         return [];
       }
       
+      // Get market data from CoinGecko (top 50 coins by market cap)
+      let marketData: any[] = [];
+      try {
+        const marketResponse = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1');
+        
+        if (marketResponse.ok) {
+          marketData = await marketResponse.json();
+          console.log(`CoinGecko API returned data for ${marketData.length} cryptocurrencies`);
+        } else {
+          console.warn(`Failed to fetch market data from CoinGecko: ${marketResponse.status}`);
+        }
+      } catch (marketError) {
+        console.warn('Error fetching market data from CoinGecko:', marketError);
+      }
+      
+      // Create a map for quick lookup of market data by symbol
+      const marketDataBySymbol = new Map();
+      marketData.forEach(coin => {
+        marketDataBySymbol.set(coin.symbol.toUpperCase(), coin);
+      });
+      
       // Convert to our standardized format
       const products: Product[] = exchangeProducts.map((product: any) => {
+        const baseCurrency = product.base_currency?.toUpperCase() || '';
+        // Find corresponding market data if available
+        const marketInfo = marketDataBySymbol.get(baseCurrency);
+        
         return {
           product_id: product.id || '',
-          price: '0', // Public API doesn't provide price
-          price_percentage_change_24h: '0',
-          volume_24h: '0',
-          volume_percentage_change_24h: '0',
+          price: marketInfo ? marketInfo.current_price.toString() : '0',
+          price_percentage_change_24h: marketInfo ? marketInfo.price_change_percentage_24h.toString() : '0',
+          volume_24h: marketInfo ? marketInfo.total_volume.toString() : '0',
+          volume_percentage_change_24h: '0', // CoinGecko doesn't provide this directly
           base_increment: product.base_increment || '0.00000001',
           quote_increment: product.quote_increment || '0.01',
           quote_min_size: product.min_market_funds || '0',
@@ -363,7 +388,7 @@ class CoinbaseApiClient {
         };
       });
       
-      console.log(`Public API returned ${products.length} products`);
+      console.log(`Enhanced public products API returned ${products.length} products`);
       return products;
     } catch (error) {
       console.error('Error fetching public products:', error);
