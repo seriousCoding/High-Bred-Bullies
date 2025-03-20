@@ -152,17 +152,25 @@ class CoinbaseApiClient {
       fullPath = `/api/v3/brokerage/${trimmedPath}`;
     }
     
+    // Extract query parameters if they exist
+    let queryParams = '';
+    if (fullPath.includes('?')) {
+      const parts = fullPath.split('?');
+      fullPath = parts[0];
+      queryParams = `?${parts[1]}`;
+    }
+    
     // Create the message to sign exactly as Coinbase expects:
     // timestamp + HTTP method + request path + body (if present)
-    let signatureMessage = timestamp + method + fullPath;
+    let signatureMessage = timestamp + method + fullPath + queryParams;
     
     // Add the body to the message if present
     if (body) {
       signatureMessage += body;
     }
     
-    console.log(`Creating signature for: ${method} ${fullPath}`);
-    console.log(`Signature message: ${timestamp} + ${method} + ${fullPath}`);
+    console.log(`Creating signature for: ${method} ${fullPath}${queryParams}`);
+    console.log(`Signature message: ${timestamp} + ${method} + ${fullPath}${queryParams}`);
     
     // Create the signature using HMAC-SHA256 and base64 encoding
     // Advanced Trade API requires base64 encoding for the signature
