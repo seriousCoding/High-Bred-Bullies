@@ -635,18 +635,20 @@ class CoinbaseApiClient {
   
   public async getProducts(apiKey: string, apiSecret: string): Promise<Product[]> {
     try {
-      // Fetch products from Coinbase Advanced Trade API
-      const response = await this.makeRequest<any>(
-        'GET',
-        '/products',
-        apiKey,
-        apiSecret
-      );
+      console.log('Fetching products using Coinbase Advanced Trade SDK');
+      
+      // Get SDK client for these credentials
+      const client = this.getSDKClient(apiKey, apiSecret);
+      
+      // Fetch products using the SDK
+      const response = await client.rest.product.getProducts();
+      
+      console.log(`SDK returned ${response.products.length} products`);
       
       // Check if the response has the expected format
       if (!response.products || !Array.isArray(response.products)) {
-        console.error('Unexpected response format from products API:', response);
-        return [];
+        console.error('Unexpected response format from SDK products API:', response);
+        throw new Error('Invalid response format from Coinbase API');
       }
       
       // Convert to our standardized format
@@ -673,10 +675,12 @@ class CoinbaseApiClient {
         };
       });
       
-      return products;
+      // Filter out any products without a valid product_id
+      return products.filter(p => p.product_id);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      return [];
+      console.error('Error fetching products using SDK:', error);
+      // No fallback data, throw the error up to the caller
+      throw error;
     }
   }
   
@@ -687,62 +691,34 @@ class CoinbaseApiClient {
     limit?: number
   ): Promise<ProductBook> {
     try {
-      // Advanced API endpoint for product book
-      const params = new URLSearchParams();
+      console.log(`Fetching product book for ${productId} using Coinbase Advanced Trade SDK`);
       
-      // Advanced API uses 'limit' parameter directly
-      if (limit) {
-        // Ensure it's a valid integer
-        const limitInt = parseInt(String(limit), 10);
-        if (!isNaN(limitInt) && limitInt > 0) {
-          params.append('limit', limitInt.toString());
-        }
-      }
+      // Get SDK client for these credentials
+      const client = this.getSDKClient(apiKey, apiSecret);
       
-      const queryString = params.toString() ? `?${params.toString()}` : '';
+      // Default limit to 50 if not specified
+      const effectiveLimit = limit || 50;
       
-      // Request order book data from Coinbase Advanced Trade API
-      const response = await this.makeRequest<any>(
-        'GET',
-        `/product_book/${productId}${queryString}`,
-        apiKey,
-        apiSecret
-      );
+      // Fetch product book using the SDK
+      const response = await client.rest.product.getProductBook(productId, effectiveLimit);
       
-      // Check if the response has the expected format
-      if (!response || (!response.bids && !response.asks)) {
-        console.error('Unexpected response format from product book API:', response);
-        return {
-          product_id: productId,
-          bids: [],
-          asks: [],
-          time: new Date().toISOString()
-        };
-      }
+      console.log(`SDK returned product book with ${response.bids?.length || 0} bids and ${response.asks?.length || 0} asks`);
       
       // Extract bids and asks arrays
       const bids = response.bids || [];
       const asks = response.asks || [];
       
       // Convert to our standardized format
-      // Advanced API format may already have [price, size] format or may have a different structure
       return {
         product_id: productId,
-        bids: Array.isArray(bids[0]) ? bids.map((bid: any) => [bid[0], bid[1]]) : 
-              bids.map((bid: any) => [bid.price || '0', bid.size || '0']),
-        asks: Array.isArray(asks[0]) ? asks.map((ask: any) => [ask[0], ask[1]]) : 
-              asks.map((ask: any) => [ask.price || '0', ask.size || '0']),
-        time: response.time || new Date().toISOString()
-      };
-    } catch (error) {
-      console.error(`Error fetching product book for ${productId}:`, error);
-      // Return empty order book on error
-      return {
-        product_id: productId,
-        bids: [],
-        asks: [],
+        bids: bids.map((bid: any) => [bid.price_level || '0', bid.size || '0']),
+        asks: asks.map((ask: any) => [ask.price_level || '0', ask.size || '0']),
         time: new Date().toISOString()
       };
+    } catch (error) {
+      console.error(`Error fetching product book for ${productId} using SDK:`, error);
+      // Throw error instead of returning empty data, let caller handle it
+      throw error;
     }
   }
   
