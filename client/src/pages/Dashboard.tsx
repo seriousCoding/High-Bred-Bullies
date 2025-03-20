@@ -1,4 +1,4 @@
-import { useState } from "react";
+import * as React from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { PriceChart } from "@/components/dashboard/PriceChart";
@@ -12,7 +12,7 @@ import { useApiKeys } from "@/hooks/use-api-keys";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = React.useState(false);
   const { hasKeys } = useApiKeys();
 
   return (

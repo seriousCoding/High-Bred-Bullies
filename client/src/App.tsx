@@ -9,6 +9,7 @@ import Portfolio from "@/pages/Portfolio";
 import Orders from "@/pages/Orders";
 import History from "@/pages/History";
 import Settings from "@/pages/Settings";
+import OAuthCallback from "@/pages/OAuthCallback";
 import { ApiKeysProvider } from "@/context/ApiKeysContext";
 import { MarketsProvider } from "@/context/MarketsContext";
 
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
+      <Route path="/oauth/callback" component={OAuthCallback} />
       <Route component={NotFound} />
     </Switch>
   );

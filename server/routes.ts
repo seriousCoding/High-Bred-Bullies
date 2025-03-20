@@ -1,10 +1,18 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { coinbaseApi } from "./coinbase-api";
 import { z } from "zod";
 import { insertApiKeySchema } from "@shared/schema";
 import { WebSocketServer } from 'ws';
+import axios from 'axios';
+import dotenv from 'dotenv';
+
+// OAuth configuration
+const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID;
+const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
+const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
+const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -303,6 +311,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error removing favorite market:', error);
       res.status(500).json({ message: 'Failed to remove favorite market' });
+    }
+  });
+
+  // OAuth2 Flow Endpoints
+  app.post('/api/oauth/token', async (req: Request, res: Response) => {
+    try {
+      const { code, redirect_uri } = req.body;
+      
+      if (!code || !redirect_uri) {
+        return res.status(400).json({ message: 'Authorization code and redirect URI are required' });
+      }
+      
+      if (!COINBASE_OAUTH_CLIENT_ID || !COINBASE_OAUTH_CLIENT_SECRET) {
+        return res.status(500).json({ message: 'OAuth client credentials are not configured' });
+      }
+      
+      // Exchange code for token with Coinbase
+      const tokenResponse = await axios.post(COINBASE_TOKEN_URL, new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: COINBASE_OAUTH_CLIENT_ID,
+        client_secret: COINBASE_OAUTH_CLIENT_SECRET,
+        redirect_uri
+      }), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      
+      // Return token response to client
+      res.json(tokenResponse.data);
+    } catch (error) {
+      console.error('OAuth token exchange error:', error);
+      
+      // Get error details from axios error
+      let errorMessage = 'Failed to exchange authorization code for token';
+      let statusCode = 500;
+      
+      if (axios.isAxiosError(error) && error.response) {
+        statusCode = error.response.status;
+        if (error.response.data && error.response.data.error_description) {
+          errorMessage = error.response.data.error_description;
+        }
+      }
+      
+      res.status(statusCode).json({ message: errorMessage });
+    }
+  });
+  
+  app.post('/api/oauth/refresh', async (req: Request, res: Response) => {
+    try {
+      const { refresh_token } = req.body;
+      
+      if (!refresh_token) {
+        return res.status(400).json({ message: 'Refresh token is required' });
+      }
+      
+      if (!COINBASE_OAUTH_CLIENT_ID || !COINBASE_OAUTH_CLIENT_SECRET) {
+        return res.status(500).json({ message: 'OAuth client credentials are not configured' });
+      }
+      
+      // Exchange refresh token for new access token
+      const tokenResponse = await axios.post(COINBASE_TOKEN_URL, new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token,
+        client_id: COINBASE_OAUTH_CLIENT_ID,
+        client_secret: COINBASE_OAUTH_CLIENT_SECRET
+      }), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      
+      // Return new tokens to client
+      res.json(tokenResponse.data);
+    } catch (error) {
+      console.error('OAuth token refresh error:', error);
+      
+      // Get error details from axios error
+      let errorMessage = 'Failed to refresh access token';
+      let statusCode = 500;
+      
+      if (axios.isAxiosError(error) && error.response) {
+        statusCode = error.response.status;
+        if (error.response.data && error.response.data.error_description) {
+          errorMessage = error.response.data.error_description;
+        }
+      }
+      
+      res.status(statusCode).json({ message: errorMessage });
+    }
+  });
+  
+  // Endpoint to validate access token and get user information
+  app.get('/api/oauth/user', async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.headers.authorization?.split('Bearer ')[1];
+      
+      if (!accessToken) {
+        return res.status(401).json({ message: 'Access token is required' });
+      }
+      
+      // Get user data from Coinbase API
+      const userResponse = await axios.get('https://api.coinbase.com/v2/user', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      res.json(userResponse.data);
+    } catch (error) {
+      console.error('OAuth user data error:', error);
+      
+      // Get error details from axios error
+      let errorMessage = 'Failed to fetch user data';
+      let statusCode = 500;
+      
+      if (axios.isAxiosError(error) && error.response) {
+        statusCode = error.response.status;
+        if (error.response.data && error.response.data.errors && error.response.data.errors[0]) {
+          errorMessage = error.response.data.errors[0].message;
+        }
+      }
+      
+      res.status(statusCode).json({ message: errorMessage });
     }
   });
 

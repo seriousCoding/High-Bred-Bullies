@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, ReactNode } from "react";
+import * as React from "react";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useWebSocket } from "@/hooks/use-websocket";
 
@@ -31,7 +31,7 @@ interface MarketsContextType {
   error: Error | null;
 }
 
-export const MarketsContext = createContext<MarketsContextType>({
+export const MarketsContext = React.createContext<MarketsContextType>({
   markets: [],
   selectedMarket: null,
   setSelectedMarket: () => {},
@@ -40,19 +40,19 @@ export const MarketsContext = createContext<MarketsContextType>({
 });
 
 interface MarketsProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 export function MarketsProvider({ children }: MarketsProviderProps) {
-  const [markets, setMarkets] = useState<Product[]>([]);
-  const [selectedMarket, setSelectedMarket] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [markets, setMarkets] = React.useState<Product[]>([]);
+  const [selectedMarket, setSelectedMarket] = React.useState<Product | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<Error | null>(null);
   const { apiKey, apiSecret, hasKeys } = useApiKeys();
   const { subscribe, messages } = useWebSocket();
   
   // Fetch products when API keys are available
-  useEffect(() => {
+  React.useEffect(() => {
     if (!hasKeys) return;
     
     const fetchProducts = async () => {
@@ -97,11 +97,11 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
   }, [hasKeys, apiKey, apiSecret]);
   
   // Subscribe to ticker updates via WebSocket
-  useEffect(() => {
+  React.useEffect(() => {
     if (!hasKeys || markets.length === 0) return;
     
     // Get product IDs for top 20 markets (by volume)
-    const productIds = markets.slice(0, 20).map(market => market.product_id);
+    const productIds = markets.slice(0, 20).map((market: Product) => market.product_id);
     
     // Subscribe to ticker channel
     subscribe({
@@ -118,10 +118,10 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         channel: "ticker"
       });
     };
-  }, [hasKeys, markets.length > 0]);
+  }, [hasKeys, markets.length > 0, subscribe]);
   
   // Process WebSocket messages for ticker updates
-  useEffect(() => {
+  React.useEffect(() => {
     if (!messages.length) return;
     
     // Find ticker messages
@@ -134,7 +134,7 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
     
     if (tickerMessages.length > 0) {
       // Update markets with latest ticker data
-      setMarkets(prev => {
+      setMarkets((prev: Product[]) => {
         const updatedMarkets = [...prev];
         
         tickerMessages.forEach(msg => {
@@ -161,7 +161,7 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         return updatedMarkets;
       });
     }
-  }, [messages]);
+  }, [messages, selectedMarket]);
 
   return (
     <MarketsContext.Provider
@@ -179,5 +179,5 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
 }
 
 export function useMarkets() {
-  return useContext(MarketsContext);
+  return React.useContext(MarketsContext);
 }

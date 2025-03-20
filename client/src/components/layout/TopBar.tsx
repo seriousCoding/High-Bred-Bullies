@@ -1,7 +1,6 @@
-import { useState, useContext } from "react";
+import * as React from "react";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useMarkets } from "@/context/MarketsContext";
-import ApiKeyModal from "@/components/dashboard/ApiKeyModal";
 
 interface TopBarProps {
   onApiKeyModalOpen: () => void;

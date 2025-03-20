@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import * as React from "react";
 import { useApiKeys } from "./use-api-keys";
 
 type WebSocketStatus = "connecting" | "open" | "closed" | "error";
@@ -9,15 +9,15 @@ interface WebSocketMessage {
 }
 
 export function useWebSocket() {
-  const { apiKey, apiSecret, hasKeys } = useApiKeys();
-  const [status, setStatus] = useState<WebSocketStatus>("closed");
-  const [messages, setMessages] = useState<any[]>([]);
-  const socketRef = useRef<WebSocket | null>(null);
-  const messageQueue = useRef<WebSocketMessage[]>([]);
+  const { accessToken, isAuthenticated } = useApiKeys();
+  const [status, setStatus] = React.useState<WebSocketStatus>("closed");
+  const [messages, setMessages] = React.useState<any[]>([]);
+  const socketRef = React.useRef<WebSocket | null>(null);
+  const messageQueue = React.useRef<WebSocketMessage[]>([]);
 
   // Initialize WebSocket connection
-  useEffect(() => {
-    if (!hasKeys) return;
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
 
     const connectWebSocket = () => {
       setStatus("connecting");
@@ -68,7 +68,7 @@ export function useWebSocket() {
         
         // Attempt to reconnect after a delay
         setTimeout(() => {
-          if (hasKeys && !socketRef.current) {
+          if (isAuthenticated && !socketRef.current) {
             connectWebSocket();
           }
         }, 5000);
@@ -84,25 +84,19 @@ export function useWebSocket() {
         socketRef.current = null;
       }
     };
-  }, [hasKeys, apiKey, apiSecret]);
+  }, [isAuthenticated, accessToken]);
 
   // Function to send subscription messages
-  const subscribe = useCallback((message: WebSocketMessage) => {
-    if (!hasKeys) {
-      console.warn("Cannot subscribe: No API keys provided");
+  const subscribe = React.useCallback((message: WebSocketMessage) => {
+    if (!isAuthenticated) {
+      console.warn("Cannot subscribe: Not authenticated with Coinbase");
       return;
     }
 
     // Add authentication to subscription message if needed
     if (message.type === "subscribe") {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const signMessage = timestamp + "GET" + "/ws";
-      
-      // Add authentication headers to be processed on the server side
-      // The server will handle the actual signature calculation using the stored API keys
-      message.api_key = apiKey || '';
-      message.timestamp = timestamp;
-      message.signature = "[signature_computed_on_server]";
+      // Add OAuth token to subscription message
+      message.access_token = accessToken || '';
     }
 
     // Send the message if socket is ready, otherwise queue it
@@ -111,10 +105,10 @@ export function useWebSocket() {
     } else {
       messageQueue.current.push(message);
     }
-  }, [hasKeys, apiKey, apiSecret]);
+  }, [isAuthenticated, accessToken]);
 
   // Clear messages, useful when changing subscriptions
-  const clearMessages = useCallback(() => {
+  const clearMessages = React.useCallback(() => {
     setMessages([]);
   }, []);
 

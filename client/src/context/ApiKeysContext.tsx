@@ -1,70 +1,201 @@
-import { createContext, useState, useEffect, ReactNode } from "react";
+import * as React from "react";
 
-interface ApiKeysContextType {
-  apiKey: string | null;
-  apiSecret: string | null;
-  hasKeys: boolean;
-  saveKeys: (key: string, secret: string, remember: boolean) => void;
-  clearKeys: () => void;
+interface AuthContextType {
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null; // timestamp when the token expires
+  isAuthenticated: boolean;
+  saveTokens: (accessToken: string, refreshToken: string, expiresIn: number, remember: boolean) => void;
+  logout: () => void;
+  initiateOAuthFlow: () => void;
 }
 
-export const ApiKeysContext = createContext<ApiKeysContextType | null>(null);
+export const ApiKeysContext = React.createContext<AuthContextType | null>(null);
 
 interface ApiKeysProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
+// OAuth2 configuration
+const CLIENT_ID = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID || ""; // Should be provided by environment variable
+const REDIRECT_URI = window.location.origin + "/oauth/callback";
+const OAUTH_STATE_KEY = "coinbase_oauth_state";
+
 export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [apiSecret, setApiSecret] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = React.useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = React.useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = React.useState<number | null>(null);
   
-  // Load saved keys from localStorage on initial render
-  useEffect(() => {
-    const savedKey = localStorage.getItem("coinbase_api_key");
-    const savedSecret = localStorage.getItem("coinbase_api_secret");
+  // Load saved tokens from localStorage on initial render
+  React.useEffect(() => {
+    const savedAccessToken = localStorage.getItem("coinbase_access_token");
+    const savedRefreshToken = localStorage.getItem("coinbase_refresh_token");
+    const savedExpiresAt = localStorage.getItem("coinbase_expires_at");
     
-    if (savedKey && savedSecret) {
+    if (savedAccessToken && savedRefreshToken && savedExpiresAt) {
       try {
-        // In a real app, these would be encrypted/securely stored
-        setApiKey(savedKey);
-        setApiSecret(savedSecret);
+        const expiresAtTimestamp = parseInt(savedExpiresAt, 10);
+        
+        if (expiresAtTimestamp > Date.now()) {
+          // Token is still valid
+          setAccessToken(savedAccessToken);
+          setRefreshToken(savedRefreshToken);
+          setExpiresAt(expiresAtTimestamp);
+        } else {
+          // Token has expired, should refresh it
+          refreshAccessToken(savedRefreshToken);
+        }
       } catch (error) {
-        console.error("Failed to load API keys:", error);
+        console.error("Failed to load auth tokens:", error);
         // Clear potentially corrupted data
-        localStorage.removeItem("coinbase_api_key");
-        localStorage.removeItem("coinbase_api_secret");
+        clearTokens();
       }
     }
+    
+    // Check for OAuth callback response
+    checkForOAuthResponse();
   }, []);
   
-  // Save API keys
-  const saveKeys = (key: string, secret: string, remember: boolean) => {
-    setApiKey(key);
-    setApiSecret(secret);
-    
-    if (remember) {
-      // In a real app, these would be encrypted/securely stored
-      localStorage.setItem("coinbase_api_key", key);
-      localStorage.setItem("coinbase_api_secret", secret);
+  // Check if current URL contains OAuth response
+  const checkForOAuthResponse = () => {
+    if (window.location.pathname === "/oauth/callback") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+      const savedState = localStorage.getItem(OAUTH_STATE_KEY);
+      
+      // Verify state to prevent CSRF attacks
+      if (code && state && state === savedState) {
+        // Clean up the state
+        localStorage.removeItem(OAUTH_STATE_KEY);
+        
+        // Exchange code for token
+        exchangeCodeForToken(code);
+      }
     }
   };
   
-  // Clear API keys
-  const clearKeys = () => {
-    setApiKey(null);
-    setApiSecret(null);
-    localStorage.removeItem("coinbase_api_key");
-    localStorage.removeItem("coinbase_api_secret");
+  // Exchange authorization code for access token
+  const exchangeCodeForToken = async (authCode: string) => {
+    try {
+      const response = await fetch("/api/oauth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code: authCode,
+          redirect_uri: REDIRECT_URI
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to exchange code for token");
+      }
+      
+      const data = await response.json();
+      saveTokens(
+        data.access_token,
+        data.refresh_token,
+        data.expires_in,
+        true // Always remember OAuth tokens
+      );
+      
+      // Redirect to home page after successful login
+      window.history.replaceState({}, document.title, "/");
+    } catch (error) {
+      console.error("Error exchanging code for token:", error);
+    }
+  };
+  
+  // Refresh access token using refresh token
+  const refreshAccessToken = async (token: string) => {
+    try {
+      const response = await fetch("/api/oauth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          refresh_token: token
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to refresh token");
+      }
+      
+      const data = await response.json();
+      saveTokens(
+        data.access_token,
+        data.refresh_token || token, // Use new refresh token if provided
+        data.expires_in,
+        true
+      );
+    } catch (error) {
+      console.error("Error refreshing token:", error);
+      clearTokens();
+    }
+  };
+  
+  // Save auth tokens
+  const saveTokens = (
+    token: string, 
+    refresh: string, 
+    expiresIn: number, 
+    remember: boolean
+  ) => {
+    const expirationTime = Date.now() + expiresIn * 1000;
+    
+    setAccessToken(token);
+    setRefreshToken(refresh);
+    setExpiresAt(expirationTime);
+    
+    if (remember) {
+      localStorage.setItem("coinbase_access_token", token);
+      localStorage.setItem("coinbase_refresh_token", refresh);
+      localStorage.setItem("coinbase_expires_at", expirationTime.toString());
+    }
+  };
+  
+  // Clear auth tokens
+  const clearTokens = () => {
+    setAccessToken(null);
+    setRefreshToken(null);
+    setExpiresAt(null);
+    localStorage.removeItem("coinbase_access_token");
+    localStorage.removeItem("coinbase_refresh_token");
+    localStorage.removeItem("coinbase_expires_at");
+  };
+  
+  // Initiate OAuth login flow
+  const initiateOAuthFlow = () => {
+    // Generate random state for CSRF protection
+    const state = Math.random().toString(36).substring(2, 15);
+    localStorage.setItem(OAUTH_STATE_KEY, state);
+    
+    // Build authorization URL
+    const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
+    authUrl.searchParams.append("response_type", "code");
+    authUrl.searchParams.append("client_id", CLIENT_ID);
+    authUrl.searchParams.append("redirect_uri", REDIRECT_URI);
+    authUrl.searchParams.append("state", state);
+    authUrl.searchParams.append("scope", "wallet:accounts:read,wallet:user:read,wallet:buys:read,wallet:sells:read,wallet:transactions:read,wallet:payment-methods:read,wallet:addresses:read,offline_access");
+    
+    // Redirect user to authorization page
+    window.location.href = authUrl.toString();
   };
   
   return (
     <ApiKeysContext.Provider 
       value={{
-        apiKey,
-        apiSecret,
-        hasKeys: !!apiKey && !!apiSecret,
-        saveKeys,
-        clearKeys
+        accessToken,
+        refreshToken,
+        expiresAt,
+        isAuthenticated: !!accessToken && !!expiresAt && expiresAt > Date.now(),
+        saveTokens,
+        logout: clearTokens,
+        initiateOAuthFlow
       }}
     >
       {children}
