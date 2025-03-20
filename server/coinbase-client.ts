@@ -255,6 +255,8 @@ export class CoinbaseClient {
   
   /**
    * Generate authentication headers for Advanced Trade API
+   * 
+   * According to Coinbase docs: https://docs.cloud.coinbase.com/advanced-trade/docs/auth
    */
   private createAdvancedHeaders(
     method: string,
@@ -266,40 +268,43 @@ export class CoinbaseClient {
       throw new Error('API credentials not set');
     }
     
-    // Use provided timestamp or generate a new one
-    const ts = timestamp || Math.floor(Date.now() / 1000).toString();
-    console.log(`Using timestamp: ${ts} for Advanced API auth`);
-    
-    // Ensure path is correctly formatted for Advanced API
-    // The path should start with /api/v3/brokerage/
-    let fullPath = requestPath;
-    if (!fullPath.startsWith('/api/v3/brokerage')) {
-      // Remove any leading slashes to avoid double slashes
-      const trimmedPath = requestPath.replace(/^\/+/, '');
-      fullPath = `/api/v3/brokerage/${trimmedPath}`;
-      console.log(`Path normalized from ${requestPath} to ${fullPath}`);
-    }
-    
-    // Extract query parameters if they exist
-    let queryParams = '';
-    if (fullPath.includes('?')) {
-      const parts = fullPath.split('?');
-      fullPath = parts[0];
-      queryParams = `?${parts[1]}`;
-      console.log(`Extracted query params: ${queryParams}`);
-    }
-    
-    // Log the full path for debugging
-    console.log(`Creating Advanced API signature for: ${method} ${fullPath}${queryParams}`);
-    
-    // Create the message to sign: timestamp + HTTP method + request path + body
-    const signatureMessage = ts + method + fullPath + queryParams + body;
-    console.log(`Signature message (before HMAC): ${signatureMessage}`);
-    
     try {
-      // Create the signature
+      // Use provided timestamp or generate a new one in ISO format
+      const ts = timestamp || Math.floor(Date.now() / 1000).toString();
+      console.log(`Using timestamp: ${ts} for Advanced API auth`);
+      
+      // Ensure path is correctly formatted for Advanced API
+      // The path should start with /api/v3/brokerage/
+      let fullPath = requestPath;
+      if (!fullPath.startsWith('/api/v3/brokerage')) {
+        // Remove any leading slashes to avoid double slashes
+        const trimmedPath = requestPath.replace(/^\/+/, '');
+        fullPath = `/api/v3/brokerage/${trimmedPath}`;
+        console.log(`Path normalized from ${requestPath} to ${fullPath}`);
+      }
+      
+      // Extract query parameters if they exist
+      let queryParams = '';
+      if (fullPath.includes('?')) {
+        const parts = fullPath.split('?');
+        fullPath = parts[0];
+        queryParams = `?${parts[1]}`;
+        console.log(`Extracted query params: ${queryParams}`);
+      }
+      
+      // Log the full path for debugging
+      console.log(`Creating Advanced API signature for: ${method} ${fullPath}${queryParams}`);
+      
+      // Create the message to sign: timestamp + HTTP method + request path + body
+      const signatureMessage = ts + method + fullPath + queryParams + body;
+      console.log(`Signature message (before HMAC): ${signatureMessage}`);
+      
+      // Create the signature - must use base64 encoding for Coinbase
+      const key = Buffer.from(this.apiSecret, 'base64');
+      console.log(`Secret key loaded, length: ${key.length} bytes`);
+      
       const signature = crypto
-        .createHmac('sha256', this.apiSecret)
+        .createHmac('sha256', key)
         .update(signatureMessage)
         .digest('base64');
       

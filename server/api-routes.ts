@@ -109,9 +109,30 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
       // Parse with schema to validate
       insertApiKeySchema.parse(apiKeyData);
       
+      // Validate API key and secret formats - Coinbase API keys usually have UUIDs and base64 secrets
+      // Keys are typically in the format of UUIDs with hyphens
+      // Secrets are typically base64 encoded and may include +, /, and =
+      const isValidApiKeyFormat = apiKeyData.apiKey && apiKeyData.apiKey.length > 10;
+      const isValidApiSecretFormat = apiKeyData.apiSecret && apiKeyData.apiSecret.length > 20;
+      
+      if (!isValidApiKeyFormat) {
+        return res.status(400).json({ 
+          message: 'Invalid API key format', 
+          details: 'API key appears to be too short or invalid' 
+        });
+      }
+      
+      if (!isValidApiSecretFormat) {
+        return res.status(400).json({ 
+          message: 'Invalid API secret format', 
+          details: 'API secret appears to be too short or invalid' 
+        });
+      }
+      
       // Validate Coinbase API credentials before storing
       try {
         console.log('Validating API credentials...');
+        console.log(`API key format check passed: ${apiKeyData.apiKey.substring(0, 4)}...`);
         
         // Set credentials temporarily to test them
         coinbaseClient.setCredentials(apiKeyData.apiKey, apiKeyData.apiSecret);
@@ -124,7 +145,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         // Try to test the advanced API with a lightweight request
         try {
           console.log('Testing Advanced API access...');
-          // We don't need to await this - it will throw if authentication fails
+          // We need to await this - it will throw if authentication fails
           await coinbaseClient.advancedRequest('GET', '/accounts', { limit: 1 });
           console.log('Advanced API authentication successful');
         } catch (advancedError) {
