@@ -14,11 +14,9 @@ import { VaultedApiKey } from "@/lib/apiKeyVault";
 const apiKeyFormSchema = z.object({
   label: z.string().min(1, "Label is required"),
   apiKey: z.string()
-    .min(20, "API Key must be at least 20 characters")
-    .regex(/^[a-zA-Z0-9]+$/, "API Key must only contain letters and numbers"),
+    .min(10, "API Key must be at least 10 characters"),
   apiSecret: z.string()
-    .min(30, "API Secret must be at least 30 characters")
-    .regex(/^[a-zA-Z0-9]+$/, "API Secret must only contain letters and numbers"),
+    .min(20, "API Secret must be at least 20 characters"),
 });
 
 // Form schema for client API key (pre-filled)

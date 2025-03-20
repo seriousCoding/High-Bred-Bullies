@@ -109,23 +109,18 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
       // Parse with schema to validate
       insertApiKeySchema.parse(apiKeyData);
       
-      // Validate API key and secret formats - Coinbase API keys usually have UUIDs and base64 secrets
-      // Keys are typically in the format of UUIDs with hyphens
-      // Secrets are typically base64 encoded and may include +, /, and =
-      const isValidApiKeyFormat = apiKeyData.apiKey && apiKeyData.apiKey.length > 10;
-      const isValidApiSecretFormat = apiKeyData.apiSecret && apiKeyData.apiSecret.length > 20;
-      
-      if (!isValidApiKeyFormat) {
+      // Simple check to make sure values exist
+      if (!apiKeyData.apiKey || apiKeyData.apiKey.trim() === '') {
         return res.status(400).json({ 
-          message: 'Invalid API key format', 
-          details: 'API key appears to be too short or invalid' 
+          message: 'Missing API key', 
+          details: 'API key is required' 
         });
       }
       
-      if (!isValidApiSecretFormat) {
+      if (!apiKeyData.apiSecret || apiKeyData.apiSecret.trim() === '') {
         return res.status(400).json({ 
-          message: 'Invalid API secret format', 
-          details: 'API secret appears to be too short or invalid' 
+          message: 'Missing API secret', 
+          details: 'API secret is required' 
         });
       }
       
