@@ -32,7 +32,7 @@ const apiKeyAuth = async (req: Request, res: Response, next: Function) => {
     }
     
     // Try to get API key from vault using key rotation
-    const userId = 1; // For now use fixed user ID since we don't have full auth
+    const userId = parseInt(req.headers['x-user-id'] as string) || 0;
     const credentials = await keyVault.getNextKey(userId);
     
     if (credentials) {
@@ -172,7 +172,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   app.get('/api/keys', async (req: Request, res: Response) => {
     try {
       // In a real app, you'd get userId from auth session
-      const userId = 1; // Placeholder
+      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
       const keys = await storage.getApiKeys(userId);
       
       // Only return partial key info for security

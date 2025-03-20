@@ -15,6 +15,7 @@ export async function apiRequest(
     body?: string | object;
     headers?: Record<string, string>;
     token?: string | null;
+    userId?: number | null;
   }
 ): Promise<any> {
   const headers: Record<string, string> = {
@@ -29,6 +30,17 @@ export async function apiRequest(
   // Add token if provided
   if (options?.token) {
     headers['Authorization'] = `Bearer ${options.token}`;
+  }
+  
+  // Add userId header for API authentication
+  if (options?.userId) {
+    headers['x-user-id'] = options.userId.toString();
+  } else {
+    // Get a stored userId or default to 0 if not available
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      headers['x-user-id'] = storedUserId;
+    }
   }
   
   // Prepare the fetch options
@@ -66,8 +78,16 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Include userId header for proper authentication
+    const headers: Record<string, string> = {};
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      headers['x-user-id'] = storedUserId;
+    }
+    
     const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+      credentials: "include", 
+      headers
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
