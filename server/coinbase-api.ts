@@ -521,7 +521,8 @@ class CoinbaseApiClient {
     try {
       console.log('Fetching products from Coinbase Exchange API');
       
-      const response = await fetch('https://api.exchange.coinbase.com/products', {
+      // First get the exchange products for the base information
+      const productsResponse = await fetch('https://api.exchange.coinbase.com/products', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -529,33 +530,89 @@ class CoinbaseApiClient {
         }
       });
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status}`);
+      if (!productsResponse.ok) {
+        throw new Error(`Failed to fetch products: ${productsResponse.status}`);
       }
       
-      const exchangeProducts = await response.json() as CoinbaseExchangeProduct[];
+      const exchangeProducts = await productsResponse.json() as CoinbaseExchangeProduct[];
       
-      // Transform exchange products to match Product interface
-      const products: Product[] = exchangeProducts.map(p => ({
-        product_id: p.id,
-        price: '0', // Will be updated via WebSocket
-        price_percentage_change_24h: '0',
-        volume_24h: '0',
-        volume_percentage_change_24h: '0',
-        base_increment: p.base_increment,
-        quote_increment: p.quote_increment,
-        quote_min_size: p.min_market_funds,
-        quote_max_size: p.max_market_funds,
-        base_min_size: p.base_min_size,
-        base_max_size: p.base_max_size,
-        base_name: p.base_currency,
-        quote_name: p.quote_currency,
-        status: p.status,
-        cancel_only: p.cancel_only,
-        limit_only: p.limit_only,
-        post_only: p.post_only,
-        trading_disabled: p.trading_disabled
-      }));
+      // Get current 24h stats for each product to get real price data
+      const productIds = exchangeProducts.filter(p => 
+        // Only include USD pairs to limit the number of API calls and focus on main products
+        p.quote_currency === 'USD' && 
+        // Filter out disabled products
+        !p.trading_disabled && 
+        // Filter out weird status products
+        p.status === 'online'
+      ).slice(0, 15).map(p => p.id); // Limit to 15 products to avoid rate limits
+      
+      console.log(`Getting stats for ${productIds.length} products`);
+      
+      // Get real ticker data for each product
+      const statsPromises = productIds.map(async (productId) => {
+        try {
+          const statsResponse = await fetch(`https://api.exchange.coinbase.com/products/${productId}/stats`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (!statsResponse.ok) {
+            console.error(`Failed to fetch stats for ${productId}: ${statsResponse.status}`);
+            return null;
+          }
+          
+          const stats = await statsResponse.json();
+          return { productId, stats };
+        } catch (e) {
+          console.error(`Error fetching stats for ${productId}:`, e);
+          return null;
+        }
+      });
+      
+      const statsResults = await Promise.all(statsPromises);
+      const statsMap = new Map();
+      
+      statsResults.filter(Boolean).forEach(result => {
+        if (result) {
+          statsMap.set(result.productId, result.stats);
+        }
+      });
+      
+      // Transform exchange products to match Product interface with real data
+      const products: Product[] = exchangeProducts
+        .filter(p => productIds.includes(p.id))
+        .map(p => {
+          const stats = statsMap.get(p.id) || {};
+          const price = stats.last || '0';
+          const open = stats.open || '0';
+          const priceChange = open !== '0' ? 
+            ((parseFloat(price) - parseFloat(open)) / parseFloat(open) * 100).toFixed(2) : 
+            '0';
+          
+          return {
+            product_id: p.id,
+            price: price,
+            price_percentage_change_24h: priceChange,
+            volume_24h: stats.volume || '0',
+            volume_percentage_change_24h: '0', // Not available from the stats endpoint
+            base_increment: p.base_increment,
+            quote_increment: p.quote_increment,
+            quote_min_size: p.min_market_funds,
+            quote_max_size: p.max_market_funds,
+            base_min_size: p.base_min_size,
+            base_max_size: p.base_max_size,
+            base_name: p.base_currency,
+            quote_name: p.quote_currency,
+            status: p.status,
+            cancel_only: p.cancel_only,
+            limit_only: p.limit_only,
+            post_only: p.post_only,
+            trading_disabled: p.trading_disabled
+          };
+        });
       
       return products;
     } catch (error) {

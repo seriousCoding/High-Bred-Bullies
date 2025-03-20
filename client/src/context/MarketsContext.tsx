@@ -51,21 +51,26 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
   const { apiKey, apiSecret, hasKeys } = useApiKeys();
   const { subscribe, messages } = useWebSocket();
   
-  // Fetch products when API keys are available
+  // Fetch products - can work with or without API keys
   React.useEffect(() => {
-    if (!hasKeys) return;
-    
     const fetchProducts = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        const response = await fetch('/api/products', {
-          headers: {
-            'x-api-key': apiKey!,
-            'x-api-secret': apiSecret!
-          }
-        });
+        // Create headers based on whether we have API keys or not
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        
+        // Add API keys to headers if available
+        if (hasKeys && apiKey && apiSecret) {
+          headers['x-api-key'] = apiKey;
+          headers['x-api-secret'] = apiSecret;
+        }
+        
+        // Make the API request with or without authentication
+        const response = await fetch('/api/products', { headers });
         
         if (!response.ok) {
           throw new Error(`Error fetching products: ${response.statusText}`);
@@ -74,16 +79,21 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
-          // Sort products by volume
-          const sortedProducts = [...data].sort((a, b) => 
-            parseFloat(b.volume_24h) - parseFloat(a.volume_24h)
-          );
+          // Sort products by volume (descending)
+          const sortedProducts = [...data].sort((a, b) => {
+            const volumeA = parseFloat(a.volume_24h) || 0;
+            const volumeB = parseFloat(b.volume_24h) || 0;
+            return volumeB - volumeA;
+          });
           
+          console.log(`Loaded ${sortedProducts.length} markets from API`);
           setMarkets(sortedProducts);
           
           // Set BTC-USD as default selected market, or first product if not available
           const btcUsd = sortedProducts.find(p => p.product_id === 'BTC-USD');
           setSelectedMarket(btcUsd || sortedProducts[0] || null);
+        } else {
+          throw new Error('Invalid data format received from API');
         }
       } catch (error) {
         console.error('Failed to fetch products:', error);
@@ -94,14 +104,21 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
     };
     
     fetchProducts();
+    
+    // Refresh market data every 5 minutes
+    const refreshInterval = setInterval(fetchProducts, 5 * 60 * 1000);
+    
+    return () => clearInterval(refreshInterval);
   }, [hasKeys, apiKey, apiSecret]);
   
   // Subscribe to ticker updates via WebSocket
   React.useEffect(() => {
-    if (!hasKeys || markets.length === 0) return;
+    if (markets.length === 0) return;
     
     // Get product IDs for top 20 markets (by volume)
     const productIds = markets.slice(0, 20).map((market: Product) => market.product_id);
+    
+    console.log(`Subscribing to ticker updates for ${productIds.length} markets`);
     
     // Subscribe to ticker channel
     subscribe({
@@ -118,7 +135,7 @@ export function MarketsProvider({ children }: MarketsProviderProps) {
         channel: "ticker"
       });
     };
-  }, [hasKeys, markets.length, subscribe]);
+  }, [markets.length, subscribe]);
   
   // Process WebSocket messages for ticker updates
   React.useEffect(() => {
