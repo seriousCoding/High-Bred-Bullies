@@ -603,38 +603,16 @@ class CoinbaseApiClient {
   }
   
   // This method has been removed to ensure we only use authentic data from Coinbase API
+  // These methods have been replaced to prevent use of fallback data
+  
   private getFallbackProducts(): Product[] {
     console.error('Fallback product data has been disabled to ensure data integrity');
     throw new Error('Fallback product data is not available. Only authentic Coinbase data can be used.');
   }
   
-  // This method has been removed to ensure we only use authentic data from Coinbase API
   private enrichProductsWithFallbackPrices(exchangeProducts: any[]): Product[] {
     console.error('Fallback price data has been disabled to ensure data integrity');
-    
-    // Return products with zeros for unknown price data instead of fallback values
-    return exchangeProducts.map((product: any) => {
-      return {
-        product_id: product.id || '',
-        price: '0', // Only use real price data from the API
-        price_percentage_change_24h: '0',
-        volume_24h: '0',
-        volume_percentage_change_24h: '0',
-        base_increment: product.base_increment || '0.00000001',
-        quote_increment: product.quote_increment || '0.01',
-        quote_min_size: product.min_market_funds || '0',
-        quote_max_size: product.max_market_funds || '0',
-        base_min_size: product.base_min_size || '0',
-        base_max_size: product.base_max_size || '0',
-        base_name: product.base_currency || '',
-        quote_name: product.quote_currency || '',
-        status: product.status || 'online',
-        cancel_only: product.cancel_only || false,
-        limit_only: product.limit_only || false,
-        post_only: product.post_only || false,
-        trading_disabled: product.trading_disabled || false
-      };
-    });
+    throw new Error('Fallback price data is not available. Only authentic Coinbase data can be used.');
   }
   
   public async getProducts(apiKey: string, apiSecret: string): Promise<Product[]> {
@@ -973,7 +951,7 @@ class CoinbaseApiClient {
         
         if (!this.coinbaseClient) {
           console.error('Failed to initialize Coinbase client for fallback');
-          return [];
+          throw new Error('Failed to initialize Coinbase client - API keys may be invalid or missing');
         }
         
         // Use the Coinbase SDK to fetch accounts
@@ -1134,7 +1112,7 @@ class CoinbaseApiClient {
       // Check response format
       if (!response.orders || !Array.isArray(response.orders)) {
         console.error('Unexpected order response format:', response);
-        return [];
+        throw new Error('Invalid order data format received from Coinbase API');
       }
       
       // Convert to our standardized format
@@ -1356,7 +1334,7 @@ class CoinbaseApiClient {
       // Check if the response has the expected format
       if (!response.fills || !Array.isArray(response.fills)) {
         console.error('Unexpected fills response format:', response);
-        return [];
+        throw new Error('Invalid fill data format received from Coinbase API');
       }
       
       // Convert to our standardized Trade format
