@@ -1024,9 +1024,10 @@ class CoinbaseApiClient {
           });
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fatal error fetching accounts:', error);
-      return [];
+      // Instead of returning empty data, throw the error to be consistent with our data integrity policy
+      throw new Error(`Failed to fetch authentic account data from Coinbase: ${error.message || 'Unknown error'}`);
     }
   }
   
@@ -1368,10 +1369,10 @@ class CoinbaseApiClient {
         bid: fill.bid || '0',
         ask: fill.ask || '0'
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching fills:', error);
       // Instead of returning empty data, throw the error to be consistent with our data integrity policy
-      throw new Error(`Failed to fetch authentic fill data from Coinbase: ${error.message}`);
+      throw new Error(`Failed to fetch authentic fill data from Coinbase: ${error.message || 'Unknown error'}`);
     }
   }
   
@@ -1401,34 +1402,8 @@ class CoinbaseApiClient {
       
       if (!response.ok) {
         console.error(`API error ${response.status}: ${response.statusText}`);
-        
-        // If we get an error, let's try the Advanced Trade API format as a backup
-        console.log('Trying Advanced Trade API as backup...');
-        const advancedTradeUrl = `${REST_API_URL}/products/${productId}/ticker`;
-        
-        const tickerResponse = await fetch(advancedTradeUrl);
-        if (!tickerResponse.ok) {
-          console.error(`Advanced Trade API also failed: ${tickerResponse.status}`);
-          return [];
-        }
-        
-        // If we get ticker data, create a simulated trade based on the latest price
-        const tickerData = await tickerResponse.json();
-        if (tickerData && tickerData.price) {
-          console.log(`Using ticker data to create a sample trade with price: ${tickerData.price}`);
-          return [{
-            trade_id: 'latest',
-            product_id: productId,
-            price: tickerData.price,
-            size: '0.01',
-            time: new Date().toISOString(),
-            side: OrderSide.BUY,
-            bid: '',
-            ask: ''
-          }];
-        }
-        
-        return [];
+        // No fallback data, throw the error to be consistent with our data integrity policy
+        throw new Error(`Failed to fetch authentic trade data from Coinbase Exchange API for ${productId}`);
       }
       
       // Process the Exchange API response
@@ -1436,7 +1411,7 @@ class CoinbaseApiClient {
       
       if (!Array.isArray(data)) {
         console.error(`Unexpected Exchange API response format: ${JSON.stringify(data).substring(0, 200)}...`);
-        return [];
+        throw new Error(`Invalid data format received from Coinbase Exchange API for ${productId}`);
       }
       
       console.log(`Received ${data.length} trades from Exchange API`);
@@ -1455,10 +1430,10 @@ class CoinbaseApiClient {
       
       // Return requested number of trades
       return trades.slice(0, limit);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error in getProductTrades for ${productId}:`, error);
-      // Return empty array rather than throwing error for better UI experience
-      return [];
+      // Instead of returning empty data, throw the error to be consistent with our data integrity policy
+      throw new Error(`Failed to fetch authentic trade data from Coinbase for ${productId}: ${error.message || 'Unknown error'}`);
     }
   }
   
