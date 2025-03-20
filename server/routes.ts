@@ -300,67 +300,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const orderBook = await coinbaseApi.getProductBook(productId, apiKey, apiSecret);
         return res.json(orderBook);
       } catch (authError) {
-        console.log('Authentication failed for order book endpoint. Using sample data fallback...');
-        
-        // Get market data for realistic pricing
-        const products = await coinbaseApi.getPublicProducts();
-        const product = products.find(p => p.product_id === productId);
-        
-        // Use the product price if available, or a default price for the product
-        let basePrice = 0;
-        if (product && parseFloat(product.price) > 0) {
-          basePrice = parseFloat(product.price);
-        } else if (productId.startsWith('BTC')) {
-          basePrice = 86000;
-        } else if (productId.startsWith('ETH')) {
-          basePrice = 4000;
-        } else if (productId.startsWith('SOL')) {
-          basePrice = 135;
-        } else {
-          basePrice = 100; // Default fallback price
-        }
-        
-        // Generate some realistic order book data
-        const bids: [string, string][] = [];
-        const asks: [string, string][] = [];
-        
-        // Create 20 bid prices below current price
-        for (let i = 0; i < 20; i++) {
-          const pricePct = 1 - (i * 0.001) - (Math.random() * 0.001);
-          const price = (basePrice * pricePct).toFixed(2);
-          const size = (0.1 + Math.random() * 2).toFixed(6);
-          bids.push([price, size]);
-        }
-        
-        // Create 20 ask prices above current price
-        for (let i = 0; i < 20; i++) {
-          const pricePct = 1 + (i * 0.001) + (Math.random() * 0.001);
-          const price = (basePrice * pricePct).toFixed(2);
-          const size = (0.1 + Math.random() * 2).toFixed(6);
-          asks.push([price, size]);
-        }
-        
-        // Sort bids in descending order (highest bid first)
-        bids.sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
-        
-        // Sort asks in ascending order (lowest ask first)
-        asks.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
-        
-        return res.json({
-          product_id: productId,
-          bids: bids,
-          asks: asks,
-          time: new Date().toISOString()
+        console.error('Authentication or API error for order book endpoint:', authError);
+        return res.status(500).json({ 
+          error: 'Failed to fetch authentic order book data from Coinbase',
+          message: 'No fallback data is available. Only authentic Coinbase data can be used.',
+          productId
         });
       }
     } catch (error) {
       console.error('Error fetching order book:', error);
-      // Return empty object rather than error
-      res.json({
-        product_id: req.params.productId,
-        bids: [],
-        asks: [],
-        time: new Date().toISOString()
+      return res.status(500).json({
+        error: 'Failed to process order book request',
+        message: 'An unexpected error occurred while fetching order book data',
+        productId: req.params.productId
       });
     }
   });
@@ -388,103 +340,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         return res.json(candles);
       } catch (authError) {
-        console.log('Authentication failed for candles endpoint. Using fallback data...');
-        
-        // Get market data for realistic pricing
-        const products = await coinbaseApi.getPublicProducts();
-        const product = products.find(p => p.product_id === productId);
-        
-        // Use the product price if available, or a default price for the product
-        let basePrice = 0;
-        if (product && parseFloat(product.price) > 0) {
-          basePrice = parseFloat(product.price);
-        } else if (productId.startsWith('BTC')) {
-          basePrice = 86000;
-        } else if (productId.startsWith('ETH')) {
-          basePrice = 4000;
-        } else if (productId.startsWith('SOL')) {
-          basePrice = 135;
-        } else {
-          basePrice = 100; // Default fallback price
-        }
-        
-        // Determine time intervals and number of candles based on granularity
-        let intervalMinutes = 60; // Default to hourly
-        if (granularity) {
-          if (granularity === 'ONE_MINUTE' || granularity === '60') {
-            intervalMinutes = 1;
-          } else if (granularity === 'FIVE_MINUTE' || granularity === '300') {
-            intervalMinutes = 5;
-          } else if (granularity === 'FIFTEEN_MINUTE' || granularity === '900') {
-            intervalMinutes = 15;
-          } else if (granularity === 'THIRTY_MINUTE' || granularity === '1800') {
-            intervalMinutes = 30;
-          } else if (granularity === 'ONE_HOUR' || granularity === '3600') {
-            intervalMinutes = 60;
-          } else if (granularity === 'TWO_HOUR' || granularity === '7200') {
-            intervalMinutes = 120;
-          } else if (granularity === 'SIX_HOUR' || granularity === '21600') {
-            intervalMinutes = 360;
-          } else if (granularity === 'ONE_DAY' || granularity === '86400') {
-            intervalMinutes = 1440;
-          }
-        }
-        
-        // Determine start and end times
-        const endTime = end ? new Date(String(end)) : new Date();
-        const defaultHours = 24;
-        const startTime = start ? new Date(String(start)) : new Date(endTime.getTime() - (defaultHours * 60 * 60 * 1000));
-        
-        // Calculate time difference and number of candles
-        const timeDiff = endTime.getTime() - startTime.getTime();
-        const totalMinutes = timeDiff / (60 * 1000);
-        const numCandles = Math.min(300, Math.max(10, Math.ceil(totalMinutes / intervalMinutes)));
-        
-        // Generate realistic candle data with some volatility
-        const candles = [];
-        let currentPrice = basePrice;
-        let currentTime = new Date(endTime);
-        
-        for (let i = 0; i < numCandles; i++) {
-          // Move back in time for each candle
-          currentTime = new Date(currentTime.getTime() - (intervalMinutes * 60 * 1000));
-          
-          // Add some random price movement (more volatile for shorter timeframes)
-          const volatilityFactor = 1 / Math.sqrt(intervalMinutes); // More volatile for shorter intervals
-          const priceChange = currentPrice * ((Math.random() - 0.5) * 0.02 * volatilityFactor);
-          currentPrice += priceChange;
-          
-          // Ensure price doesn't go negative
-          currentPrice = Math.max(0.01, currentPrice);
-          
-          // Generate high, low, open, close with some realistic behavior
-          const open = currentPrice;
-          const close = currentPrice + (currentPrice * (Math.random() - 0.5) * 0.01);
-          const high = Math.max(open, close) + (currentPrice * Math.random() * 0.01);
-          const low = Math.min(open, close) - (currentPrice * Math.random() * 0.01);
-          
-          // Volume tends to be higher on big price movements
-          const pricePercentChange = Math.abs((close - open) / open);
-          const baseVolume = basePrice * 0.01; // 1% of price as base volume
-          const volume = baseVolume * (1 + pricePercentChange * 10) * (Math.random() * 5 + 0.5);
-          
-          candles.push({
-            start: currentTime.toISOString(),
-            low: low.toFixed(2),
-            high: high.toFixed(2),
-            open: open.toFixed(2),
-            close: close.toFixed(2),
-            volume: volume.toFixed(2)
-          });
-        }
-        
-        // Return candles in chronological order (oldest first)
-        return res.json(candles.reverse());
+        console.error('Authentication or API error for candles endpoint:', authError);
+        return res.status(500).json({ 
+          error: 'Failed to fetch authentic candle data from Coinbase',
+          message: 'No fallback data is available. Only authentic Coinbase data can be used.',
+          productId
+        });
       }
     } catch (error) {
       console.error('Error fetching candles:', error);
-      // Return empty array rather than error
-      res.json([]);
+      return res.status(500).json({
+        error: 'Failed to process candles request',
+        message: 'An unexpected error occurred while fetching candle data',
+        productId: req.params.productId
+      });
     }
   });
 
