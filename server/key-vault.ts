@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { ApiKey, storage } from './storage';
+import { storage } from './storage';
+import { ApiKey } from '@shared/schema';
 
 /**
  * Class that manages API keys securely
@@ -147,12 +148,13 @@ export class KeyVault {
    */
   public async storeKey(userId: number, label: string, apiKey: string, apiSecret: string): Promise<ApiKey> {
     try {
+      // Only use fields that are part of the insert schema
       const newKey = await storage.storeApiKey({
         userId,
         label,
         apiKey,
         apiSecret,
-        isActive: true
+        priority: 0
       });
       
       console.log(`Stored new API key ${newKey.id} for user ${userId}`);

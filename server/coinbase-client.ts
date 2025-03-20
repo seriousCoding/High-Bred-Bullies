@@ -268,6 +268,7 @@ export class CoinbaseClient {
     
     // Use provided timestamp or generate a new one
     const ts = timestamp || Math.floor(Date.now() / 1000).toString();
+    console.log(`Using timestamp: ${ts} for Advanced API auth`);
     
     // Ensure path is correctly formatted for Advanced API
     // The path should start with /api/v3/brokerage/
@@ -276,6 +277,7 @@ export class CoinbaseClient {
       // Remove any leading slashes to avoid double slashes
       const trimmedPath = requestPath.replace(/^\/+/, '');
       fullPath = `/api/v3/brokerage/${trimmedPath}`;
+      console.log(`Path normalized from ${requestPath} to ${fullPath}`);
     }
     
     // Extract query parameters if they exist
@@ -284,6 +286,7 @@ export class CoinbaseClient {
       const parts = fullPath.split('?');
       fullPath = parts[0];
       queryParams = `?${parts[1]}`;
+      console.log(`Extracted query params: ${queryParams}`);
     }
     
     // Log the full path for debugging
@@ -291,20 +294,31 @@ export class CoinbaseClient {
     
     // Create the message to sign: timestamp + HTTP method + request path + body
     const signatureMessage = ts + method + fullPath + queryParams + body;
+    console.log(`Signature message (before HMAC): ${signatureMessage}`);
     
-    // Create the signature
-    const signature = crypto
-      .createHmac('sha256', this.apiSecret)
-      .update(signatureMessage)
-      .digest('base64');
-    
-    // Return the headers required by Advanced Trade API
-    return {
-      'Content-Type': 'application/json',
-      'CB-ACCESS-KEY': this.apiKey,
-      'CB-ACCESS-SIGN': signature,
-      'CB-ACCESS-TIMESTAMP': ts
-    };
+    try {
+      // Create the signature
+      const signature = crypto
+        .createHmac('sha256', this.apiSecret)
+        .update(signatureMessage)
+        .digest('base64');
+      
+      console.log(`Generated signature: ${signature.substring(0, 10)}...`);
+      
+      // Return the headers required by Advanced Trade API
+      const headers = {
+        'Content-Type': 'application/json',
+        'CB-ACCESS-KEY': this.apiKey,
+        'CB-ACCESS-SIGN': signature,
+        'CB-ACCESS-TIMESTAMP': ts
+      };
+      
+      console.log('Advanced API headers created successfully');
+      return headers;
+    } catch (error) {
+      console.error('Error creating signature:', error);
+      throw new Error(`Failed to create signature: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   /**
@@ -344,7 +358,13 @@ export class CoinbaseClient {
       throw new Error('API credentials required for Advanced Trade API');
     }
     
+    console.log(`Making Advanced API request to ${method} ${path} with API key: ${this.apiKey.substring(0, 4)}...`);
+    
     try {
+      // Print the first few characters of the API secret to verify it's not empty
+      const apiSecretPreview = this.apiSecret.substring(0, 3) + '...';
+      console.log(`Using API key ${this.apiKey.substring(0, 4)}... with secret starting with ${apiSecretPreview}`);
+      
       // Prepare the path with query parameters if any
       let fullPath = path;
       if (Object.keys(params).length > 0) {
@@ -353,17 +373,27 @@ export class CoinbaseClient {
           searchParams.append(key, String(value));
         });
         fullPath = `${path}?${searchParams.toString()}`;
+        console.log(`Path with params: ${fullPath}`);
       }
       
       // Create request headers with authentication
       const dataString = data ? JSON.stringify(data) : '';
+      console.log(`Request body length: ${dataString.length} characters`);
+      
+      // Generate headers with detailed logging
       const headers = this.createAdvancedHeaders(
         method,
         fullPath,
         dataString
       );
       
+      // Verify all required headers are present
+      console.log(`Request headers: CB-ACCESS-KEY=${headers['CB-ACCESS-KEY'].substring(0, 4)}..., ` +
+                 `CB-ACCESS-TIMESTAMP=${headers['CB-ACCESS-TIMESTAMP']}, ` +
+                 `CB-ACCESS-SIGN=${headers['CB-ACCESS-SIGN'].substring(0, 10)}...`);
+      
       // Make sure to use the same URL path that was used for the signature
+      console.log(`Sending Advanced API request to: ${advancedApi.defaults.baseURL}${path}`);
       const response = await advancedApi.request({
         method,
         url: path, // Use the base path for the URL
@@ -372,10 +402,31 @@ export class CoinbaseClient {
         headers
       });
       
+      console.log(`Advanced API request successful: ${method} ${path}`);
       return response.data as T;
     } catch (error: any) {
-      console.error(`Advanced API request failed: ${method} ${path}`, error.response?.data || error.message);
-      throw new Error(`Coinbase Advanced API error: ${error.response?.data?.message || error.message}`);
+      // Capture more details about the error for debugging
+      const errorData = error.response?.data;
+      const errorStatus = error.response?.status;
+      const errorHeaders = error.response?.headers;
+      
+      console.error(`Advanced API request failed: ${method} ${path}`, {
+        status: errorStatus,
+        data: errorData,
+        message: error.message,
+        headers: errorHeaders
+      });
+      
+      // Enhanced error message with more context
+      let errorMessage = `Coinbase Advanced API error: ${error.message}`;
+      if (errorData) {
+        errorMessage += ` - ${JSON.stringify(errorData)}`;
+      }
+      if (errorStatus) {
+        errorMessage += ` (HTTP ${errorStatus})`;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
   
