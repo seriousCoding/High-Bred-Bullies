@@ -124,28 +124,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Coinbase API Products Endpoints
   app.get('/api/products', async (req: Request, res: Response) => {
     try {
-      // Try to use env vars first, then client API key, then fall back to headers
-      const apiKey = process.env.COINBASE_API_KEY || COINBASE_CLIENT_API_KEY || req.headers['x-api-key'] as string;
+      // Get API credentials from environment or headers
+      const apiKey = process.env.COINBASE_API_KEY || req.headers['x-api-key'] as string;
       const apiSecret = process.env.COINBASE_API_SECRET || req.headers['x-api-secret'] as string;
+      
+      // Log the API request details
+      console.log(`Products API request with API Key: ${apiKey ? 'Present' : 'Missing'}, Secret: ${apiSecret ? 'Present' : 'Missing'}`);
       
       if (!apiKey || !apiSecret) {
         return res.status(401).json({ message: 'API credentials are required' });
       }
       
-      try {
-        // Try authenticated endpoint first
-        const products = await coinbaseApi.getProducts(apiKey, apiSecret);
-        return res.json(products);
-      } catch (authError) {
-        console.log('Authentication failed for products endpoint. Using public fallback...');
-        
-        // Fall back to public API endpoint if authentication fails
-        const publicProducts = await coinbaseApi.getPublicProducts();
-        return res.json(publicProducts);
+      // Fetch products from Coinbase Advanced API
+      console.log('Calling Coinbase Advanced API products endpoint with auth credentials');
+      const products = await coinbaseApi.getProducts(apiKey, apiSecret);
+      
+      // Log response details for debugging
+      console.log(`Products endpoint returned ${products.length} items`);
+      if (products.length > 0) {
+        console.log(`Sample product: ${JSON.stringify(products[0]).slice(0, 200)}...`);
       }
+      
+      // Return the products
+      return res.json(products);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      res.json([]); // Return empty array rather than error to prevent frontend errors
+      // Log the full error details
+      console.error('Error fetching products from Coinbase API:', error);
+      
+      // Return error response to client
+      return res.status(500).json({ 
+        message: 'Failed to fetch products from Coinbase API',
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 

@@ -328,113 +328,84 @@ class CoinbaseApiClient {
   
   // Products API
   
-  // Public method that doesn't require authentication - for development fallback
+  // Public method that doesn't require authentication to get product list (no pricing data)
   public async getPublicProducts(): Promise<Product[]> {
     try {
-      console.log('Fetching products from public API endpoints...');
+      console.log('Fetching products from Coinbase Advanced API...');
       
-      // Use the public Coinbase API endpoint for product listing
-      console.log('Making request to Coinbase Exchange products API...');
-      const productResponse = await fetch('https://api.exchange.coinbase.com/products');
+      // Use the public Coinbase API endpoint for basic product listing without authentication
+      const url = 'https://api.coinbase.com/api/v3/brokerage/products';
+      console.log(`Making request to: ${url}`);
       
-      if (!productResponse.ok) {
-        throw new Error(`Failed to fetch public products: ${productResponse.status}`);
-      }
-      
-      const exchangeProducts = await productResponse.json();
-      console.log(`Coinbase Exchange API returned ${Array.isArray(exchangeProducts) ? exchangeProducts.length : 'non-array'} response`);
-      
-      if (!Array.isArray(exchangeProducts)) {
-        console.error('Unexpected response format from public products API');
-        return this.getFallbackProducts();
-      }
-      
-      // Sample a few products for logging
-      if (exchangeProducts.length > 0) {
-        console.log('Sample product from Coinbase Exchange:', JSON.stringify(exchangeProducts[0]).slice(0, 200) + '...');
-      }
-      
-      // Get market data from CoinGecko (top 50 coins by market cap)
-      let marketData: any[] = [];
-      try {
-        console.log('Making request to CoinGecko markets API...');
-        const marketResponse = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1');
-        
-        if (marketResponse.ok) {
-          marketData = await marketResponse.json();
-          console.log(`CoinGecko API returned data for ${marketData.length} cryptocurrencies`);
-          
-          // Sample market data for logging
-          if (marketData.length > 0) {
-            console.log('Sample market data from CoinGecko:', JSON.stringify(marketData[0]).slice(0, 200) + '...');
-          }
-        } else {
-          console.warn(`Failed to fetch market data from CoinGecko: ${marketResponse.status}`);
-          console.warn('Response text:', await marketResponse.text());
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
-      } catch (marketError) {
-        console.warn('Error fetching market data from CoinGecko:', marketError);
-        // If CoinGecko fails, use direct market data from fallback
-        if (exchangeProducts.length > 0) {
-          return this.enrichProductsWithFallbackPrices(exchangeProducts);
-        }
-      }
-      
-      // Create a map for quick lookup of market data by symbol
-      const marketDataBySymbol = new Map();
-      marketData.forEach(coin => {
-        marketDataBySymbol.set(coin.symbol.toUpperCase(), coin);
       });
       
-      // Log some matching statistics
-      let matchCount = 0;
-      let totalCount = exchangeProducts.length;
+      // Log response details for debugging
+      console.log(`Product list response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Failed to fetch public products (${response.status}): ${errorText}`);
+        throw new Error(`Failed to fetch public products: ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      console.log(`Response body (preview): ${responseText.substring(0, 200)}...`);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse product list response:', parseError);
+        throw new Error('Invalid JSON response from Coinbase API');
+      }
+      
+      // Check the response format
+      if (!responseData || !responseData.products || !Array.isArray(responseData.products)) {
+        console.error('Unexpected response format from Coinbase API, missing products array');
+        throw new Error('Invalid response format from Coinbase API');
+      }
+      
+      console.log(`Coinbase API returned ${responseData.products.length} products`);
+      
+      // Sample for logging
+      if (responseData.products.length > 0) {
+        console.log('Sample product:', JSON.stringify(responseData.products[0]).substring(0, 200) + '...');
+      }
       
       // Convert to our standardized format
-      const products: Product[] = exchangeProducts.map((product: any) => {
-        const baseCurrency = product.base_currency?.toUpperCase() || '';
-        // Find corresponding market data if available
-        const marketInfo = marketDataBySymbol.get(baseCurrency);
-        
-        if (marketInfo) {
-          matchCount++;
-        }
-        
-        return {
-          product_id: product.id || '',
-          price: marketInfo ? marketInfo.current_price.toString() : '0',
-          price_percentage_change_24h: marketInfo ? marketInfo.price_change_percentage_24h.toString() : '0',
-          volume_24h: marketInfo ? marketInfo.total_volume.toString() : '0',
-          volume_percentage_change_24h: '0', // CoinGecko doesn't provide this directly
-          base_increment: product.base_increment || '0.00000001',
-          quote_increment: product.quote_increment || '0.01',
-          quote_min_size: product.min_market_funds || '0',
-          quote_max_size: product.max_market_funds || '0',
-          base_min_size: product.base_min_size || '0',
-          base_max_size: product.base_max_size || '0',
-          base_name: product.base_currency || '',
-          quote_name: product.quote_currency || '',
-          status: product.status || 'online',
-          cancel_only: product.cancel_only || false,
-          limit_only: product.limit_only || false,
-          post_only: product.post_only || false,
-          trading_disabled: product.trading_disabled || false
-        };
-      });
+      const products: Product[] = responseData.products.map((product: any) => ({
+        product_id: product.product_id || '',
+        price: product.price || '0',
+        price_percentage_change_24h: product.price_percentage_change_24h || '0',
+        volume_24h: product.volume_24h || '0',
+        volume_percentage_change_24h: product.volume_percentage_change_24h || '0',
+        base_increment: product.base_increment || '0.00000001',
+        quote_increment: product.quote_increment || '0.01',
+        quote_min_size: product.quote_min_size || '0',
+        quote_max_size: product.quote_max_size || '0',
+        base_min_size: product.base_min_size || '0',
+        base_max_size: product.base_max_size || '0',
+        base_name: product.base_name || product.base_currency_id || '',
+        quote_name: product.quote_name || product.quote_currency_id || '',
+        status: product.status || 'online',
+        cancel_only: product.cancel_only || false,
+        limit_only: product.limit_only || false,
+        post_only: product.post_only || false,
+        trading_disabled: product.status !== 'online'
+      }));
       
-      console.log(`Enhanced public products API returned ${products.length} products`);
-      console.log(`Market data matched for ${matchCount} out of ${totalCount} products (${(matchCount/totalCount*100).toFixed(1)}%)`);
-      
-      // If we have less than 10% matches or fewer than 5 products with prices, use fallback
-      if (matchCount < Math.max(5, totalCount * 0.1)) {
-        console.log('Insufficient market data matches, using fallback price data');
-        return this.enrichProductsWithFallbackPrices(exchangeProducts);
-      }
-      
-      return products;
+      // Filter out any products without a valid product_id
+      return products.filter(p => p.product_id);
     } catch (error) {
       console.error('Error fetching public products:', error);
-      return this.getFallbackProducts();
+      // Don't provide any fallback data, throw the error
+      throw error;
     }
   }
   
