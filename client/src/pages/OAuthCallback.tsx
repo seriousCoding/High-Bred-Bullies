@@ -9,15 +9,21 @@ export default function OAuthCallback() {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    // This is just a placeholder page as most of the OAuth handling is done in ApiKeysContext
-    // This page will be shown briefly during the OAuth flow
+    // This component handles displaying the OAuth callback status
+    // The actual token exchange is handled by ApiKeysContext
+    
+    // Log callback data for debugging (no sensitive info)
+    console.log("OAuth callback received at:", window.location.pathname);
+    console.log("OAuth callback has query params:", !!window.location.search);
     
     // If there's an error in the URL, show it
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get("error");
     const errorDescription = urlParams.get("error_description");
+    const code = urlParams.get("code");
     
     if (errorParam) {
+      console.error("OAuth error:", errorParam, errorDescription);
       setStatus("error");
       setError(errorDescription || errorParam);
       
@@ -32,14 +38,25 @@ export default function OAuthCallback() {
       setTimeout(() => {
         setLocation("/");
       }, 5000);
-    } else {
+    } else if (code) {
+      console.log("OAuth code received, length:", code.length);
       setStatus("success");
       
-      // If no error, show success message and redirect will happen in ApiKeysContext
+      // If we have a code, show success message
+      // The actual token exchange will be handled by the useEffect in ApiKeysContext
       toast({
         title: "Authentication Successful",
         description: "Successfully connected to your account.",
       });
+    } else {
+      console.error("OAuth callback missing both error and code parameters");
+      setStatus("error");
+      setError("Missing authentication data. Please try again.");
+      
+      // Redirect back to home after a short delay
+      setTimeout(() => {
+        setLocation("/");
+      }, 5000);
     }
   }, [setLocation, toast]);
   

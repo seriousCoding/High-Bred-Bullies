@@ -17,6 +17,12 @@ const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
 const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
+// Debug OAuth configuration
+console.log("OAuth credentials status:", {
+  client_id_available: !!COINBASE_OAUTH_CLIENT_ID,
+  client_secret_available: !!COINBASE_OAUTH_CLIENT_SECRET
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
