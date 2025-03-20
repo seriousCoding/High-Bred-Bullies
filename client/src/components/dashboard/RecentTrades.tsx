@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useLayoutEffect, useRef } from "react";
 import { useMarkets } from "@/context/MarketsContext";
-import { useApiKeys } from "@/hooks/use-api-keys";
 import { useWebSocket } from "@/hooks/use-websocket";
 
 type Trade = {
@@ -16,10 +15,10 @@ export function RecentTrades() {
   const [loading, setLoading] = useState(false);
   const { selectedMarket } = useMarkets();
   const { subscribe, messages, status } = useWebSocket();
-  const lastFetchedMarketRef = React.useRef<string | null>(null);
+  const lastFetchedMarketRef = useRef<string | null>(null);
   
   // Use layout effect to run synchronously before rendering and prevent the rerender cycle
-  React.useLayoutEffect(() => {
+  useLayoutEffect(() => {
     let isMounted = true;
     
     const fetchTrades = async () => {
