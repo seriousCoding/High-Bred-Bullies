@@ -49,7 +49,18 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      const response = await apiRequest('GET', '/api/auth-status');
+      const response = await fetch('/api/auth-status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Important for cookies/session
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.authenticated) {

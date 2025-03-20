@@ -5,13 +5,29 @@ import { setupVite, serveStatic, log } from "./vite";
 import { coinbaseClient } from "./coinbase-client";
 import { oauthService } from "./oauth-service";
 import { setupAuth, authenticateRequest } from "./auth";
+import { setupUnifiedAuth } from "./unified-auth";
+import session from "express-session";
+import crypto from "crypto";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set up authentication and session management
+// Set up session for both auth systems
+app.use(session({
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Set up authentication systems
 setupAuth(app);
+setupUnifiedAuth(app);
 
 // Apply auth middleware to all API routes
 app.use('/api', async (req, res, next) => {
