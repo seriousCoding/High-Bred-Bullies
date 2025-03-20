@@ -984,44 +984,175 @@ class CoinbaseApiClient {
   
   public async getAccounts(apiKey: string, apiSecret: string): Promise<Account[]> {
     try {
-      // Fetch accounts from Coinbase Advanced Trade API
-      const response = await this.makeRequest<any>(
-        'GET',
-        '/accounts',
-        apiKey,
-        apiSecret
-      );
+      console.log('Fetching accounts using both Advanced Trade API and Coinbase SDK');
+      let accounts: Account[] = [];
       
-      // Check if the response has the expected format
-      if (!response.accounts || !Array.isArray(response.accounts)) {
-        console.error('Unexpected response format from accounts API:', response);
-        return [];
-      }
-      
-      // Convert to our standardized Account format
-      return response.accounts.map((account: any) => ({
-        account_id: account.uuid || '',
-        name: account.name || `${account.currency} Wallet`,
-        uuid: account.uuid || '',
-        currency: account.currency || '',
-        available_balance: {
-          value: account.available_balance?.value || '0',
-          currency: account.available_balance?.currency || account.currency || 'USD'
-        },
-        default: account.default || false,
-        active: account.active || true,
-        created_at: account.created_at || new Date().toISOString(),
-        updated_at: account.updated_at || new Date().toISOString(),
-        deleted_at: account.deleted_at || null,
-        type: account.type || 'WALLET',
-        ready: account.ready !== undefined ? account.ready : true,
-        hold: {
-          value: account.hold?.value || '0',
-          currency: account.hold?.currency || account.currency || 'USD'
+      try {
+        // Attempt to fetch accounts from Coinbase Advanced Trade API first
+        const response = await this.makeRequest<any>(
+          'GET',
+          '/accounts',
+          apiKey,
+          apiSecret
+        );
+        
+        // Check if the response has the expected format
+        if (response.accounts && Array.isArray(response.accounts) && response.accounts.length > 0) {
+          console.log(`Retrieved ${response.accounts.length} accounts from Advanced Trade API`);
+          
+          // Convert to our standardized Account format
+          accounts = response.accounts.map((account: any) => ({
+            account_id: account.uuid || '',
+            name: account.name || `${account.currency} Wallet`,
+            uuid: account.uuid || '',
+            currency: account.currency || '',
+            available_balance: {
+              value: account.available_balance?.value || '0',
+              currency: account.available_balance?.currency || account.currency || 'USD'
+            },
+            default: account.default || false,
+            active: account.active || true,
+            created_at: account.created_at || new Date().toISOString(),
+            updated_at: account.updated_at || new Date().toISOString(),
+            deleted_at: account.deleted_at || null,
+            type: account.type || 'WALLET',
+            ready: account.ready !== undefined ? account.ready : true,
+            hold: {
+              value: account.hold?.value || '0',
+              currency: account.hold?.currency || account.currency || 'USD'
+            }
+          }));
+          
+          if (accounts.length > 0) {
+            return accounts;
+          }
         }
-      }));
+        
+        // If Advanced Trade API returns no accounts, try the regular Coinbase API
+        console.log('No accounts found with Advanced Trade API, trying Coinbase SDK');
+        
+        // Initialize the Coinbase client if it doesn't exist
+        if (!this.coinbaseClient) {
+          this.initCoinbaseClient(apiKey, apiSecret);
+        }
+        
+        if (!this.coinbaseClient) {
+          console.error('Failed to initialize Coinbase client');
+          return [];
+        }
+        
+        // Use the Coinbase SDK to fetch accounts
+        return new Promise<Account[]>((resolve, reject) => {
+          this.coinbaseClient?.getAccounts({}, (err: any, accountsData: any) => {
+            if (err) {
+              console.error('Error fetching accounts with Coinbase SDK:', err);
+              resolve([]);
+              return;
+            }
+            
+            try {
+              if (!accountsData || !accountsData.data) {
+                console.error('Invalid account data format from Coinbase SDK');
+                resolve([]);
+                return;
+              }
+              
+              console.log(`Retrieved ${accountsData.data.length} accounts from Coinbase SDK`);
+              
+              // Convert the Coinbase SDK account format to our standard format
+              const accounts = accountsData.data.map((account: any) => ({
+                account_id: account.id || '',
+                name: account.name || `${account.currency} Wallet`,
+                uuid: account.id || '',
+                currency: account.currency || '',
+                available_balance: {
+                  value: account.balance?.amount || '0',
+                  currency: account.balance?.currency || account.currency || 'USD'
+                },
+                default: account.primary || false,
+                active: true,
+                created_at: account.created_at || new Date().toISOString(),
+                updated_at: account.updated_at || new Date().toISOString(),
+                deleted_at: null,
+                type: account.type || 'WALLET',
+                ready: true,
+                hold: {
+                  value: '0', // No direct hold information in Coinbase SDK
+                  currency: account.currency || 'USD'
+                }
+              }));
+              
+              resolve(accounts);
+            } catch (error) {
+              console.error('Error processing Coinbase SDK accounts:', error);
+              resolve([]);
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Error fetching accounts from Advanced Trade API:', error);
+        
+        // Try Coinbase SDK as fallback
+        if (!this.coinbaseClient) {
+          this.initCoinbaseClient(apiKey, apiSecret);
+        }
+        
+        if (!this.coinbaseClient) {
+          console.error('Failed to initialize Coinbase client for fallback');
+          return [];
+        }
+        
+        // Use the Coinbase SDK to fetch accounts
+        return new Promise<Account[]>((resolve, reject) => {
+          this.coinbaseClient?.getAccounts({}, (err: any, accountsData: any) => {
+            if (err) {
+              console.error('Error fetching accounts with Coinbase SDK (fallback):', err);
+              resolve([]);
+              return;
+            }
+            
+            try {
+              if (!accountsData || !accountsData.data) {
+                console.error('Invalid account data format from Coinbase SDK (fallback)');
+                resolve([]);
+                return;
+              }
+              
+              console.log(`Retrieved ${accountsData.data.length} accounts from Coinbase SDK (fallback)`);
+              
+              // Convert the Coinbase SDK account format to our standard format
+              const accounts = accountsData.data.map((account: any) => ({
+                account_id: account.id || '',
+                name: account.name || `${account.currency} Wallet`,
+                uuid: account.id || '',
+                currency: account.currency || '',
+                available_balance: {
+                  value: account.balance?.amount || '0',
+                  currency: account.balance?.currency || account.currency || 'USD'
+                },
+                default: account.primary || false,
+                active: true,
+                created_at: account.created_at || new Date().toISOString(),
+                updated_at: account.updated_at || new Date().toISOString(),
+                deleted_at: null,
+                type: account.type || 'WALLET',
+                ready: true,
+                hold: {
+                  value: '0', // No direct hold information in Coinbase SDK
+                  currency: account.currency || 'USD'
+                }
+              }));
+              
+              resolve(accounts);
+            } catch (error) {
+              console.error('Error processing Coinbase SDK accounts (fallback):', error);
+              resolve([]);
+            }
+          });
+        });
+      }
     } catch (error) {
-      console.error('Error fetching accounts:', error);
+      console.error('Fatal error fetching accounts:', error);
       return [];
     }
   }
