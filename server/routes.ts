@@ -330,7 +330,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'OAuth client credentials are not configured' });
       }
       
-      // Exchange code for token with Coinbase
+      console.log('Attempting to exchange code for token with params:', {
+        code: code.substring(0, 5) + '...',
+        redirect_uri,
+        client_id: COINBASE_OAUTH_CLIENT_ID.substring(0, 5) + '...',
+      });
+      
+      // Exchange code for token with Coinbase according to their documentation
       const tokenResponse = await axios.post(COINBASE_TOKEN_URL, new URLSearchParams({
         grant_type: 'authorization_code',
         code,

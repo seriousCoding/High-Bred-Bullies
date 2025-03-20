@@ -78,6 +78,8 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   // Exchange authorization code for access token
   const exchangeCodeForToken = async (authCode: string) => {
     try {
+      console.log("Exchanging code for token with redirect URI:", REDIRECT_URI);
+      
       const response = await fetch("/api/oauth/token", {
         method: "POST",
         headers: {
@@ -89,11 +91,15 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
         })
       });
       
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error("Failed to exchange code for token");
+        console.error("Token exchange failed:", data);
+        throw new Error(data.message || "Failed to exchange code for token");
       }
       
-      const data = await response.json();
+      console.log("Token exchange successful, received tokens");
+      
       saveTokens(
         data.access_token,
         data.refresh_token,
