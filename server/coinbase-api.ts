@@ -374,13 +374,14 @@ class CoinbaseApiClient {
 
   // Create authentication headers for Advanced Trade API requests
   private createAuthHeaders(
+    apiKey: string,
+    apiSecret: string,
+    timestamp: string,
     method: string, 
     requestPath: string, 
-    body: string | null,
-    apiKey: string,
-    apiSecret: string
+    body: string = ''
   ): Record<string, string> {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
+    // Use the timestamp provided
     
     // For Advanced API, the path must be formatted exactly as required by Coinbase:
     // The prefix must be exact: /api/v3/brokerage
