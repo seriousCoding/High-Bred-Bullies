@@ -194,6 +194,7 @@ export function useMarketData(productId: string) {
     // Start with order book updates (most important)
     console.log(`Subscribing to market data for ${productId} with rate limiting`);
     
+    // Create a subscription for level2 data (order book)
     subscribe({
       type: 'subscribe',
       product_ids: [productId],
@@ -222,6 +223,10 @@ export function useMarketData(productId: string) {
         });
       }
     }, 4000);
+    
+    // For now, use only public channels which don't require authentication
+    // This ensures we can retrieve market data without auth errors
+    // We're removing the 'user' channel subscription for now, as it requires special auth handling
     
     setIsLoading(false);
     

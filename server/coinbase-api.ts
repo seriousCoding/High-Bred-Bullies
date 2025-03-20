@@ -168,7 +168,13 @@ class CoinbaseApiClient {
           console.log('Subscribing to default ticker channels');
           this.sendWsMessage(marketChannelsMessage);
           
-          // After the public channels are set up, add authentication for private data
+          // Note: We're temporarily disabling authenticated user channel subscriptions
+          // as we want to focus on reliable public data channels first
+          // This prevents the authentication errors in the console
+          
+          // The code below would be used to authenticate with the WebSocket API
+          // for private data channels like 'user', but we're commenting it out for now
+          /*
           setTimeout(() => {
             // Calculate the timestamp (seconds since Unix epoch)
             const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -176,8 +182,6 @@ class CoinbaseApiClient {
             // Create the message to sign per Advanced Trade API docs
             // Format: timestamp + GET + /ws
             const signatureMessage = timestamp + 'GET' + '/ws';
-            
-            console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
             
             // Create the signature using HMAC-SHA256 and base64 encoding
             const signature = crypto
@@ -197,6 +201,7 @@ class CoinbaseApiClient {
             console.log('Subscribing to user channel with authentication');
             this.sendWsMessage(userChannelMessage);
           }, 1000); // 1 second delay for auth request
+          */
         }, 1000); // 1 second delay between public subscriptions
       } catch (error) {
         console.error('Error setting up WebSocket authentication:', error);
