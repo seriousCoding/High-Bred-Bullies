@@ -8,6 +8,8 @@ import { WebSocketServer } from 'ws';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import https from 'https';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
@@ -369,10 +371,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // HTML redirect page for OAuth
-  app.get('/auth/redirect', (req: Request, res: Response) => {
+  app.get('/auth/redirect', async (req: Request, res: Response) => {
     try {
       console.log("---------------------------------------------");
-      console.log("SERVING OAUTH REDIRECT HTML PAGE");
+      console.log("SERVING ENHANCED OAUTH REDIRECT PAGE");
       
       const authUrl = req.query.auth_url as string;
       const state = req.query.state as string;
@@ -381,132 +383,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).send('Missing required parameters: auth_url and state');
       }
       
-      // Create a simple HTML page that will redirect the user to Coinbase
-      const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Redirecting to Coinbase...</title>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <script>
-          // Store the state in localStorage for CSRF protection
-          localStorage.setItem("auth_state_key", "${state}");
-          
-          // Try multiple approaches to navigate to Coinbase
-          function navigateToCoinbase() {
-            console.log("Attempting to navigate to Coinbase with URL: ${authUrl}");
-            
-            try {
-              // Method 1: Standard window.location redirect
-              window.location.href = "${authUrl}";
-            } catch (e) {
-              console.error("Method 1 failed:", e);
-              
-              try {
-                // Method 2: Open in new tab/window
-                window.open("${authUrl}", "_blank");
-              } catch (e2) {
-                console.error("Method 2 failed:", e2);
-                
-                try {
-                  // Method 3: Use a form submission
-                  document.getElementById('coinbase-form').submit();
-                } catch (e3) {
-                  console.error("Method 3 failed:", e3);
-                  document.getElementById('manual-instructions').style.display = 'block';
-                }
-              }
-            }
-          }
-          
-          // Execute after a short delay
-          setTimeout(navigateToCoinbase, 1000);
-        </script>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #1a1b1e;
-            color: #eaeaea;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-          }
-          .container {
-            max-width: 600px;
-            padding: 40px;
-            background-color: #272a30;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-          }
-          h1 {
-            color: #0052FF;
-            margin-bottom: 20px;
-          }
-          p {
-            font-size: 16px;
-            line-height: 1.6;
-            margin-bottom: 20px;
-          }
-          .logo {
-            width: 180px;
-            margin-bottom: 30px;
-          }
-          .spinner {
-            border: 4px solid rgba(0, 82, 255, 0.2);
-            border-left: 4px solid #0052FF;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <img src="https://www.coinbase.com/assets/logos/coinbase.svg" alt="Coinbase Logo" class="logo">
-          <h1>Redirecting to Coinbase...</h1>
-          <p>You will be redirected to Coinbase to authorize this application. Please wait a moment.</p>
-          <div class="spinner"></div>
-          <p>If you are not redirected automatically, <a href="${authUrl}" style="color: #0052FF;" target="_blank">click here</a>.</p>
-          
-          <div id="manual-instructions" style="display: none; margin-top: 30px; padding: 15px; background-color: #333; border-radius: 5px;">
-            <h3 style="color: #0052FF;">Manual Connection Instructions</h3>
-            <p>If automatic redirection fails, please follow these steps:</p>
-            <ol style="text-align: left; padding-left: 30px;">
-              <li>Copy the full Coinbase authorization URL below</li>
-              <li>Open a new browser tab</li>
-              <li>Paste and navigate to the URL</li>
-              <li>Authorize access when prompted by Coinbase</li>
-            </ol>
-            <textarea style="width: 100%; height: 60px; margin: 10px 0; background: #222; color: #eaeaea; border: 1px solid #555; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px;">${authUrl}</textarea>
-            <button onclick="navigator.clipboard.writeText('${authUrl}').then(() => alert('URL copied to clipboard!'))" style="background-color: #0052FF; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-top: 5px;">Copy URL</button>
-          </div>
-        </div>
+      // Store state in a cookie for CSRF protection
+      res.cookie('auth_state', state, { 
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 10 * 60 * 1000 // 10 minutes
+      });
+      
+      console.log("Auth URL:", authUrl);
+      console.log("State:", state);
+      
+      // Try to get the actual redirect URL from Coinbase's servers
+      let redirectUrl = authUrl;
+      
+      try {
+        // Use the server to proxy the request and get the redirect URL
+        console.log("Attempting to get actual redirect URL from Coinbase...");
         
-        <!-- Hidden form for method 3 -->
-        <form id="coinbase-form" action="${authUrl}" method="get" style="display:none"></form>
-      </body>
-      </html>
-      `;
+        const proxyResponse = await coinbaseAxios.get(authUrl, {
+          maxRedirects: 0,
+          validateStatus: (status) => status >= 200 && status < 400
+        });
+        
+        // If we got a redirect response, extract the location header
+        if (proxyResponse.headers.location) {
+          redirectUrl = proxyResponse.headers.location;
+          console.log("Successfully retrieved redirect URL:", redirectUrl);
+        }
+      } catch (error: any) {
+        if (error.response && error.response.headers && error.response.headers.location) {
+          // Even an error response might have a redirect location
+          redirectUrl = error.response.headers.location;
+          console.log("Retrieved redirect URL from error response:", redirectUrl);
+        } else {
+          console.log("Could not get redirect URL, using original auth URL");
+        }
+      }
+      
+      // Read our enhanced redirect HTML file
+      let html = fs.readFileSync(path.join(__dirname, 'redirect.html'), 'utf8');
+      
+      // Replace placeholders in the HTML file
+      html = html.replace('const authUrl = urlParams.get(\'auth_url\');', 
+        `const authUrl = "${authUrl.replace(/"/g, '\\"')}";`);
+      html = html.replace('let redirectUrl = urlParams.get(\'redirect_url\');', 
+        `let redirectUrl = "${redirectUrl.replace(/"/g, '\\"')}";`);
       
       // Set appropriate headers and send the HTML page
       res.setHeader('Content-Type', 'text/html');
       res.send(html);
       
-      console.log("HTML redirect page served successfully");
+      console.log("Enhanced HTML redirect page served successfully");
       console.log("---------------------------------------------");
     } catch (error) {
-      console.error("Error serving redirect HTML:", error);
+      console.error("Error serving enhanced redirect HTML:", error);
       res.status(500).send('Internal Server Error');
     }
   });
