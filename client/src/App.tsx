@@ -11,10 +11,13 @@ import History from "@/pages/History";
 import Settings from "@/pages/Settings";
 import OAuthCallback from "@/pages/OAuthCallback";
 import AuthPage from "@/pages/auth-page";
+import UnifiedAuthPage from "@/pages/unified-auth-page";
+import ApiKeyAuthPage from "@/pages/api-key-auth";
 import AddApiKeyPage from "@/pages/add-api-key";
 import { ApiKeysProvider } from "@/context/ApiKeysContext";
 import { MarketsProvider } from "@/context/MarketsContext";
 import { AuthProvider } from "@/hooks/use-auth";
+import { UnifiedAuthProvider } from "@/hooks/use-unified-auth";
 import { ProtectedRoute, ApiKeyRequiredRoute } from "@/lib/protected-route";
 
 function Router() {
@@ -22,6 +25,8 @@ function Router() {
     <Switch>
       {/* Public Routes */}
       <Route path="/auth" component={AuthPage} />
+      <Route path="/unified-auth" component={UnifiedAuthPage} />
+      <Route path="/api-key-auth" component={ApiKeyAuthPage} />
       <Route path="/auth/callback" component={OAuthCallback} />
       
       {/* Authentication Required Routes */}
@@ -44,16 +49,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ApiKeysProvider>
-          <MarketsProvider>
-            <div className="min-h-screen bg-background text-foreground flex">
-              <Router />
-            </div>
-            <Toaster />
-          </MarketsProvider>
-        </ApiKeysProvider>
-      </AuthProvider>
+      <UnifiedAuthProvider>
+        <AuthProvider>
+          <ApiKeysProvider>
+            <MarketsProvider>
+              <div className="min-h-screen bg-background text-foreground flex">
+                <Router />
+              </div>
+              <Toaster />
+            </MarketsProvider>
+          </ApiKeysProvider>
+        </AuthProvider>
+      </UnifiedAuthProvider>
     </QueryClientProvider>
   );
 }
