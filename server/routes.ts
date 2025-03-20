@@ -700,6 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Redirect URL for sending the user back to our app
       const frontendUrl = `${req.protocol}://${req.get('host')}`;
+      const redirectUri = `${frontendUrl}/auth/callback`;
       
       // If there was an error from Coinbase, redirect to error page
       if (error) {
@@ -714,15 +715,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.redirect(`${frontendUrl}/?error=invalid_callback&error_description=${encodeURIComponent('Missing required parameters')}`);
       }
 
-      console.log('Received auth code and state. Redirecting to frontend...');
-      // Redirect to the frontend with code and state for client-side processing
-      res.redirect(`${frontendUrl}/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
-
+      console.log('Received auth code and state. Processing...');
+      
+      // Option 1: Serve an HTML page with embedded code/state that will complete the flow client-side
+      // This is more reliable as it allows us to store state client-side
+      const callbackHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication Complete</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0D0D0D;
+            color: #FFFFFF;
+            text-align: center;
+            padding: 40px 20px;
+            line-height: 1.6;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #1A1A1A;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          h1 {
+            color: #FFFFFF;
+            font-size: 24px;
+            margin-bottom: 20px;
+          }
+          p {
+            color: #CCCCCC;
+            margin-bottom: 25px;
+          }
+          .loader {
+            border: 4px solid #3a3a3a;
+            border-top: 4px solid #0052FF;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1.5s linear infinite;
+            margin: 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="loader"></div>
+          <h1>Authentication Successful</h1>
+          <p>Completing your login, please wait...</p>
+        </div>
+        
+        <script>
+          // Store the OAuth code and state temporarily in localStorage 
+          localStorage.setItem('oauth_code', '${code}');
+          
+          // First try to redirect to the callback page in our SPA
+          window.location.href = '/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}';
+          
+          // Backup: If the first redirect doesn't work (due to SPA routing issues),
+          // Try again after a short delay with a different approach
+          setTimeout(() => {
+            if (window.location.pathname !== '/auth/callback') {
+              // If we're still not on the callback page, try a manual token exchange
+              // by redirecting to a different route that's not intercepted by the SPA router
+              window.location.href = '/oauth-complete?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}';
+            }
+          }, 2000);
+        </script>
+      </body>
+      </html>
+      `;
+      
+      // Serve the HTML page
+      res.send(callbackHtml);
     } catch (error) {
       console.error('OAuth callback error:', error);
       const frontendUrl = `${req.protocol}://${req.get('host')}`;
       res.redirect(`${frontendUrl}/?error=server_error&error_description=${encodeURIComponent('Server error processing authentication')}`);
     }
+  });
+  
+  // Additional route for handling OAuth completion when SPA routing fails
+  app.get('/oauth-complete', (req: Request, res: Response) => {
+    const frontendUrl = `${req.protocol}://${req.get('host')}`;
+    const code = req.query.code as string;
+    const state = req.query.state as string;
+    
+    console.log('Backup OAuth completion route activated');
+    // Redirect to main app with special flag to trigger the token exchange
+    res.redirect(`${frontendUrl}/?oauth=complete&code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
   });
 
   app.post('/api/oauth/token', async (req: Request, res: Response) => {
