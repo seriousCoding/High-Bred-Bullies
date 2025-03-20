@@ -305,9 +305,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Determine start and end times
-        const endTime = end ? new Date(end) : new Date();
+        const endTime = end ? new Date(String(end)) : new Date();
         const defaultHours = 24;
-        const startTime = start ? new Date(start) : new Date(endTime.getTime() - (defaultHours * 60 * 60 * 1000));
+        const startTime = start ? new Date(String(start)) : new Date(endTime.getTime() - (defaultHours * 60 * 60 * 1000));
         
         // Calculate time difference and number of candles
         const timeDiff = endTime.getTime() - startTime.getTime();
