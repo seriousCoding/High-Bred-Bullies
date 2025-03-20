@@ -1,14 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Redirecting to Coinbase</title>
+  <title>Coinbase OAuth Redirect</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      background-color: #0052FF;
-      color: white;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -16,187 +14,135 @@
       height: 100vh;
       margin: 0;
       padding: 20px;
+      box-sizing: border-box;
       text-align: center;
     }
-    .container {
-      max-width: 600px;
-      background-color: rgba(0, 0, 0, 0.1);
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-    }
-    h1 {
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
-    p {
-      margin-bottom: 25px;
-      font-size: 16px;
-      line-height: 1.6;
-    }
-    .button {
+    
+    .card {
       background-color: white;
-      color: #0052FF;
-      border: none;
-      padding: 12px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: #0052ff;
+    }
+    
+    p {
       font-size: 16px;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      margin: 10px;
-      transition: background-color 0.3s, transform 0.2s;
-    }
-    .button:hover {
-      background-color: #f0f0f0;
-      transform: translateY(-2px);
-    }
-    .button:active {
-      transform: translateY(0);
-    }
-    .button-secondary {
-      background-color: transparent;
-      border: 2px solid white;
-      color: white;
-    }
-    .button-secondary:hover {
-      background-color: rgba(255, 255, 255, 0.2);
-    }
-    .coinbase-logo {
-      width: 180px;
-      margin-bottom: 30px;
-    }
-    .url-display {
-      background-color: rgba(0, 0, 0, 0.3);
-      padding: 15px;
-      border-radius: 6px;
-      font-family: monospace;
-      word-break: break-all;
+      line-height: 1.5;
+      color: #666;
       margin-bottom: 20px;
-      text-align: left;
-      font-size: 14px;
     }
-    #redirect-timer {
-      font-size: 18px;
-      font-weight: bold;
-      margin: 20px 0;
-    }
+    
     .loader {
-      border: 5px solid rgba(255, 255, 255, 0.3);
+      margin: 20px auto;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #0052ff;
       border-radius: 50%;
-      border-top: 5px solid white;
-      width: 30px;
-      height: 30px;
+      width: 40px;
+      height: 40px;
       animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
     }
+    
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    
+    .status {
+      font-weight: 500;
+      margin-top: 20px;
+    }
+    
+    .success {
+      color: #00c087;
+    }
+    
+    .error {
+      color: #ff4b4b;
+    }
   </style>
+  <script>
+    function handleRedirect() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      const error = urlParams.get('error');
+      const statusElement = document.getElementById('status');
+      
+      if (error) {
+        statusElement.textContent = 'Error: ' + error;
+        statusElement.className = 'status error';
+        setTimeout(() => {
+          window.opener.postMessage({ type: 'oauth_error', error }, '*');
+          window.close();
+        }, 3000);
+        return;
+      }
+      
+      if (code && state) {
+        statusElement.textContent = 'Processing authentication...';
+        
+        // Send the code to our backend
+        fetch('/api/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ code, state })
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to exchange code for token');
+          }
+          return response.json();
+        })
+        .then(data => {
+          statusElement.textContent = 'Authentication successful!';
+          statusElement.className = 'status success';
+          
+          // Send the token back to the opener window
+          setTimeout(() => {
+            window.opener.postMessage({ type: 'oauth_callback', data }, '*');
+            window.close();
+          }, 1500);
+        })
+        .catch(error => {
+          statusElement.textContent = 'Error: ' + error.toString();
+          statusElement.className = 'status error';
+          
+          setTimeout(() => {
+            window.opener.postMessage({ type: 'oauth_error', error: error.toString() }, '*');
+            window.close();
+          }, 3000);
+        });
+      } else {
+        statusElement.textContent = 'Error: Missing code or state parameter';
+        statusElement.className = 'status error';
+        
+        setTimeout(() => {
+          window.opener.postMessage({ type: 'oauth_error', error: 'Missing code or state parameter' }, '*');
+          window.close();
+        }, 3000);
+      }
+    }
+    
+    // Call the function when the page loads
+    window.onload = handleRedirect;
+  </script>
 </head>
 <body>
-  <div class="container">
-    <svg class="coinbase-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 318.6 318.6" width="180">
-      <path d="M159.1 318.6C71.4 318.6 0 247.2 0 159.3 0 71.4 71.4 0 159.1 0 247 0 318.6 71.4 318.6 159.3c0 87.9-71.6 159.3-159.5 159.3z" fill="white"/>
-      <path d="M226.9 114.9c-4.3-12.1-14.1-20.2-28.4-22.7-4.8-.9-9.8-1.3-14.8-1.3H137c-2.7 0-4.9 2.2-4.9 4.9v127.8c0 2.7 2.2 4.9 4.9 4.9h26.3c2.7 0 4.9-2.2 4.9-4.9v-41.4h16.5c5 0 10-.4 14.9-1.3 10.8-1.9 19.7-7.6 25.5-16.7 5.5-8.7 8.4-19.8 8.4-32.5-.1-6.8-1.2-12.3-2.6-17.8zM185 155c-2.8 2.5-6.9 3.7-12.2 3.7h-4.6v-40.9h6.3c9.5 0 15.8 5.2 15.8 18.9 0 9.2-1.9 15.6-5.3 18.3z" fill="#0052FF"/>
-    </svg>
-    
-    <h1>Redirecting to Coinbase</h1>
-    <p>We're attempting to redirect you to Coinbase's authentication page.</p>
-    
+  <div class="card">
+    <h1>Coinbase Authentication</h1>
+    <p>Please wait while we complete the authentication process with Coinbase. This window will close automatically once the process is complete.</p>
     <div class="loader"></div>
-    <div id="redirect-timer">Redirecting in <span id="countdown">5</span> seconds...</div>
-    
-    <div class="url-display" id="coinbase-url">Loading URL...</div>
-    
-    <div>
-      <a href="#" id="manual-redirect" class="button">Redirect Now</a>
-      <button id="copy-url" class="button button-secondary">Copy URL</button>
-    </div>
+    <div id="status" class="status">Verifying authentication...</div>
   </div>
-
-  <script>
-    // Get URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const authUrl = urlParams.get('auth_url');
-    let redirectUrl = urlParams.get('redirect_url');
-    
-    // Display URL
-    const urlDisplay = document.getElementById('coinbase-url');
-    urlDisplay.textContent = redirectUrl || authUrl;
-    
-    // Handle manual redirect
-    const manualRedirectBtn = document.getElementById('manual-redirect');
-    manualRedirectBtn.href = redirectUrl || authUrl;
-    manualRedirectBtn.addEventListener('click', function(e) {
-      // Try to open in new tab if redirect doesn't work
-      if (!redirectAttempted) {
-        window.open(redirectUrl || authUrl, '_blank');
-      } else {
-        window.location.href = redirectUrl || authUrl;
-      }
-    });
-    
-    // Handle copy URL
-    const copyUrlBtn = document.getElementById('copy-url');
-    copyUrlBtn.addEventListener('click', function() {
-      navigator.clipboard.writeText(redirectUrl || authUrl)
-        .then(() => {
-          copyUrlBtn.textContent = "Copied!";
-          setTimeout(() => {
-            copyUrlBtn.textContent = "Copy URL";
-          }, 2000);
-        })
-        .catch(err => {
-          console.error('Could not copy URL: ', err);
-        });
-    });
-    
-    // Auto-redirect countdown
-    let countdown = 5;
-    const countdownElement = document.getElementById('countdown');
-    let redirectAttempted = false;
-    
-    const countdownInterval = setInterval(() => {
-      countdown--;
-      countdownElement.textContent = countdown;
-      
-      if (countdown <= 0) {
-        clearInterval(countdownInterval);
-        redirectAttempted = true;
-        
-        // Create an invisible iframe to attempt navigation
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        
-        try {
-          // Attempt to navigate in the iframe
-          iframe.src = redirectUrl || authUrl;
-          
-          // Also try direct navigation
-          window.location.href = redirectUrl || authUrl;
-          
-          // Change text to indicate redirect attempt
-          document.getElementById('redirect-timer').textContent = "Redirect attempted. If nothing happens, click the button below:";
-        } catch (e) {
-          console.error("Redirect failed:", e);
-          document.getElementById('redirect-timer').textContent = "Automatic redirect failed. Please use the button below:";
-        }
-      }
-    }, 1000);
-    
-    // Also try to use window.open as another method (will be blocked if not from user action)
-    setTimeout(() => {
-      try {
-        window.open(redirectUrl || authUrl, '_blank');
-      } catch (e) {
-        console.log('Could not open window automatically');
-      }
-    }, 1000);
-  </script>
 </body>
 </html>

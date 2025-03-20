@@ -1,10 +1,25 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { createServer } from "http";
+import session from "express-session";
+import { registerApiRoutes } from "./api-routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { coinbaseClient } from "./coinbase-client";
+import { oauthService } from "./oauth-service";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Set up session management for OAuth flows
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'coinbase-app-session-secret',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -37,7 +52,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Create HTTP server
+  const server = createServer(app);
+  
+  // Register API routes
+  await registerApiRoutes(app, server);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
