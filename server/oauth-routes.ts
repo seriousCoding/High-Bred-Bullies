@@ -1,9 +1,21 @@
 import { Request, Response, Router } from 'express';
+import { Session } from 'express-session';
 import axios from 'axios';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Define session data structure
+declare module 'express-session' {
+  interface SessionData {
+    access_token?: string;
+    refresh_token?: string;
+    token_expires_at?: number;
+    oauth_state?: string;
+    authenticated?: boolean;
+  }
+}
 
 // Environment variables required for Coinbase OAuth
 const {

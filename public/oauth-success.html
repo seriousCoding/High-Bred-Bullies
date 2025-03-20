@@ -4,7 +4,7 @@
   <title>Authentication Successful</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -33,19 +33,57 @@
       text-decoration: none;
       display: inline-block;
     }
+    .message {
+      margin-top: 1rem;
+      padding: 1rem;
+      background-color: #edf2fc;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #666;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Authentication Successful!</h1>
     <p>You have successfully connected your Coinbase account.</p>
-    <a href="/" class="button">Return to Dashboard</a>
+    <p class="message">This window will close automatically in a few seconds...</p>
+    <a href="/" class="button" id="return-btn">Return to Dashboard</a>
   </div>
   <script>
     // Close this window if it was opened as a popup
     if (window.opener) {
       window.opener.postMessage({ type: 'oauth_success' }, '*');
-      setTimeout(() => window.close(), 2000);
+      
+      // Show countdown in message
+      const message = document.querySelector('.message');
+      let countdown = 3;
+      
+      const interval = setInterval(() => {
+        message.textContent = `This window will close automatically in ${countdown} seconds...`;
+        countdown--;
+        
+        if (countdown < 0) {
+          clearInterval(interval);
+          window.close();
+        }
+      }, 1000);
+      
+      // If window doesn't close after 5 seconds (some browsers may block), update the message
+      setTimeout(() => {
+        if (!window.closed) {
+          clearInterval(interval);
+          message.textContent = 'Please close this window and return to the application.';
+        }
+      }, 5000);
+    } else {
+      // If opened directly (not as popup), hide the message
+      document.querySelector('.message').style.display = 'none';
+      
+      // Update the return button to navigate to the dashboard
+      document.getElementById('return-btn').addEventListener('click', () => {
+        window.location.href = '/';
+      });
     }
   </script>
 </body>

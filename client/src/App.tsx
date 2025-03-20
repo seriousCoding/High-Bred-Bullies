@@ -33,7 +33,8 @@ const RouterWithAuth = () => {
       {/* Routes that require user login but not API keys */}
       {user ? (
         <>
-          <Route path="/connect-coinbase" component={UnifiedAuthPage} />
+          <Route path="/connect-coinbase" component={CoinbaseConnectPage} />
+          <Route path="/unified-auth" component={UnifiedAuthPage} />
           <Route path="/api-key-auth" component={ApiKeyAuthPage} />
           <Route path="/add-api-key" component={AddApiKeyPage} />
         </>
