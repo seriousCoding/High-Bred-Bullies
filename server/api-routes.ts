@@ -12,11 +12,15 @@ import path from 'path';
 import fs from 'fs';
 import session from 'express-session';
 import { requireApiKey, requireOAuthToken } from './auth';
+import { oauthRouter } from './oauth-routes';
 
 // Using the imported authentication middleware from auth.ts
 
 // Register API routes
 export async function registerApiRoutes(app: Express, server: HttpServer): Promise<void> {
+  // Register OAuth router for all /api/oauth/* endpoints
+  app.use('/api/oauth', oauthRouter);
+  
   // Initialize WebSocket server
   const wss = new WebSocketServer({ 
     server, 

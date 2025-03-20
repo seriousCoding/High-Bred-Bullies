@@ -139,9 +139,11 @@ export default function CoinbaseConnectPage() {
   };
 
   // Redirect to home if user is not logged in
-  if (!user) {
-    return navigate('/auth');
-  }
+  React.useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-900">
