@@ -834,7 +834,8 @@ class CoinbaseApiClient {
       // Check the response format
       if (!response.candles || !Array.isArray(response.candles)) {
         console.error('Unexpected candles response format from SDK:', response);
-        return [];
+        // Instead of returning empty data, throw an error to be consistent with our data integrity policy
+        throw new Error(`Failed to get valid candle data from Coinbase for ${productId}`);
       }
       
       // Convert to our standardized Candle format
@@ -919,14 +920,14 @@ class CoinbaseApiClient {
           this.coinbaseClient?.getAccounts({}, (err: any, accountsData: any) => {
             if (err) {
               console.error('Error fetching accounts with Coinbase SDK:', err);
-              resolve([]);
+              reject(new Error(`Failed to fetch authentic account data from Coinbase SDK: ${err.message || 'Unknown error'}`));
               return;
             }
             
             try {
               if (!accountsData || !accountsData.data) {
                 console.error('Invalid account data format from Coinbase SDK');
-                resolve([]);
+                reject(new Error('Invalid response format from Coinbase SDK - no account data available'));
                 return;
               }
               
@@ -956,9 +957,9 @@ class CoinbaseApiClient {
               }));
               
               resolve(accounts);
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error processing Coinbase SDK accounts:', error);
-              resolve([]);
+              reject(new Error(`Error processing Coinbase SDK account data: ${error.message || 'Unknown error'}`));
             }
           });
         });
@@ -980,14 +981,14 @@ class CoinbaseApiClient {
           this.coinbaseClient?.getAccounts({}, (err: any, accountsData: any) => {
             if (err) {
               console.error('Error fetching accounts with Coinbase SDK (fallback):', err);
-              resolve([]);
+              reject(new Error(`Failed to fetch authentic account data from Coinbase SDK fallback: ${err.message || 'Unknown error'}`));
               return;
             }
             
             try {
               if (!accountsData || !accountsData.data) {
                 console.error('Invalid account data format from Coinbase SDK (fallback)');
-                resolve([]);
+                reject(new Error('Invalid response format from Coinbase SDK fallback - no account data available'));
                 return;
               }
               
