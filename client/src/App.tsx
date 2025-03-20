@@ -33,10 +33,10 @@ const RouterWithAuth = () => {
       {/* Routes that require user login but not API keys */}
       {user ? (
         <>
-          <Route path="/connect-coinbase">{() => <CoinbaseConnectPage />}</Route>
-          <Route path="/unified-auth">{() => <UnifiedAuthPage />}</Route>
-          <Route path="/api-key-auth">{() => <ApiKeyAuthPage />}</Route>
-          <Route path="/add-api-key">{() => <AddApiKeyPage />}</Route>
+          <Route path="/connect-coinbase" component={CoinbaseConnectPage} />
+          <Route path="/unified-auth" component={UnifiedAuthPage} />
+          <Route path="/api-key-auth" component={ApiKeyAuthPage} />
+          <Route path="/add-api-key" component={AddApiKeyPage} />
         </>
       ) : null}
       
@@ -68,16 +68,16 @@ function Router() {
       
       {/* All other routes should be protected and check for login */}
       <Route path="/connect-coinbase">
-        {(params) => <CoinbaseConnectPage />}
+        {(params) => <CoinbaseConnectPage {...params} />}
       </Route>
       <Route path="/unified-auth">
-        {(params) => <UnifiedAuthPage />}
+        {(params) => <UnifiedAuthPage {...params} />}
       </Route>
       <Route path="/api-key-auth">
-        {(params) => <ApiKeyAuthPage />}
+        {(params) => <ApiKeyAuthPage {...params} />}
       </Route>
       <Route path="/add-api-key">
-        {(params) => <AddApiKeyPage />}
+        {(params) => <AddApiKeyPage {...params} />}
       </Route>
       
       {/* Dashboard and other pages */}
