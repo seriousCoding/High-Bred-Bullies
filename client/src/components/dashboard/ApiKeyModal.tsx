@@ -10,11 +10,15 @@ import { useApiKeys } from "@/hooks/use-api-keys";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultedApiKey } from "@/lib/apiKeyVault";
 
-// Form schema for adding API keys
+// Form schema for adding API keys with validation
 const apiKeyFormSchema = z.object({
   label: z.string().min(1, "Label is required"),
-  apiKey: z.string().min(10, "API Key must be at least 10 characters"),
-  apiSecret: z.string().min(10, "API Secret must be at least 10 characters"),
+  apiKey: z.string()
+    .min(20, "API Key must be at least 20 characters")
+    .regex(/^[a-zA-Z0-9]+$/, "API Key must only contain letters and numbers"),
+  apiSecret: z.string()
+    .min(30, "API Secret must be at least 30 characters")
+    .regex(/^[a-zA-Z0-9]+$/, "API Secret must only contain letters and numbers"),
 });
 
 // Form schema for client API key (pre-filled)

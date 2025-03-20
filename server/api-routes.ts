@@ -86,19 +86,68 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     console.error('Failed to connect to Coinbase WebSocket:', error);
   }
   
-  // API Key Management
+  // API Key Management - with validation before saving
   app.post('/api/keys', async (req: Request, res: Response) => {
     try {
-      const apiKeyData = insertApiKeySchema.parse(req.body);
-      const storedKey = await storage.storeApiKey(apiKeyData);
+      // Check if user is authenticated
+      const userId = req.session?.userId;
       
-      // Return only partial key info for security
-      res.status(201).json({
-        id: storedKey.id,
-        userId: storedKey.userId,
-        label: storedKey.label,
-        createdAt: storedKey.createdAt
-      });
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      const { label, apiKey, apiSecret } = req.body;
+      
+      // Validate input data
+      const apiKeyData = {
+        userId,
+        label,
+        apiKey,
+        apiSecret
+      };
+      
+      // Parse with schema to validate
+      insertApiKeySchema.parse(apiKeyData);
+      
+      // Validate Coinbase API credentials before storing
+      try {
+        // Set credentials temporarily to test them
+        coinbaseClient.setCredentials(apiKeyData.apiKey, apiKeyData.apiSecret);
+        
+        // Try to make a simple request to test credentials
+        await coinbaseClient.getProducts();
+        
+        // Clear credentials after successful validation
+        coinbaseClient.clearCredentials();
+        
+        // If we reach here, credentials are valid
+        console.log('API credentials validated successfully');
+        
+        // Store validated credentials
+        const storedKey = await keyVault.storeKey(
+          userId,
+          apiKeyData.label || 'Coinbase API Key',
+          apiKeyData.apiKey,
+          apiKeyData.apiSecret
+        );
+        
+        // Return only partial key info for security
+        res.status(201).json({
+          id: storedKey.id,
+          userId: storedKey.userId,
+          label: storedKey.label,
+          isActive: storedKey.isActive,
+          createdAt: storedKey.createdAt,
+          apiKeyPreview: `${apiKeyData.apiKey.substring(0, 4)}...${apiKeyData.apiKey.substring(apiKeyData.apiKey.length - 4)}`
+        });
+      } catch (validationError) {
+        console.error('API credentials validation failed:', validationError);
+        coinbaseClient.clearCredentials();
+        res.status(400).json({ 
+          message: 'Invalid Coinbase API credentials', 
+          details: validationError instanceof Error ? validationError.message : 'Failed to connect to Coinbase API' 
+        });
+      }
     } catch (error) {
       console.error('Error storing API key:', error);
       if (error instanceof z.ZodError) {
@@ -110,8 +159,14 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   
   app.get('/api/keys', async (req: Request, res: Response) => {
     try {
-      // In a real app, you'd get userId from auth session
-      const userId = parseInt(req.headers['x-user-id'] as string) || 0;
+      // Get the user ID from the session
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      // Get all API keys for this user
       const keys = await storage.getApiKeys(userId);
       
       // Only return partial key info for security
@@ -121,10 +176,16 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         label: key.label,
         isActive: key.isActive,
         createdAt: key.createdAt,
-        // Show only first and last few characters of the API key
+        // Only preview the API key, don't expose the full key
         apiKeyPreview: key.apiKey ? 
           `${key.apiKey.substring(0, 4)}...${key.apiKey.substring(key.apiKey.length - 4)}` :
-          'N/A'
+          'N/A',
+        // Add last success date if available
+        lastSuccess: key.lastSuccess || null,
+        // Add fail count to indicate key health
+        failCount: key.failCount || 0,
+        // Add last attempt date if available
+        lastAttempt: key.lastAttempt || null
       }));
       
       res.json(safeKeys);
@@ -136,13 +197,34 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   
   app.delete('/api/keys/:id', async (req: Request, res: Response) => {
     try {
+      // Check if user is authenticated
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
       const keyId = parseInt(req.params.id);
       
       if (isNaN(keyId)) {
         return res.status(400).json({ message: 'Invalid key ID' });
       }
       
-      await storage.deleteApiKey(keyId);
+      // Check if this key belongs to the authenticated user
+      const key = await storage.getApiKeyById(keyId);
+      
+      if (!key) {
+        return res.status(404).json({ message: 'API key not found' });
+      }
+      
+      if (key.userId !== userId) {
+        return res.status(403).json({ message: 'Unauthorized access to this API key' });
+      }
+      
+      // Delete the key using key vault
+      await keyVault.deleteKey(keyId);
+      
+      // Success - return no content
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting API key:', error);
