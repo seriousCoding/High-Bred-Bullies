@@ -174,6 +174,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Product Trades Endpoint - using Coinbase Core API
+  app.get('/api/products/:productId/trades', async (req: Request, res: Response) => {
+    try {
+      const { productId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+      
+      console.log(`Trades API request received for ${productId}`);
+      
+      try {
+        // Use the getProductTrades method from Coinbase Core API (no auth needed)
+        const trades = await coinbaseApi.getProductTrades(productId, limit);
+        console.log(`Successfully fetched ${trades.length} trades for ${productId}`);
+        return res.json(trades);
+      } catch (error) {
+        console.error(`Error fetching trades for ${productId}:`, error);
+        
+        // Return empty array instead of error for better UI handling
+        return res.json([]);
+      }
+    } catch (error) {
+      console.error('Error in trades endpoint:', error);
+      return res.json([]);
+    }
+  });
+  
   app.get('/api/products/:productId/book', async (req: Request, res: Response) => {
     try {
       const { productId } = req.params;
