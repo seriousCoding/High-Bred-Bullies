@@ -39,8 +39,13 @@ const coinbaseAxios = axios.create({
   })
 });
 
+import { setupUnifiedAuth, requireAuth } from './unified-auth';
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+
+  // Setup unified Coinbase authentication
+  setupUnifiedAuth(app);
 
   // Setup WebSocket server for real-time data with specific path
   const wss = new WebSocketServer({ 
