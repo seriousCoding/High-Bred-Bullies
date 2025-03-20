@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { useMarkets } from "@/context/MarketsContext";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { OrderSide, OrderType } from "@shared/coinbase-api-types";
 
@@ -13,7 +12,7 @@ type PaymentType = "fiat" | "crypto";
 export function OrderForm() {
   // Form state
   const [mode, setMode] = useState<OrderFormMode>("buy");
-  const [orderType, setOrderType] = useState<OrderType>("MARKET");
+  const [orderType, setOrderType] = useState<OrderType>(OrderType.MARKET);
   const [amount, setAmount] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
   const [selectedAccount, setSelectedAccount] = useState("");
@@ -52,7 +51,7 @@ export function OrderForm() {
   
   // Set default account when accounts are loaded
   useEffect(() => {
-    if (accounts && accounts.length > 0) {
+    if (accounts && Array.isArray(accounts) && accounts.length > 0) {
       // For buy, select USD account
       if (mode === "buy") {
         const usdAccount = accounts.find((acc: any) => acc.currency === "USD");
@@ -79,13 +78,16 @@ export function OrderForm() {
   // Place order mutation
   const placeMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest("POST", "/api/orders", orderData);
+      return apiRequest('/api/orders', {
+        method: 'POST',
+        body: orderData
+      });
     },
     onSuccess: () => {
       toast({
         title: "Order placed successfully",
         description: `Your ${mode} order has been submitted`,
-        variant: "success"
+        variant: "default"
       });
       
       // Clear form
@@ -263,12 +265,14 @@ export function OrderForm() {
                   <option value="">Loading accounts...</option>
                 ) : accounts && accounts.length === 0 ? (
                   <option value="">No accounts available</option>
-                ) : (
+                ) : accounts ? (
                   accounts.map((account: any) => (
                     <option key={account.account_id} value={account.account_id}>
                       {account.currency} - {parseFloat(account.available_balance.value).toLocaleString()} available
                     </option>
                   ))
+                ) : (
+                  <option value="">Loading accounts...</option>
                 )}
               </select>
               <span className="material-icons absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg pointer-events-none">
