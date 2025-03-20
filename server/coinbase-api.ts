@@ -375,20 +375,25 @@ class CoinbaseApiClient {
         return null;
       }
       
+      console.log(`Found ${keys.length} active API keys for rotation`);
+      
       // Skip keys that recently failed
       const availableKeys = keys.filter(key => {
         // Skip the last failed key if it exists
         if (this.lastFailedKey === key.id) {
+          console.log(`Skipping recently failed key ${key.id}`);
           return false;
         }
         
         // Skip keys that have been used in this rotation cycle
         if (this.usedKeyIds.has(key.id)) {
+          console.log(`Skipping already used key ${key.id} in this rotation cycle`);
           return false;
         }
         
         // Skip keys with too many recent failures
         if ((key.failCount || 0) > 5) {
+          console.log(`Key ${key.id} has too many failures (${key.failCount})`);
           // Only try keys with high failure counts if we have nothing else
           return keys.length <= 1;
         }
@@ -397,10 +402,26 @@ class CoinbaseApiClient {
       });
       
       if (availableKeys.length === 0) {
+        console.log('No available keys after filtering, resetting rotation cycle');
         // If we've tried all keys, reset and start again
         this.resetKeyRotation();
         
-        // If reset doesn't give us keys, fall back to any key
+        // Try to get keys again after reset
+        const resetKeys = keys.filter(key => (key.failCount || 0) <= 5);
+        
+        // If we have any keys with acceptable failure counts, use them
+        if (resetKeys.length > 0) {
+          const resetKey = resetKeys[0];
+          console.log(`After reset, using key ${resetKey.id} with ${resetKey.failCount || 0} failures`);
+          this.usedKeyIds.add(resetKey.id);
+          return {
+            apiKey: resetKey.apiKey,
+            apiSecret: resetKey.apiSecret,
+            keyId: resetKey.id
+          };
+        }
+        
+        // If reset doesn't give us keys with good health, fall back to any key
         if (keys.length > 0) {
           const fallbackKey = keys[0];
           console.log(`Using fallback key ${fallbackKey.id} after rotation cycle completed`);
@@ -418,7 +439,7 @@ class CoinbaseApiClient {
       const selectedKey = availableKeys[0];
       this.usedKeyIds.add(selectedKey.id);
       
-      console.log(`Selected API key ${selectedKey.id} for request`);
+      console.log(`Selected API key ${selectedKey.id} for request (fail count: ${selectedKey.failCount || 0})`);
       return {
         apiKey: selectedKey.apiKey,
         apiSecret: selectedKey.apiSecret, 
@@ -928,22 +949,29 @@ class CoinbaseApiClient {
   
   // Account API
   
-  // Public method for fetching accounts with key rotation
-  public async getAccountsWithRotation(userId: number): Promise<Account[]> {
+  // Public method for fetching accounts with key rotation and automatic retry 
+  public async getAccountsWithRotation(userId: number, retryCount = 0, maxRetries = 3): Promise<Account[]> {
     try {
-      console.log('Fetching accounts using key rotation system');
+      console.log(`Fetching accounts using key rotation system (attempt ${retryCount + 1} of ${maxRetries + 1})`);
       
       // Get the API key credentials
       const keyData = await this.getApiKeysWithRotation(userId);
       if (!keyData) {
-        throw new Error('No active API keys available');
+        throw new Error('No active API keys available for authentication');
       }
       
       const { apiKey, apiSecret, keyId } = keyData;
+      console.log(`Attempting accounts fetch with key ID ${keyId}`);
       
       try {
         // Attempt to fetch accounts with the selected API key
         const accounts = await this.getAccounts(apiKey, apiSecret);
+        
+        if (!accounts || accounts.length === 0) {
+          console.log(`Key ${keyId} authenticated successfully but returned no accounts`);
+        } else {
+          console.log(`Key ${keyId} successfully retrieved ${accounts.length} accounts`);
+        }
         
         // Mark the key as successful
         await this.updateKeyStatus(keyId, true);
@@ -951,13 +979,29 @@ class CoinbaseApiClient {
         return accounts;
       } catch (error) {
         // Mark the key as failed
+        console.error(`Authentication failed with key ${keyId}:`, error);
         await this.updateKeyStatus(keyId, false);
         
-        // Re-throw the error
-        throw error;
+        // Check if we should retry with a different key
+        if (retryCount < maxRetries) {
+          console.log(`Retrying with different API key (attempt ${retryCount + 2} of ${maxRetries + 1})`);
+          return this.getAccountsWithRotation(userId, retryCount + 1, maxRetries);
+        }
+        
+        // We've exhausted our retry attempts
+        console.error(`Failed to authenticate after ${maxRetries + 1} attempts with different API keys`);
+        throw new Error(`Failed to authenticate with Coinbase after trying ${maxRetries + 1} different API keys`);
       }
     } catch (error) {
-      console.error('Error fetching accounts with rotation:', error);
+      console.error('Error in account rotation system:', error);
+      
+      if (retryCount < maxRetries) {
+        console.log(`Retrying after error in rotation system (attempt ${retryCount + 2} of ${maxRetries + 1})`);
+        // Small delay before retry to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this.getAccountsWithRotation(userId, retryCount + 1, maxRetries);
+      }
+      
       throw error;
     }
   }
