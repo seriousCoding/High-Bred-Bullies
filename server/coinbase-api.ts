@@ -127,7 +127,7 @@ class CoinbaseApiClient {
     }
   }
   
-  // Create authentication headers for REST API requests (Advanced Trade API)
+  // Create authentication headers for Advanced Trade API requests
   private createAuthHeaders(
     method: string, 
     requestPath: string, 
@@ -135,21 +135,30 @@ class CoinbaseApiClient {
     apiKey: string,
     apiSecret: string
   ) {
-    // Based on Coinbase Advanced Trade API documentation
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const fullPath = `/api/v3/brokerage${requestPath}`;
+    
+    // For Advanced Trade API, the path must include /api/v3/brokerage prefix
+    // Remove any leading slashes from requestPath to avoid double slashes
+    const sanitizedPath = requestPath.startsWith('/') ? requestPath.substring(1) : requestPath;
+    const fullPath = `/api/v3/brokerage/${sanitizedPath}`;
+    
+    // Create the message to sign according to Coinbase Advanced documentation
     let signatureMessage = timestamp + method + fullPath;
     
+    // Add the body to the message if present
     if (body) {
       signatureMessage += body;
     }
     
-    // Create HMAC signature using the API secret to sign the message
+    console.log(`Creating signature for: ${method} ${fullPath}`);
+    
+    // Create the signature using HMAC-SHA256 and hex encoding
     const signature = crypto
       .createHmac('sha256', apiSecret)
       .update(signatureMessage)
       .digest('hex');
     
+    // Return the headers required by Advanced Trade API
     return {
       'Content-Type': 'application/json',
       'CB-ACCESS-KEY': apiKey,
@@ -166,22 +175,52 @@ class CoinbaseApiClient {
     apiSecret: string,
     body?: any
   ): Promise<T> {
-    const url = `${REST_API_URL}${endpoint}`;
-    const bodyString = body ? JSON.stringify(body) : null;
-    const headers = this.createAuthHeaders(method, endpoint, bodyString, apiKey, apiSecret);
-    
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: bodyString,
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Coinbase API error (${response.status}): ${errorText}`);
+    try {
+      console.log(`Making ${method} request to: ${endpoint}`);
+      
+      // For Advanced API, ensure the endpoint doesn't already have the prefix
+      const sanitizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const url = `${REST_API_URL}${sanitizedEndpoint}`;
+      
+      const bodyString = body ? JSON.stringify(body) : null;
+      const headers = this.createAuthHeaders(method, endpoint, bodyString, apiKey, apiSecret);
+      
+      console.log(`Request URL: ${url}`);
+      // Don't log the actual API key, just whether it exists
+      console.log(`API Key present: ${!!apiKey}, Headers set: ${Object.keys(headers).join(', ')}`);
+      
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: bodyString,
+      });
+      
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        console.error(`Coinbase API error ${response.status}: ${responseText}`);
+        console.error(`Request headers: `, Object.keys(headers));
+        console.error(`Request endpoint: ${endpoint}`);
+        throw new Error(`Coinbase API error (${response.status}): ${responseText}`);
+      }
+      
+      // Parse the response as JSON
+      let jsonResponse: T;
+      try {
+        jsonResponse = JSON.parse(responseText) as T;
+      } catch (error) {
+        console.error('Failed to parse API response as JSON:', responseText);
+        throw new Error('Invalid JSON response from Coinbase API');
+      }
+      
+      // Log success for debugging
+      console.log(`${method} request to ${endpoint} succeeded`);
+      
+      return jsonResponse;
+    } catch (error) {
+      console.error(`API request failed for ${endpoint}:`, error);
+      throw error;
     }
-    
-    return response.json();
   }
   
   // Make authenticated request using OAuth access token
@@ -298,27 +337,64 @@ class CoinbaseApiClient {
     apiSecret: string,
     limit?: number
   ): Promise<ProductBook> {
-    const level = limit && limit > 1 ? 2 : 1;
-    const queryParams = `?level=${level}`;
-    
-    const exchangeBook = await this.makeRequest<{
-      sequence: number;
-      bids: [string, string, string][]; // [price, size, num-orders]
-      asks: [string, string, string][]; // [price, size, num-orders]
-    }>(
-      'GET',
-      `/products/${productId}/book${queryParams}`,
-      apiKey,
-      apiSecret
-    );
-    
-    // Convert to our standardized format
-    return {
-      product_id: productId,
-      bids: exchangeBook.bids.map(bid => [bid[0], bid[1]]),
-      asks: exchangeBook.asks.map(ask => [ask[0], ask[1]]),
-      time: new Date().toISOString() // Exchange API doesn't provide time in the response
-    };
+    try {
+      // Advanced API endpoint for product book
+      const params = new URLSearchParams();
+      
+      // Advanced API uses 'limit' parameter directly
+      if (limit) {
+        // Ensure it's a valid integer
+        const limitInt = parseInt(String(limit), 10);
+        if (!isNaN(limitInt) && limitInt > 0) {
+          params.append('limit', limitInt.toString());
+        }
+      }
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      // Request order book data from Coinbase Advanced Trade API
+      const response = await this.makeRequest<any>(
+        'GET',
+        `/product_book/${productId}${queryString}`,
+        apiKey,
+        apiSecret
+      );
+      
+      // Check if the response has the expected format
+      if (!response || (!response.bids && !response.asks)) {
+        console.error('Unexpected response format from product book API:', response);
+        return {
+          product_id: productId,
+          bids: [],
+          asks: [],
+          time: new Date().toISOString()
+        };
+      }
+      
+      // Extract bids and asks arrays
+      const bids = response.bids || [];
+      const asks = response.asks || [];
+      
+      // Convert to our standardized format
+      // Advanced API format may already have [price, size] format or may have a different structure
+      return {
+        product_id: productId,
+        bids: Array.isArray(bids[0]) ? bids.map((bid: any) => [bid[0], bid[1]]) : 
+              bids.map((bid: any) => [bid.price || '0', bid.size || '0']),
+        asks: Array.isArray(asks[0]) ? asks.map((ask: any) => [ask[0], ask[1]]) : 
+              asks.map((ask: any) => [ask.price || '0', ask.size || '0']),
+        time: response.time || new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`Error fetching product book for ${productId}:`, error);
+      // Return empty order book on error
+      return {
+        product_id: productId,
+        bids: [],
+        asks: [],
+        time: new Date().toISOString()
+      };
+    }
   }
   
   public async getCandles(
@@ -420,44 +496,47 @@ class CoinbaseApiClient {
   // Account API
   
   public async getAccounts(apiKey: string, apiSecret: string): Promise<Account[]> {
-    // Coinbase Exchange API returns an array of accounts with different format
-    const exchangeAccounts = await this.makeRequest<Array<{
-      id: string;
-      currency: string;
-      balance: string;
-      available: string;
-      hold: string;
-      profile_id: string;
-      trading_enabled: boolean;
-    }>>(
-      'GET',
-      '/accounts',
-      apiKey,
-      apiSecret
-    );
-    
-    // Convert to our standardized Account format
-    return exchangeAccounts.map(account => ({
-      account_id: account.id,
-      name: `${account.currency} Wallet`,
-      uuid: account.id,
-      currency: account.currency,
-      available_balance: {
-        value: account.available,
-        currency: account.currency
-      },
-      default: false, // Not available in Exchange API
-      active: account.trading_enabled,
-      created_at: new Date().toISOString(), // Not available in Exchange API
-      updated_at: new Date().toISOString(), // Not available in Exchange API
-      deleted_at: null,
-      type: 'WALLET',
-      ready: true,
-      hold: {
-        value: account.hold,
-        currency: account.currency
+    try {
+      // Fetch accounts from Coinbase Advanced Trade API
+      const response = await this.makeRequest<any>(
+        'GET',
+        '/accounts',
+        apiKey,
+        apiSecret
+      );
+      
+      // Check if the response has the expected format
+      if (!response.accounts || !Array.isArray(response.accounts)) {
+        console.error('Unexpected response format from accounts API:', response);
+        return [];
       }
-    }));
+      
+      // Convert to our standardized Account format
+      return response.accounts.map((account: any) => ({
+        account_id: account.uuid || '',
+        name: account.name || `${account.currency} Wallet`,
+        uuid: account.uuid || '',
+        currency: account.currency || '',
+        available_balance: {
+          value: account.available_balance?.value || '0',
+          currency: account.available_balance?.currency || account.currency || 'USD'
+        },
+        default: account.default || false,
+        active: account.active || true,
+        created_at: account.created_at || new Date().toISOString(),
+        updated_at: account.updated_at || new Date().toISOString(),
+        deleted_at: account.deleted_at || null,
+        type: account.type || 'WALLET',
+        ready: account.ready !== undefined ? account.ready : true,
+        hold: {
+          value: account.hold?.value || '0',
+          currency: account.hold?.currency || account.currency || 'USD'
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      return [];
+    }
   }
   
   // Orders API
@@ -523,41 +602,112 @@ class CoinbaseApiClient {
     status?: string,
     limit?: string
   ): Promise<Order[]> {
-    const params = new URLSearchParams();
-    if (productId) params.append('product_id', productId);
-    if (limit) params.append('limit', limit);
-    
-    // Coinbase Exchange API uses a different status parameter
-    // "all", "open", "pending", "active", or "done"
-    let statusParam = 'all';
-    if (status) {
-      switch (status.toUpperCase()) {
-        case 'OPEN':
-        case 'PENDING':
-          statusParam = 'open';
-          break;
-        case 'FILLED':
-        case 'CANCELLED':
-        case 'EXPIRED':
-        case 'FAILED':
-          statusParam = 'done';
-          break;
+    try {
+      const params = new URLSearchParams();
+      
+      // Convert product_id to the correct parameter name
+      if (productId) params.append('product_id', productId);
+      
+      // Convert limit to integer string
+      if (limit) {
+        const limitInt = parseInt(limit, 10);
+        if (!isNaN(limitInt) && limitInt > 0) {
+          params.append('limit', limitInt.toString());
+        }
       }
-      params.append('status', statusParam);
+      
+      // For Advanced API, use the correct status parameter format
+      // Valid values: OPEN, FILLED, CANCELLED, EXPIRED, FAILED, ALL
+      if (status) {
+        // Convert to uppercase to ensure consistent mapping
+        const upperStatus = status.toUpperCase();
+        const validStatuses = ['OPEN', 'FILLED', 'CANCELLED', 'EXPIRED', 'FAILED', 'ALL'];
+        
+        if (validStatuses.includes(upperStatus)) {
+          params.append('order_status', upperStatus);
+        }
+      }
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      // Fetch orders from Advanced API
+      const response = await this.makeRequest<any>(
+        'GET',
+        `/orders${queryString}`,
+        apiKey,
+        apiSecret
+      );
+      
+      // Check response format
+      if (!response.orders || !Array.isArray(response.orders)) {
+        console.error('Unexpected order response format:', response);
+        return [];
+      }
+      
+      // Convert to our standardized format
+      return response.orders.map((order: any) => this.convertAdvancedOrderToStandardOrder(order));
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      return [];
+    }
+  }
+  
+  // Helper method for Advanced API format
+  private convertAdvancedOrderToStandardOrder(advancedOrder: any): Order {
+    // Extract order configuration
+    let orderConfiguration: any = {};
+    
+    if (advancedOrder.order_configuration) {
+      // Copy the order configuration directly if available
+      orderConfiguration = advancedOrder.order_configuration;
+    } else {
+      // Create basic config based on type if direct format isn't available
+      const orderType = advancedOrder.order_type || 'UNKNOWN';
+      
+      if (orderType === 'MARKET') {
+        orderConfiguration.market_market_ioc = {
+          base_size: advancedOrder.base_size || advancedOrder.size || '0',
+          quote_size: advancedOrder.quote_size || '0'
+        };
+      } else if (orderType === 'LIMIT') {
+        orderConfiguration.limit_limit_gtc = {
+          base_size: advancedOrder.base_size || advancedOrder.size || '0',
+          limit_price: advancedOrder.limit_price || advancedOrder.price || '0',
+          post_only: advancedOrder.post_only || false
+        };
+      }
     }
     
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    
-    // Fetch orders from Exchange API
-    const exchangeOrders = await this.makeRequest<any[]>(
-      'GET',
-      `/orders${queryString}`,
-      apiKey,
-      apiSecret
-    );
-    
-    // Convert to our standardized format
-    return exchangeOrders.map(order => this.convertExchangeOrderToStandardOrder(order));
+    // Map standard Order fields
+    return {
+      order_id: advancedOrder.order_id || '',
+      product_id: advancedOrder.product_id || '',
+      user_id: advancedOrder.user_id || '',
+      client_order_id: advancedOrder.client_order_id || '',
+      side: advancedOrder.side || OrderSide.BUY,
+      status: advancedOrder.status || 'OPEN',
+      time_in_force: advancedOrder.time_in_force || OrderTimeInForce.GOOD_UNTIL_CANCELLED,
+      created_time: advancedOrder.created_time || new Date().toISOString(),
+      completion_percentage: advancedOrder.completion_percentage || '0',
+      filled_size: advancedOrder.filled_size || '0',
+      average_filled_price: advancedOrder.average_filled_price || '0',
+      fee: advancedOrder.fee || '0',
+      number_of_fills: advancedOrder.number_of_fills || '0',
+      filled_value: advancedOrder.filled_value || '0',
+      pending_cancel: advancedOrder.pending_cancel || false,
+      size_in_quote: advancedOrder.size_in_quote || false,
+      total_fees: advancedOrder.total_fees || '0',
+      size_inclusive_of_fees: advancedOrder.size_inclusive_of_fees || false,
+      total_value_after_fees: advancedOrder.total_value_after_fees || '0',
+      trigger_status: advancedOrder.trigger_status || '',
+      order_type: advancedOrder.order_type || 'UNKNOWN',
+      reject_reason: advancedOrder.reject_reason || '',
+      settled: advancedOrder.settled || false,
+      product_type: advancedOrder.product_type || 'SPOT',
+      reject_message: advancedOrder.reject_message || '',
+      cancel_message: advancedOrder.cancel_message || '',
+      order_configuration: orderConfiguration
+    };
   }
   
   public async cancelOrder(
@@ -684,43 +834,52 @@ class CoinbaseApiClient {
     productId?: string,
     limit?: string
   ): Promise<Trade[]> {
-    const params = new URLSearchParams();
-    if (orderId) params.append('order_id', orderId);
-    if (productId) params.append('product_id', productId);
-    if (limit) params.append('limit', limit);
-    
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    
-    // Coinbase Exchange API returns fills in a different format
-    const exchangeFills = await this.makeRequest<Array<{
-      trade_id: number;
-      product_id: string;
-      price: string;
-      size: string;
-      order_id: string;
-      created_at: string;
-      liquidity: string;
-      fee: string;
-      settled: boolean;
-      side: string;
-    }>>(
-      'GET',
-      `/fills${queryString}`,
-      apiKey,
-      apiSecret
-    );
-    
-    // Convert to our standardized Trade format
-    return exchangeFills.map(fill => ({
-      trade_id: fill.trade_id.toString(),
-      product_id: fill.product_id,
-      price: fill.price,
-      size: fill.size,
-      time: fill.created_at,
-      side: fill.side.toUpperCase() === 'BUY' ? OrderSide.BUY : OrderSide.SELL,
-      bid: '0', // Not directly available in Exchange API
-      ask: '0'  // Not directly available in Exchange API
-    }));
+    try {
+      const params = new URLSearchParams();
+      
+      // Format parameters for Advanced API
+      if (orderId) params.append('order_id', orderId);
+      if (productId) params.append('product_id', productId);
+      
+      // Convert limit to integer if provided
+      if (limit) {
+        const limitInt = parseInt(limit, 10);
+        if (!isNaN(limitInt) && limitInt > 0) {
+          params.append('limit', limitInt.toString());
+        }
+      }
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      // Fetch fills from Advanced API
+      const response = await this.makeRequest<any>(
+        'GET',
+        `/fills${queryString}`,
+        apiKey,
+        apiSecret
+      );
+      
+      // Check if the response has the expected format
+      if (!response.fills || !Array.isArray(response.fills)) {
+        console.error('Unexpected fills response format:', response);
+        return [];
+      }
+      
+      // Convert to our standardized Trade format
+      return response.fills.map((fill: any) => ({
+        trade_id: fill.trade_id?.toString() || '',
+        product_id: fill.product_id || '',
+        price: fill.price || '0',
+        size: fill.size || '0',
+        time: fill.trade_time || fill.created_at || new Date().toISOString(),
+        side: (fill.side || '').toUpperCase() === 'BUY' ? OrderSide.BUY : OrderSide.SELL,
+        bid: fill.bid || '0',
+        ask: fill.ask || '0'
+      }));
+    } catch (error) {
+      console.error('Error fetching fills:', error);
+      return [];
+    }
   }
   
   // OAuth Methods
