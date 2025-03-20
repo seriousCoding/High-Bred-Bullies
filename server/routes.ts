@@ -420,8 +420,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Read our enhanced redirect HTML file
-      let html = fs.readFileSync(path.join(__dirname, 'redirect.html'), 'utf8');
+      // Create inline HTML for the redirect page - this avoids file system issues
+      let html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting to Coinbase...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background-color: #f7f9fc;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      color: #333;
+    }
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+    .logo {
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #0052ff;
+    }
+    p {
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .countdown {
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 1rem 0;
+      color: #0052ff;
+    }
+    .button {
+      background-color: #0052ff;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 1rem;
+    }
+    .button:hover {
+      background-color: #0039cb;
+    }
+    .footer {
+      margin-top: 2rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    .backup-area {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #eee;
+    }
+    .backup-link {
+      word-break: break-all;
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin: 0.5rem 0;
+      display: block;
+    }
+    .hide {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <svg width="100" height="24" viewBox="0 0 100 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11.7963 0C5.2963 0 0 5.28 0 11.76C0 18.24 5.2963 23.52 11.7963 23.52C18.2963 23.52 23.5926 18.24 23.5926 11.76C23.5926 5.28 18.2963 0 11.7963 0ZM11.7963 17.76C8.3889 17.76 5.5926 14.88 5.5926 11.52C5.5926 8.16 8.3889 5.28 11.7963 5.28C15.2037 5.28 18 8.16 18 11.52C18 14.88 15.2037 17.76 11.7963 17.76Z" fill="#0052FF"/>
+        <path d="M29.9259 4.8H34.8148V18.72H29.9259V4.8Z" fill="#0052FF"/>
+        <path d="M29.9259 0H34.8148V3.84H29.9259V0Z" fill="#0052FF"/>
+        <path d="M42.5926 13.44C42.5926 10.8 43.7037 9.36 45.963 9.36C48.2222 9.36 49.3333 10.8 49.3333 13.44C49.3333 16.08 48.2222 17.52 45.963 17.52C43.7037 17.52 42.5926 16.08 42.5926 13.44ZM37.7037 13.44C37.7037 18.72 40.3333 22.08 45.963 22.08C51.5926 22.08 54.2222 18.72 54.2222 13.44C54.2222 8.16 51.5926 4.8 45.963 4.8C40.3333 4.8 37.7037 8.16 37.7037 13.44Z" fill="#0052FF"/>
+        <path d="M55.5556 13.44C55.5556 18.72 58.1851 22.08 63.8148 22.08C69.4444 22.08 72.0741 18.72 72.0741 13.44C72.0741 8.16 69.4444 4.8 63.8148 4.8C58.1851 4.8 55.5556 8.16 55.5556 13.44ZM60.4444 13.44C60.4444 10.8 61.5556 9.36 63.8148 9.36C66.0741 9.36 67.1852 10.8 67.1852 13.44C67.1852 16.08 66.0741 17.52 63.8148 17.52C61.5556 17.52 60.4444 16.08 60.4444 13.44Z" fill="#0052FF"/>
+        <path d="M80.2963 10.56V18.72H75.4074V4.8H80.2963V6.96C81.4074 5.28 83.1111 4.8 84.7407 4.8H86.2963V9.36H84.7407C82 9.36 80.2963 10.08 80.2963 10.56Z" fill="#0052FF"/>
+        <path d="M87.7778 13.44C87.7778 18.72 90.4074 22.32 95.1111 22.32C98.2963 22.32 100 21.12 100 18.72V4.8H95.1111V17.04C95.1111 17.52 94.5185 18 93.5556 18C91.7778 18 92.6667 16.56 92.6667 13.44C92.6667 8.4 91.7778 6 87.7778 4.8V13.44Z" fill="#0052FF"/>
+      </svg>
+    </div>
+    
+    <h1>Redirecting to Coinbase</h1>
+    <p>You'll be redirected to Coinbase in <span id="countdown" class="countdown">5</span> seconds...</p>
+    <p>If you're not redirected automatically, please click the button below:</p>
+    
+    <a href="#" id="manual-redirect" class="button">Go to Coinbase</a>
+    
+    <div class="footer">
+      <p>This page will redirect you to Coinbase to complete the authorization process.</p>
+    </div>
+    
+    <div id="backup-area" class="backup-area hide">
+      <h3>Backup Options</h3>
+      <p>If the automatic redirect doesn't work, try copying and pasting the following URL into your browser:</p>
+      <pre id="url-display" class="backup-link"></pre>
+    </div>
+  </div>
+
+  <script>
+    // Get URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Set these values from the route's parsed parameters
+    const authUrl = urlParams.get('auth_url');
+    let redirectUrl = urlParams.get('redirect_url');
+    
+    // If we got a redirectUrl directly, use it, otherwise use authUrl as fallback
+    const finalRedirectUrl = redirectUrl || authUrl;
+    
+    // Update the manual redirect button
+    const manualRedirectButton = document.getElementById('manual-redirect');
+    manualRedirectButton.href = finalRedirectUrl;
+    
+    // Show the URL in the backup section
+    const urlDisplay = document.getElementById('url-display');
+    if (urlDisplay) {
+      urlDisplay.textContent = finalRedirectUrl;
+    }
+    
+    // Optional: Show backup area after a delay, assuming redirect failed
+    setTimeout(() => {
+      const backupArea = document.getElementById('backup-area');
+      if (backupArea) {
+        backupArea.classList.remove('hide');
+      }
+    }, 10000); // Show after 10 seconds
+    
+    // Set up automatic redirect with countdown
+    let remainingSeconds = 5;
+    const countdownElement = document.getElementById('countdown');
+    
+    const countdownInterval = setInterval(() => {
+      remainingSeconds--;
+      countdownElement.textContent = remainingSeconds;
+      
+      if (remainingSeconds <= 0) {
+        clearInterval(countdownInterval);
+        
+        // Try the redirect
+        try {
+          console.log("Auto-redirecting to:", finalRedirectUrl);
+          window.location.href = finalRedirectUrl;
+        } catch (e) {
+          console.error("Redirect failed:", e);
+        }
+      }
+    }, 1000);
+    
+    // Also try opening in a popup as an alternative strategy
+    setTimeout(() => {
+      try {
+        const popup = window.open(finalRedirectUrl, "_blank");
+        
+        // If popup failed or was blocked, we'll rely on the main redirect approach
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          console.log("Popup was blocked, continuing with main approach");
+        }
+      } catch (e) {
+        console.error("Popup approach failed:", e);
+      }
+    }, 2000); // Try popup after 2 seconds
+  </script>
+</body>
+</html>
+      `;
       
       // Replace placeholders in the HTML file
       html = html.replace('const authUrl = urlParams.get(\'auth_url\');', 
