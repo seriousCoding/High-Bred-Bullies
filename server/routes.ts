@@ -14,14 +14,21 @@ import path from 'path';
 // Load environment variables
 dotenv.config();
 
-// OAuth configuration
-const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID;
-const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
+// OAuth configuration - using direct IDs for more reliable access
+const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID || "05a92dde-6f06-4571-9c00-3f2d2bd23906";
+const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET || "BclnHichGYmbkV_Fp1qkYqCkAC";
+// Secondary OAuth credentials as fallback
+const COINBASE_OAUTH_CLIENT_ID_ALT = "fb148f7f-d7bf-4538-b310-161ceefc213a";
+const COINBASE_OAUTH_CLIENT_SECRET_ALT = "faj-AiE2v94pO4EtgZrMoPyBDK";
 const COINBASE_CLIENT_API_KEY = "3RCxCpxADj5jSHikSRv6HSv2dOMjjakb"; // Client API key for UI access
 const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
 // Debug OAuth configuration
+console.log("OAuth server configuration:", {
+  client_id_available: !!COINBASE_OAUTH_CLIENT_ID,
+  client_secret_available: !!COINBASE_OAUTH_CLIENT_SECRET
+});
 
 // Create a custom axios instance that ignores SSL certificate validation issues
 // This can help bypass some environment restrictions when connecting to external APIs
@@ -849,10 +856,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("---------------------------------------------");
       console.log("SERVER-SIDE OAUTH INITIALIZATION");
       
-      if (!COINBASE_OAUTH_CLIENT_ID) {
+      // Try with primary credentials first, fall back to secondary if needed
+      const clientId = COINBASE_OAUTH_CLIENT_ID || COINBASE_OAUTH_CLIENT_ID_ALT;
+      
+      if (!clientId) {
         console.error("Missing OAuth client ID in server configuration");
         return res.status(500).json({ message: 'OAuth client credentials are not configured' });
       }
+      
+      // Log which credentials we're using
+      console.log(`Using OAuth client ID: ${clientId.substring(0, 8)}...`);
       
       // Generate state for CSRF protection - must be at least 8 characters long per docs
       const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -868,7 +881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create authorization URL - exactly as specified in the Coinbase docs
       const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
       authUrl.searchParams.append("response_type", "code");
-      authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
+      authUrl.searchParams.append("client_id", clientId);
       authUrl.searchParams.append("redirect_uri", redirectUri);
       authUrl.searchParams.append("state", state);
       
@@ -915,42 +928,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Authorization code and redirect URI are required' });
       }
       
-      if (!COINBASE_OAUTH_CLIENT_ID || !COINBASE_OAUTH_CLIENT_SECRET) {
-        return res.status(500).json({ message: 'OAuth client credentials are not configured' });
+      // Try with primary and fallback credentials
+      const credentials = [
+        { client_id: COINBASE_OAUTH_CLIENT_ID, client_secret: COINBASE_OAUTH_CLIENT_SECRET, name: "Primary" },
+        { client_id: COINBASE_OAUTH_CLIENT_ID_ALT, client_secret: COINBASE_OAUTH_CLIENT_SECRET_ALT, name: "Alternate" }
+      ];
+      
+      // Check if we have any working credentials
+      if (!credentials.some(c => c.client_id && c.client_secret)) {
+        return res.status(500).json({ message: 'No OAuth client credentials are configured' });
       }
       
-      console.log('Attempting to exchange code for token with params:', {
-        code: code.substring(0, 5) + '...',
-        redirect_uri,
-        client_id: COINBASE_OAUTH_CLIENT_ID.substring(0, 5) + '...',
-      });
+      let lastError = null;
       
-      // Exchange code for token with Coinbase according to their documentation
-      console.log('Making token exchange request to Coinbase...');
-      
-      const payload = {
-        grant_type: 'authorization_code',
-        code,
-        client_id: COINBASE_OAUTH_CLIENT_ID,
-        client_secret: COINBASE_OAUTH_CLIENT_SECRET,
-        redirect_uri
-      };
-      
-      console.log('Request payload structure:', Object.keys(payload));
-      
-      const tokenResponse = await axios.post(
-        COINBASE_TOKEN_URL, 
-        new URLSearchParams(payload), 
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-          }
+      // Try each set of credentials until one works
+      for (const cred of credentials) {
+        if (!cred.client_id || !cred.client_secret) continue;
+        
+        try {
+          console.log(`Attempting to exchange code with ${cred.name} credentials:`, {
+            code: code.substring(0, 5) + '...',
+            redirect_uri,
+            client_id: cred.client_id.substring(0, 5) + '...',
+          });
+          
+          // Exchange code for token with Coinbase according to their documentation
+          console.log(`Making token exchange request to Coinbase using ${cred.name} credentials...`);
+          
+          const payload = {
+            grant_type: 'authorization_code',
+            code,
+            client_id: cred.client_id,
+            client_secret: cred.client_secret,
+            redirect_uri
+          };
+          
+          console.log('Request payload structure:', Object.keys(payload));
+          
+          const tokenResponse = await axios.post(
+            COINBASE_TOKEN_URL, 
+            new URLSearchParams(payload), 
+            {
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
+              }
+            }
+          );
+          
+          // Return token response to client
+          console.log(`Successfully exchanged code using ${cred.name} credentials`);
+          return res.json(tokenResponse.data);
+        } catch (error) {
+          console.error(`Error with ${cred.name} credentials:`, error);
+          lastError = error;
+          // Continue to try the next set of credentials
         }
-      );
+      }
       
-      // Return token response to client
-      res.json(tokenResponse.data);
+      // If we get here, all credentials failed
+      console.error('All OAuth credential sets failed to exchange token');
     } catch (error) {
       console.error('---------------------------------------------');
       console.error('OAUTH TOKEN EXCHANGE - ERROR');
@@ -1003,35 +1040,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Refresh token is required' });
       }
       
-      if (!COINBASE_OAUTH_CLIENT_ID || !COINBASE_OAUTH_CLIENT_SECRET) {
-        return res.status(500).json({ message: 'OAuth client credentials are not configured' });
+      // Try with primary and fallback credentials
+      const credentials = [
+        { client_id: COINBASE_OAUTH_CLIENT_ID, client_secret: COINBASE_OAUTH_CLIENT_SECRET, name: "Primary" },
+        { client_id: COINBASE_OAUTH_CLIENT_ID_ALT, client_secret: COINBASE_OAUTH_CLIENT_SECRET_ALT, name: "Alternate" }
+      ];
+      
+      // Check if we have any working credentials
+      if (!credentials.some(c => c.client_id && c.client_secret)) {
+        return res.status(500).json({ message: 'No OAuth client credentials are configured' });
       }
       
-      // Exchange refresh token for new access token
-      console.log('Making refresh token request to Coinbase...');
+      let lastError = null;
       
-      const payload = {
-        grant_type: 'refresh_token',
-        refresh_token,
-        client_id: COINBASE_OAUTH_CLIENT_ID,
-        client_secret: COINBASE_OAUTH_CLIENT_SECRET
-      };
-      
-      console.log('Refresh request payload structure:', Object.keys(payload));
-      
-      const tokenResponse = await axios.post(
-        COINBASE_TOKEN_URL, 
-        new URLSearchParams(payload), 
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-          }
+      // Try each set of credentials until one works
+      for (const cred of credentials) {
+        if (!cred.client_id || !cred.client_secret) continue;
+        
+        try {
+          console.log(`Refreshing token with ${cred.name} OAuth credentials`);
+          
+          // Exchange refresh token for new access token  
+          const payload = {
+            grant_type: 'refresh_token',
+            refresh_token,
+            client_id: cred.client_id,
+            client_secret: cred.client_secret
+          };
+          
+          console.log('Refresh request payload structure:', Object.keys(payload));
+          
+          const tokenResponse = await axios.post(
+            COINBASE_TOKEN_URL, 
+            new URLSearchParams(payload), 
+            {
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
+              }
+            }
+          );
+          
+          // Return new tokens to client if successful
+          console.log(`Successfully refreshed token using ${cred.name} credentials`);
+          return res.json(tokenResponse.data);
+        } catch (error) {
+          console.error(`Error refreshing token with ${cred.name} credentials:`, error);
+          lastError = error;
+          // Continue to try the next set of credentials
         }
-      );
+      }
       
-      // Return new tokens to client
-      res.json(tokenResponse.data);
+      // If we get here, all credentials failed
+      console.error('All OAuth credential sets failed to refresh token');
     } catch (error) {
       console.error('OAuth token refresh error:', error);
       
