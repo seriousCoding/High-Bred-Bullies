@@ -343,17 +343,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Exchange code for token with Coinbase according to their documentation
-      const tokenResponse = await axios.post(COINBASE_TOKEN_URL, new URLSearchParams({
+      console.log('Making token exchange request to Coinbase...');
+      
+      const payload = {
         grant_type: 'authorization_code',
         code,
         client_id: COINBASE_OAUTH_CLIENT_ID,
         client_secret: COINBASE_OAUTH_CLIENT_SECRET,
         redirect_uri
-      }), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+      };
+      
+      console.log('Request payload structure:', Object.keys(payload));
+      
+      const tokenResponse = await axios.post(
+        COINBASE_TOKEN_URL, 
+        new URLSearchParams(payload), 
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          }
         }
-      });
+      );
       
       // Return token response to client
       res.json(tokenResponse.data);
@@ -388,16 +399,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Exchange refresh token for new access token
-      const tokenResponse = await axios.post(COINBASE_TOKEN_URL, new URLSearchParams({
+      console.log('Making refresh token request to Coinbase...');
+      
+      const payload = {
         grant_type: 'refresh_token',
         refresh_token,
         client_id: COINBASE_OAUTH_CLIENT_ID,
         client_secret: COINBASE_OAUTH_CLIENT_SECRET
-      }), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+      };
+      
+      console.log('Refresh request payload structure:', Object.keys(payload));
+      
+      const tokenResponse = await axios.post(
+        COINBASE_TOKEN_URL, 
+        new URLSearchParams(payload), 
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          }
         }
-      });
+      );
       
       // Return new tokens to client
       res.json(tokenResponse.data);

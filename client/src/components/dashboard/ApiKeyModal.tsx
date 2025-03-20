@@ -33,11 +33,24 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
     setError("");
     
     try {
-      // Start the OAuth flow
+      console.log("Starting Coinbase OAuth connection flow");
+      
+      // Start the OAuth flow - this will redirect to Coinbase
       initiateOAuthFlow();
+      
+      // Note: The page will navigate away, so any code after initiateOAuthFlow()
+      // won't execute unless there's an error that prevents navigation
     } catch (error) {
       console.error('OAuth initiation error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start authentication flow. Please try again.');
+      
+      // Show detailed error to help with debugging
+      let errorMessage = 'Failed to start authentication flow. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = `${error.name}: ${error.message}`;
+        console.error('Error details:', error.stack);
+      }
+      
+      setError(errorMessage);
       setIsSubmitting(false);
     }
   };
@@ -61,7 +74,9 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
         
         <div className="space-y-4">
           <div className="bg-[#0052FF] bg-opacity-10 text-[#0052FF] text-sm p-3 rounded-md flex items-start">
-            <span className="material-icons text-base mr-2 mt-0.5">info</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <span>
               You'll be redirected to Coinbase to securely login and authorize this application.
               No credentials will be stored on this site.
@@ -78,6 +93,17 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
               This application requires permission to read your Coinbase accounts, transactions, and other data.
               You can revoke access at any time from your Coinbase settings.
             </p>
+            
+            <div className="w-full bg-gray-800 bg-opacity-50 rounded-md p-3 text-xs text-gray-400">
+              <p className="font-semibold mb-1 text-gray-300">Permissions requested:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Read account balances and currencies</li>
+                <li>View transaction history</li>
+                <li>Place and manage orders</li>
+                <li>Read user profile information</li>
+                <li>View payment methods (read-only)</li>
+              </ul>
+            </div>
           </div>
         </div>
         

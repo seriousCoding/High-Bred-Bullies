@@ -21,6 +21,12 @@ const CLIENT_ID = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID || ""; // Should
 const REDIRECT_URI = window.location.origin + "/auth/callback";
 const OAUTH_STATE_KEY = "auth_state_key";
 
+// Debug OAuth configuration
+console.log("OAuth client configuration:", {
+  client_id_available: !!CLIENT_ID,
+  redirect_uri: REDIRECT_URI
+});
+
 export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   const [accessToken, setAccessToken] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState<string | null>(null);
@@ -177,8 +183,11 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   // Initiate OAuth login flow
   const initiateOAuthFlow = () => {
     // Generate random state for CSRF protection
-    const state = Math.random().toString(36).substring(2, 15);
+    const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     localStorage.setItem(OAUTH_STATE_KEY, state);
+    
+    console.log("Starting OAuth flow with state:", state.substring(0, 5) + "...");
+    console.log("Will redirect to:", REDIRECT_URI);
     
     // Build authorization URL
     const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
@@ -186,10 +195,30 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     authUrl.searchParams.append("client_id", CLIENT_ID);
     authUrl.searchParams.append("redirect_uri", REDIRECT_URI);
     authUrl.searchParams.append("state", state);
-    authUrl.searchParams.append("scope", "wallet:accounts:read,wallet:user:read,wallet:buys:read,wallet:sells:read,wallet:transactions:read,wallet:payment-methods:read,wallet:addresses:read,wallet:orders:read,wallet:orders:create,wallet:orders:update,wallet:trades:read,offline_access");
+    
+    // Required scopes for accessing different Coinbase API endpoints
+    const scopes = [
+      "wallet:accounts:read",
+      "wallet:user:read",
+      "wallet:buys:read",
+      "wallet:sells:read",
+      "wallet:transactions:read",
+      "wallet:payment-methods:read",
+      "wallet:addresses:read",
+      "wallet:orders:read",
+      "wallet:orders:create",
+      "wallet:orders:update",
+      "wallet:trades:read",
+      "offline_access"
+    ];
+    
+    authUrl.searchParams.append("scope", scopes.join(","));
+    
+    const finalUrl = authUrl.toString();
+    console.log("Redirecting to authorization URL:", finalUrl.substring(0, 60) + "...");
     
     // Redirect user to authorization page
-    window.location.href = authUrl.toString();
+    window.location.href = finalUrl;
   };
   
   return (

@@ -12,18 +12,33 @@ export default function OAuthCallback() {
     // This component handles displaying the OAuth callback status
     // The actual token exchange is handled by ApiKeysContext
     
-    // Log callback data for debugging (no sensitive info)
-    console.log("OAuth callback received at:", window.location.pathname);
-    console.log("OAuth callback has query params:", !!window.location.search);
+    // Comprehensive logging for debugging OAuth process
+    console.log("OAuth callback process starting");
+    console.log("Full callback URL:", window.location.href);
+    console.log("Callback path:", window.location.pathname);
+    console.log("Search params:", window.location.search);
     
-    // If there's an error in the URL, show it
+    // Parse all relevant URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get("error");
     const errorDescription = urlParams.get("error_description");
     const code = urlParams.get("code");
+    const state = urlParams.get("state");
+    const savedState = localStorage.getItem("auth_state_key");
+    
+    console.log("Received parameters:", {
+      has_code: !!code,
+      has_state: !!state,
+      code_length: code ? code.length : 0,
+      state_match: state === savedState,
+      error: errorParam || "none"
+    });
     
     if (errorParam) {
-      console.error("OAuth error:", errorParam, errorDescription);
+      // Error in the OAuth flow
+      console.error("OAuth error returned from provider:", errorParam);
+      console.error("Error description:", errorDescription);
+      
       setStatus("error");
       setError(errorDescription || errorParam);
       
@@ -39,19 +54,48 @@ export default function OAuthCallback() {
         setLocation("/");
       }, 5000);
     } else if (code) {
-      console.log("OAuth code received, length:", code.length);
-      setStatus("success");
+      // Code received, check state before proceeding
+      console.log("Authorization code received successfully");
       
-      // If we have a code, show success message
-      // The actual token exchange will be handled by the useEffect in ApiKeysContext
-      toast({
-        title: "Authentication Successful",
-        description: "Successfully connected to your account.",
-      });
+      if (state && state === savedState) {
+        console.log("State validation passed: tokens will be exchanged");
+        setStatus("success");
+        
+        // State matched, show success message
+        toast({
+          title: "Authentication Successful",
+          description: "Successfully connected to your account.",
+        });
+        
+        // The actual token exchange is handled by ApiKeysContext
+        // ApiKeysContext will automatically redirect to homepage after token exchange
+      } else {
+        console.error("State validation failed - possible CSRF attack or state was lost");
+        setStatus("error");
+        setError("Security validation failed. Please try again.");
+        
+        toast({
+          variant: "destructive",
+          title: "Authentication Failed",
+          description: "Security verification failed. Please try again.",
+        });
+        
+        // Redirect back to home after a short delay
+        setTimeout(() => {
+          setLocation("/");
+        }, 5000);
+      }
     } else {
-      console.error("OAuth callback missing both error and code parameters");
+      // Neither code nor error found in URL parameters
+      console.error("OAuth callback missing required parameters (both code and error are absent)");
       setStatus("error");
       setError("Missing authentication data. Please try again.");
+      
+      toast({
+        variant: "destructive",
+        title: "Authentication Failed",
+        description: "Missing authentication data. Please try again.",
+      });
       
       // Redirect back to home after a short delay
       setTimeout(() => {
