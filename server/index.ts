@@ -1,25 +1,22 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
-import session from "express-session";
 import { registerApiRoutes } from "./api-routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { coinbaseClient } from "./coinbase-client";
 import { oauthService } from "./oauth-service";
+import { setupAuth, authenticateRequest } from "./auth";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set up session management for OAuth flows
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'coinbase-app-session-secret',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+// Set up authentication and session management
+setupAuth(app);
+
+// Apply auth middleware to all API routes
+app.use('/api', async (req, res, next) => {
+  await authenticateRequest(req, res, next);
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -11,70 +11,9 @@ import { log } from './vite';
 import path from 'path';
 import fs from 'fs';
 import session from 'express-session';
+import { requireApiKey, requireOAuthToken } from './auth';
 
-// Extend the Express session to include our custom properties
-declare module 'express-session' {
-  interface SessionData {
-    oauth_state?: string;
-  }
-}
-
-// Authentication middleware
-const apiKeyAuth = async (req: Request, res: Response, next: Function) => {
-  try {
-    const apiKey = req.headers['x-api-key'] as string;
-    const apiSecret = req.headers['x-api-secret'] as string;
-    
-    if (apiKey && apiSecret) {
-      // Set the credentials in the client for this request
-      coinbaseClient.setCredentials(apiKey, apiSecret);
-      return next();
-    }
-    
-    // Try to get API key from vault using key rotation
-    const userId = parseInt(req.headers['x-user-id'] as string) || 0;
-    const credentials = await keyVault.getNextKey(userId);
-    
-    if (credentials) {
-      // Set the credentials in the client
-      coinbaseClient.setCredentials(credentials.apiKey, credentials.apiSecret);
-      
-      // Store the key ID in request for later updating its status
-      (req as any).keyId = credentials.keyId;
-      
-      return next();
-    }
-    
-    // No API keys available
-    return res.status(401).json({
-      error: 'Authentication required',
-      message: 'This endpoint requires API credentials. Please add your Coinbase API key and secret.'
-    });
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    return res.status(500).json({ error: 'Authentication error' });
-  }
-};
-
-// OAuth token validation middleware
-const oauthAuth = (req: Request, res: Response, next: Function) => {
-  try {
-    const accessToken = req.headers.authorization?.split(' ')[1];
-    
-    if (!accessToken) {
-      return res.status(401).json({
-        error: 'OAuth authentication required',
-        message: 'This endpoint requires OAuth authentication. Please connect your Coinbase account.'
-      });
-    }
-    
-    // Continue with the request
-    next();
-  } catch (error) {
-    console.error('OAuth middleware error:', error);
-    return res.status(500).json({ error: 'OAuth authentication error' });
-  }
-};
+// Using the imported authentication middleware from auth.ts
 
 // Register API routes
 export async function registerApiRoutes(app: Express, server: HttpServer): Promise<void> {
@@ -501,7 +440,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   });
   
   // Advanced Trade API - Account Endpoints (require authentication)
-  app.get('/api/accounts', apiKeyAuth, async (req: Request, res: Response) => {
+  app.get('/api/accounts', requireApiKey, async (req: Request, res: Response) => {
     try {
       const accounts = await coinbaseClient.getAccounts();
       
@@ -529,7 +468,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   });
   
   // Advanced Trade API - Order Endpoints (require authentication)
-  app.post('/api/orders', apiKeyAuth, async (req: Request, res: Response) => {
+  app.post('/api/orders', requireApiKey, async (req: Request, res: Response) => {
     try {
       const order = await coinbaseClient.createOrder(req.body);
       
@@ -556,7 +495,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
   
-  app.get('/api/orders', apiKeyAuth, async (req: Request, res: Response) => {
+  app.get('/api/orders', requireApiKey, async (req: Request, res: Response) => {
     try {
       const limit = parseInt(req.query.limit as string) || 100;
       
@@ -585,7 +524,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
   
-  app.delete('/api/orders/:orderId', apiKeyAuth, async (req: Request, res: Response) => {
+  app.delete('/api/orders/:orderId', requireApiKey, async (req: Request, res: Response) => {
     try {
       const { orderId } = req.params;
       
@@ -615,7 +554,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   });
   
   // Coinbase Core API (OAuth) - User endpoints
-  app.get('/api/user', oauthAuth, async (req: Request, res: Response) => {
+  app.get('/api/user', requireOAuthToken, async (req: Request, res: Response) => {
     try {
       const accessToken = req.headers.authorization?.split(' ')[1] as string;
       
@@ -631,7 +570,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   });
   
   // Coinbase Core API (OAuth) - Accounts endpoints
-  app.get('/api/oauth/accounts', oauthAuth, async (req: Request, res: Response) => {
+  app.get('/api/oauth/accounts', requireOAuthToken, async (req: Request, res: Response) => {
     try {
       const accessToken = req.headers.authorization?.split(' ')[1] as string;
       
