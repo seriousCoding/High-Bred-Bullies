@@ -91,15 +91,14 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   const verifyApiKey = async (key: VaultedApiKey) => {
     try {
       // Make a test request to the server to verify the API key
-      const response = await apiRequest('/api/accounts', {
-        method: 'GET',
+      const response = await apiRequest('GET', '/api/accounts', null, {
         headers: {
           'X-API-Key': key.apiKey,
           'X-API-Secret': key.apiSecret,
         },
       });
       
-      if (response) {
+      if (response.ok) {
         // Key is valid
         toast({
           title: 'Auto-Login Successful',
@@ -133,16 +132,11 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
         isActive: true,
       });
       
-      // Register the key with the server (if needed)
-      await apiRequest('/api/keys', {
-        method: 'POST',
-        body: {
-          userId: 1, // In a real app, this would come from auth
-          apiKey: apiKey,
-          apiSecret: apiSecret,
-          label: label,
-          isActive: true
-        }
+      // Register the key with the server
+      await apiRequest('POST', '/api/keys', {
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        label: label,
       });
       
       // Update the local state

@@ -78,10 +78,7 @@ export function OrderForm() {
   // Place order mutation
   const placeMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest('/api/orders', {
-        method: 'POST',
-        body: orderData
-      });
+      return apiRequest('POST', '/api/orders', orderData);
     },
     onSuccess: () => {
       toast({
