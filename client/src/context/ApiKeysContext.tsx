@@ -62,22 +62,21 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     checkForOAuthResponse();
   }, []);
   
-  // Check if current URL contains OAuth response
+  // Check if current URL contains OAuth response or if we have a stored code in localStorage
   const checkForOAuthResponse = () => {
-    if (window.location.pathname === "/auth/callback") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
-      const state = urlParams.get("state");
-      const savedState = localStorage.getItem(OAUTH_STATE_KEY);
+    // We'll let the OAuthCallback component handle the actual URL parameters
+    // to avoid conflicting token exchanges
+    
+    // Check if we have a stored code in localStorage that hasn't been processed yet
+    const storedCode = localStorage.getItem("oauth_code");
+    
+    if (storedCode && window.location.pathname !== "/auth/callback") {
+      console.log("Found stored OAuth code in localStorage that needs processing");
+      // Exchange code for token
+      exchangeCodeForToken(storedCode);
       
-      // Verify state to prevent CSRF attacks
-      if (code && state && state === savedState) {
-        // Clean up the state
-        localStorage.removeItem(OAUTH_STATE_KEY);
-        
-        // Exchange code for token
-        exchangeCodeForToken(code);
-      }
+      // Clean up oauth code from localStorage to prevent reuse
+      localStorage.removeItem("oauth_code");
     }
   };
   

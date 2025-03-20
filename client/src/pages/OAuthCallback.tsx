@@ -2,18 +2,42 @@ import * as React from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { useApiKeys } from "@/hooks/use-api-keys";
 
 export default function OAuthCallback() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { saveTokens } = useApiKeys();
   const [status, setStatus] = React.useState<"loading" | "success" | "error">("loading");
   const [error, setError] = React.useState<string | null>(null);
   const [exchangeInProgress, setExchangeInProgress] = React.useState(false);
+  const [autoExchangeAttempted, setAutoExchangeAttempted] = React.useState(false);
+
+  // Auto-process the token exchange as soon as the component mounts
+  React.useEffect(() => {
+    // Run the token exchange automatically on mount
+    const autoExchange = async () => {
+      // Don't run if already attempted
+      if (autoExchangeAttempted) return;
+      setAutoExchangeAttempted(true);
+      
+      try {
+        await handleTokenExchange();
+      } catch (err) {
+        // Error is already handled in handleTokenExchange
+        console.error("Auto exchange failed:", err);
+      }
+    };
+
+    // Only run auto exchange if we have a code
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    if (code) {
+      autoExchange();
+    }
+  }, [autoExchangeAttempted]);
 
   React.useEffect(() => {
-    // This component handles displaying the OAuth callback status
-    // The actual token exchange is handled by ApiKeysContext
-    
     // Comprehensive logging for debugging OAuth process
     console.log("---------------------------------------------");
     console.log("OAUTH CALLBACK PROCESSING");
@@ -54,7 +78,6 @@ export default function OAuthCallback() {
       setStatus("error");
       setError(errorDescription || errorParam);
       
-      // Show error toast
       toast({
         variant: "destructive",
         title: "Authentication Failed",
@@ -91,9 +114,6 @@ export default function OAuthCallback() {
           title: "Authentication Successful",
           description: "Successfully connected to your account.",
         });
-        
-        // The token exchange should trigger automatically in ApiKeysContext
-        // This component will wait for it to complete
       } else {
         console.error("State validation failed - possible CSRF attack or state was lost");
         setStatus("error");
@@ -129,14 +149,28 @@ export default function OAuthCallback() {
     }
   }, [setLocation, toast]);
 
-  // Function for manual token exchange
-  const handleManualExchange = async () => {
+  // Function for token exchange
+  const handleTokenExchange = async () => {
     try {
       setExchangeInProgress(true);
-      const code = localStorage.getItem("oauth_code");
+      
+      // First try to get code from URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      let code = urlParams.get("code");
+      
+      // If not in URL, try localStorage as fallback
+      if (!code) {
+        code = localStorage.getItem("oauth_code");
+      }
+      
       if (!code) {
         throw new Error("Authorization code not found");
       }
+
+      console.log("---------------------------------------------");
+      console.log("MANUAL TOKEN EXCHANGE INITIATED");
+      console.log("- Code length:", code.length);
+      console.log("- Using redirect URI:", window.location.origin + "/auth/callback");
 
       const redirectUri = window.location.origin + "/auth/callback";
       const response = await fetch("/api/oauth/token", {
@@ -151,19 +185,18 @@ export default function OAuthCallback() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to exchange token");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to exchange token");
       }
 
       const data = await response.json();
+      console.log("TOKEN EXCHANGE SUCCESSFUL");
 
-      // Save tokens
-      localStorage.setItem("trading_access_token", data.access_token);
-      localStorage.setItem("trading_refresh_token", data.refresh_token);
-      
       // Calculate expiration time
       const expiresIn = data.expires_in || 7200; // default 2 hours
-      const expirationTime = Date.now() + expiresIn * 1000;
-      localStorage.setItem("trading_expires_at", expirationTime.toString());
+      
+      // Save tokens using the context provider function
+      saveTokens(data.access_token, data.refresh_token, expiresIn, true);
       
       // Clear temporary data
       localStorage.removeItem("oauth_code");
@@ -174,15 +207,21 @@ export default function OAuthCallback() {
         description: "Successfully connected to your Coinbase account.",
       });
 
+      console.log("Tokens saved, redirecting to home page");
+      console.log("---------------------------------------------");
+      
       // Redirect to home
       setLocation("/");
     } catch (error) {
-      console.error("Manual token exchange error:", error);
+      console.error("---------------------------------------------");
+      console.error("TOKEN EXCHANGE ERROR");
+      console.error("Error during token exchange:", error);
+      console.error("---------------------------------------------");
       
       toast({
         variant: "destructive",
         title: "Authentication Failed",
-        description: "Could not complete the authentication process. Please try again.",
+        description: error instanceof Error ? error.message : "Could not complete the authentication process. Please try again.",
       });
       
       setStatus("error");
@@ -214,7 +253,7 @@ export default function OAuthCallback() {
             <p className="text-sm text-gray-500 mb-4">If you're not redirected automatically, please click the button below.</p>
             
             <Button 
-              onClick={handleManualExchange} 
+              onClick={handleTokenExchange} 
               disabled={exchangeInProgress}
               className="w-full bg-[#0052FF] hover:bg-[#0039B3] text-white font-medium py-2"
             >
@@ -237,7 +276,7 @@ export default function OAuthCallback() {
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Authentication Failed</h2>
             <p className="text-gray-400 mb-4">{error || "Failed to connect to your trading account."}</p>
-            <p className="text-sm text-gray-500 mb-4">Redirecting you back to try again...</p>
+            <p className="text-sm text-gray-500 mb-4">You can try authenticating again.</p>
             
             <Button 
               onClick={() => setLocation("/")} 
