@@ -120,12 +120,21 @@ export class CoinbaseClient {
           
           // Subscribe to heartbeat channel by default to avoid "subscribe required" errors
           try {
-            this.ws.send(JSON.stringify({
-              type: 'subscribe',
-              channel: 'heartbeat',
-              product_ids: ['BTC-USD']
-            }));
-            console.log('Subscribed to heartbeat channel');
+            // Give a small delay to ensure WebSocket is fully ready
+            setTimeout(() => {
+              // Store reference to WebSocket to avoid null check issues
+              const ws = this.ws;
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'subscribe',
+                  channel: 'heartbeat',
+                  product_ids: ['BTC-USD']
+                }));
+                console.log('Subscribed to heartbeat channel');
+              } else {
+                console.warn('WebSocket not ready for subscription');
+              }
+            }, 500);
           } catch (error) {
             console.error('Failed to subscribe to heartbeat channel:', error);
           }
