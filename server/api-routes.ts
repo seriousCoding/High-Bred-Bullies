@@ -33,6 +33,48 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   wss.on('connection', (ws) => {
     log('Client connected to WebSocket', 'ws');
     
+    // Track subscription requests to implement rate limiting
+    const subscriptionQueue: any[] = [];
+    let isProcessingQueue = false;
+    
+    // Process subscriptions one at a time with delay to prevent rate limiting
+    const processSubscriptionQueue = async () => {
+      if (subscriptionQueue.length === 0 || isProcessingQueue) {
+        return;
+      }
+      
+      isProcessingQueue = true;
+      
+      try {
+        const data = subscriptionQueue.shift();
+        log(`Processing subscription request for channel: ${data.channel || 'unknown'}`, 'ws');
+        
+        // Forward subscription to Coinbase
+        await coinbaseClient.subscribe(data.channel, data.product_ids);
+        
+        // Send result back to client
+        if (ws.readyState === 1) { // WebSocket.OPEN = 1
+          ws.send(JSON.stringify({
+            type: 'subscribed',
+            channel: data.channel,
+            product_ids: data.product_ids || []
+          }));
+        }
+        
+        // Wait 1 second between subscriptions to avoid rate limiting
+        setTimeout(() => {
+          isProcessingQueue = false;
+          processSubscriptionQueue(); // Process next item in queue
+        }, 1000);
+      } catch (error) {
+        console.error('Failed to process subscription:', error);
+        isProcessingQueue = false;
+        
+        // Continue processing other items even if one fails
+        setTimeout(processSubscriptionQueue, 1000);
+      }
+    };
+    
     // Handle client messages
     ws.on('message', async (message) => {
       try {
@@ -42,28 +84,57 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         if (data.type === 'subscribe') {
           log(`Received subscription request for ${data.channel}`, 'ws');
           
-          try {
-            await coinbaseClient.subscribe(data.channel, data.product_ids);
+          // Special handling for heartbeat channel - immediately respond with success
+          if (data.channel === 'heartbeat') {
+            log('Heartbeat subscription received - acknowledging', 'ws');
+            ws.send(JSON.stringify({
+              type: 'subscribed',
+              channel: 'heartbeat',
+              product_ids: data.product_ids || []
+            }));
             
-            if (ws.readyState === 1) {
-              ws.send(JSON.stringify({
-                type: 'subscribed',
-                channel: data.channel,
-                product_ids: data.product_ids
-              }));
+            // Add to queue for actual subscription to Coinbase
+            subscriptionQueue.push(data);
+            // Start processing queue if not already processing
+            if (!isProcessingQueue) {
+              processSubscriptionQueue();
             }
-          } catch (error) {
-            console.error('Subscription error:', error);
-            
-            if (ws.readyState === 1) {
-              ws.send(JSON.stringify({
-                type: 'error',
-                message: 'Failed to subscribe',
-                error: error instanceof Error ? error.message : String(error)
-              }));
-            }
+            return;
           }
+          
+          // Check if this is an authenticated channel requiring signature
+          if (data.channel === 'user') {
+            // Extract API key and API secret from headers or environment variables
+            // Use environment variables if available to ensure we have access to secrets
+            const apiKey = process.env.COINBASE_API_KEY;
+            const apiSecret = process.env.COINBASE_API_SECRET;
+            
+            if (!apiKey || !apiSecret) {
+              console.error('Cannot authenticate WebSocket: Missing API credentials');
+              ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'Missing API credentials for authenticated channel' 
+              }));
+              return;
+            }
+            
+            // Create authenticated message - handled by coinbaseClient now
+            coinbaseClient.setCredentials(apiKey, apiSecret);
+          }
+          
+          // For all channels, add to queue
+          subscriptionQueue.push(data);
+          
+          // Start processing queue if not already running
+          if (!isProcessingQueue) {
+            processSubscriptionQueue();
+          }
+          return;
         }
+          
+        // Handle other message types here
+        console.log('Received other message type:', data.type);
+      
       } catch (error) {
         console.error('WebSocket message handling error:', error);
       }
