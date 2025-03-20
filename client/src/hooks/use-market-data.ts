@@ -77,95 +77,109 @@ export function useMarketData(productId: string) {
     setIsLoading(false);
   }, [isConnected, productId, subscribe]);
   
+  // Keep track of processed messages to avoid duplicates/infinite updates
+  const processedMessagesRef = React.useRef<Set<number>>(new Set());
+  const lastMessagesLengthRef = React.useRef<number>(0);
+  
   // Process incoming WebSocket messages
   React.useEffect(() => {
-    if (!messages || messages.length === 0) return;
+    if (!messages || messages.length === 0 || !productId) return;
     
-    // Get the latest message
-    const latestMessage = messages[messages.length - 1];
+    // Only process new messages since last render
+    if (messages.length === lastMessagesLengthRef.current) return;
     
-    if (!latestMessage || !latestMessage.channel) return;
+    // Update the reference to the current messages length
+    const startIndex = Math.max(0, lastMessagesLengthRef.current);
+    lastMessagesLengthRef.current = messages.length;
     
-    // Process different types of messages
-    switch (latestMessage.channel) {
-      case 'l2_data':
-        if (latestMessage.events && latestMessage.events.length > 0) {
-          // Only process events for the selected product
-          const relevantEvents = latestMessage.events.filter(
-            (event: any) => event.product_id === productId
-          );
-          
-          if (relevantEvents.length > 0) {
-            processOrderBookUpdates(relevantEvents);
-          }
-        }
-        break;
-        
-      case 'ticker':
-        if (latestMessage.events && latestMessage.events.length > 0) {
-          // Find ticker for the selected product
-          const tickerEvent = latestMessage.events.find(
-            (event: any) => event.type === 'ticker' && 
-            event.tickers && 
-            event.tickers.some((t: any) => t.product_id === productId)
-          );
-          
-          if (tickerEvent) {
-            const productTicker = tickerEvent.tickers.find(
-              (t: any) => t.product_id === productId
+    // Get only new messages
+    const newMessages = messages.slice(startIndex);
+    
+    // Process each new message
+    newMessages.forEach((message) => {
+      if (!message.channel) return;
+      
+      // Process different types of messages
+      switch (message.channel) {
+        case 'l2_data':
+          if (message.events && message.events.length > 0) {
+            // Only process events for the selected product
+            const relevantEvents = message.events.filter(
+              (event: any) => event.product_id === productId
             );
             
-            if (productTicker) {
-              setTicker({
-                price: productTicker.price,
-                volume_24h: productTicker.volume_24h,
-                change_24h: productTicker.price_percent_chg_24h,
-                low_24h: productTicker.low_24h,
-                high_24h: productTicker.high_24h,
-                last_update: latestMessage.timestamp
-              });
+            if (relevantEvents.length > 0) {
+              processOrderBookUpdates(relevantEvents);
             }
           }
-        }
-        break;
-        
-      case 'matches':
-        if (latestMessage.events && latestMessage.events.length > 0) {
-          // Find trades for the selected product
-          const tradeEvents = latestMessage.events.filter(
-            (event: any) => event.type === 'match' && 
-            event.trades && 
-            event.trades.some((t: any) => t.product_id === productId)
-          );
+          break;
           
-          if (tradeEvents.length > 0) {
-            const newTrades = tradeEvents.flatMap((event: any) => 
-              event.trades
-                .filter((t: any) => t.product_id === productId)
-                .map((t: any) => ({
-                  trade_id: t.trade_id,
-                  price: t.price,
-                  size: t.size,
-                  time: t.time,
-                  side: t.side
-                }))
+        case 'ticker':
+          if (message.events && message.events.length > 0) {
+            // Find ticker for the selected product
+            const tickerEvent = message.events.find(
+              (event: any) => event.type === 'ticker' && 
+              event.tickers && 
+              event.tickers.some((t: any) => t.product_id === productId)
             );
             
-            if (newTrades.length > 0) {
-              setTrades(prev => {
-                // Combine with existing trades, prevent duplicates, and limit to 50
-                const merged = [...newTrades, ...prev];
-                const unique = merged.filter((trade, index, self) => 
-                  index === self.findIndex(t => t.trade_id === trade.trade_id)
-                );
-                return unique.slice(0, 50);
-              });
+            if (tickerEvent) {
+              const productTicker = tickerEvent.tickers.find(
+                (t: any) => t.product_id === productId
+              );
+              
+              if (productTicker) {
+                setTicker({
+                  price: productTicker.price,
+                  volume_24h: productTicker.volume_24h,
+                  change_24h: productTicker.price_percent_chg_24h,
+                  low_24h: productTicker.low_24h,
+                  high_24h: productTicker.high_24h,
+                  last_update: message.timestamp
+                });
+              }
             }
           }
-        }
-        break;
-    }
-  }, [messages, productId]);
+          break;
+          
+        case 'matches':
+          if (message.events && message.events.length > 0) {
+            // Find trades for the selected product
+            const tradeEvents = message.events.filter(
+              (event: any) => event.type === 'match' && 
+              event.trades && 
+              event.trades.some((t: any) => t.product_id === productId)
+            );
+            
+            if (tradeEvents.length > 0) {
+              const newTrades = tradeEvents.flatMap((event: any) => 
+                event.trades
+                  .filter((t: any) => t.product_id === productId)
+                  .map((t: any) => ({
+                    trade_id: t.trade_id,
+                    price: t.price,
+                    size: t.size,
+                    time: t.time,
+                    side: t.side
+                  }))
+              );
+              
+              if (newTrades.length > 0) {
+                setTrades(prev => {
+                  // Combine with existing trades, prevent duplicates, and limit to 50
+                  const merged = [...newTrades, ...prev];
+                  const unique = merged.filter((trade, index, self) => 
+                    index === self.findIndex(t => t.trade_id === trade.trade_id)
+                  );
+                  return unique.slice(0, 50);
+                });
+              }
+            }
+          }
+          break;
+      }
+    });
+  }, [messages, productId, processOrderBookUpdates]);
   
   // Helper function to process order book updates
   const processOrderBookUpdates = React.useCallback((events: any[]) => {
