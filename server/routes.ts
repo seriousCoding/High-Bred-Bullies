@@ -416,27 +416,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Access token is required' });
       }
       
-      // Get user data from Coinbase API
-      const userResponse = await axios.get('https://api.coinbase.com/v2/user', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      res.json(userResponse.data);
+      // Use our OAuth method to get user data from Coinbase API
+      const userData = await coinbaseApi.getUserProfile(accessToken);
+      res.json(userData);
     } catch (error) {
       console.error('OAuth user data error:', error);
       
-      // Get error details from axios error
       let errorMessage = 'Failed to fetch user data';
       let statusCode = 500;
       
-      if (axios.isAxiosError(error) && error.response) {
-        statusCode = error.response.status;
-        if (error.response.data && error.response.data.errors && error.response.data.errors[0]) {
-          errorMessage = error.response.data.errors[0].message;
-        }
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      res.status(statusCode).json({ message: errorMessage });
+    }
+  });
+  
+  // Get user accounts using OAuth
+  app.get('/api/oauth/accounts', async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.headers.authorization?.split('Bearer ')[1];
+      
+      if (!accessToken) {
+        return res.status(401).json({ message: 'Access token is required' });
+      }
+      
+      const accounts = await coinbaseApi.getOAuthAccounts(accessToken);
+      res.json(accounts);
+    } catch (error) {
+      console.error('OAuth accounts error:', error);
+      
+      let errorMessage = 'Failed to fetch accounts';
+      let statusCode = 500;
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      res.status(statusCode).json({ message: errorMessage });
+    }
+  });
+  
+  // Get account transactions using OAuth
+  app.get('/api/oauth/accounts/:accountId/transactions', async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.headers.authorization?.split('Bearer ')[1];
+      const { accountId } = req.params;
+      
+      if (!accessToken) {
+        return res.status(401).json({ message: 'Access token is required' });
+      }
+      
+      const transactions = await coinbaseApi.getOAuthTransactions(accessToken, accountId);
+      res.json(transactions);
+    } catch (error) {
+      console.error('OAuth transactions error:', error);
+      
+      let errorMessage = 'Failed to fetch transactions';
+      let statusCode = 500;
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
       }
       
       res.status(statusCode).json({ message: errorMessage });
