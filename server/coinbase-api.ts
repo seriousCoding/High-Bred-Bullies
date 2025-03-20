@@ -7,10 +7,10 @@ import {
 } from '@shared/coinbase-api-types';
 import { WebSocket } from 'ws';
 
-// Coinbase API base URLs
-const REST_API_URL = 'https://api.exchange.coinbase.com';
+// Coinbase API base URLs (updated to the Advanced Trade API)
+const REST_API_URL = 'https://api.coinbase.com/api/v3/brokerage';
 const COINBASE_API_URL = 'https://api.coinbase.com/v2';
-const WEBSOCKET_URL = 'wss://ws-feed.exchange.coinbase.com';
+const WEBSOCKET_URL = 'wss://advanced-trade-ws.coinbase.com';
 
 class CoinbaseApiClient {
   private ws: WebSocket | null = null;
@@ -127,7 +127,7 @@ class CoinbaseApiClient {
     }
   }
   
-  // Create authentication headers for REST API requests
+  // Create authentication headers for REST API requests (Advanced Trade API)
   private createAuthHeaders(
     method: string, 
     requestPath: string, 
@@ -135,23 +135,26 @@ class CoinbaseApiClient {
     apiKey: string,
     apiSecret: string
   ) {
+    // Based on Coinbase Advanced Trade API documentation
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const message = timestamp + method + requestPath + (body || '');
+    const fullPath = `/api/v3/brokerage${requestPath}`;
+    let signatureMessage = timestamp + method + fullPath;
     
-    // Coinbase Exchange API requires the API secret to be base64 decoded first
-    const hmacKey = Buffer.from(apiSecret, 'base64');
+    if (body) {
+      signatureMessage += body;
+    }
+    
+    // Create HMAC signature using the API secret to sign the message
     const signature = crypto
-      .createHmac('sha256', hmacKey)
-      .update(message)
-      .digest('base64');
+      .createHmac('sha256', apiSecret)
+      .update(signatureMessage)
+      .digest('hex');
     
     return {
-      // Headers for Coinbase Exchange API
+      'Content-Type': 'application/json',
       'CB-ACCESS-KEY': apiKey,
       'CB-ACCESS-SIGN': signature,
-      'CB-ACCESS-TIMESTAMP': timestamp,
-      'CB-ACCESS-PASSPHRASE': '', // Add your passphrase if needed
-      'Content-Type': 'application/json'
+      'CB-ACCESS-TIMESTAMP': timestamp
     };
   }
   
@@ -243,75 +246,50 @@ class CoinbaseApiClient {
   // Products API
   
   public async getProducts(apiKey: string, apiSecret: string): Promise<Product[]> {
-    // Fetch products from Coinbase Exchange API
-    const exchangeProducts = await this.makeRequest<CoinbaseExchangeProduct[]>(
-      'GET',
-      '/products',
-      apiKey,
-      apiSecret
-    );
-
-    // Instead of making individual requests for each product, only fetch 
-    // ticker data for a small subset of popular products to avoid rate limits
-    const topProducts = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD', 'MATIC-USD'];
-    const tickerData = new Map<string, { price: string; volume: string }>();
-    
-    // Fetch ticker data only for top products
-    await Promise.all(
-      topProducts
-        .filter(id => exchangeProducts.some(p => p.id === id)) // Only request existing products
-        .map(async (productId) => {
-          try {
-            const ticker = await this.makeRequest<{ 
-              price: string;
-              volume: string;
-              volume_30day: string;
-            }>(
-              'GET',
-              `/products/${productId}/ticker`,
-              apiKey,
-              apiSecret
-            );
-            
-            tickerData.set(productId, { 
-              price: ticker.price || '0', 
-              volume: ticker.volume || '0' 
-            });
-          } catch (error) {
-            console.error(`Error fetching ticker for ${productId}:`, error);
-            tickerData.set(productId, { price: '0', volume: '0' });
-          }
-        })
-    );
-
-    // Convert all products to our standardized format
-    const enhancedProducts: Product[] = exchangeProducts.map((product) => {
-      // Use ticker data if available, otherwise use default values
-      const ticker = tickerData.get(product.id) || { price: '0', volume: '0' };
+    try {
+      // Fetch products from Coinbase Advanced Trade API
+      const response = await this.makeRequest<any>(
+        'GET',
+        '/products',
+        apiKey,
+        apiSecret
+      );
       
-      return {
-        product_id: product.id,
-        price: ticker.price,
-        price_percentage_change_24h: '0', // Not available in basic ticker
-        volume_24h: ticker.volume,
-        volume_percentage_change_24h: '0', // Not directly available
-        base_increment: product.base_increment,
-        quote_increment: product.quote_increment,
-        quote_min_size: product.min_market_funds,
-        quote_max_size: product.max_market_funds,
-        base_min_size: product.base_min_size,
-        base_max_size: product.base_max_size,
-        base_name: product.base_currency,
-        quote_name: product.quote_currency,
-        status: product.status,
-        cancel_only: product.cancel_only,
-        limit_only: product.limit_only,
-        post_only: product.post_only,
-        trading_disabled: product.trading_disabled
-      };
-    });
-
-    return enhancedProducts;
+      // Check if the response has the expected format
+      if (!response.products || !Array.isArray(response.products)) {
+        console.error('Unexpected response format from products API:', response);
+        return [];
+      }
+      
+      // Convert to our standardized format
+      const products: Product[] = response.products.map((product: any) => {
+        return {
+          product_id: product.product_id || '',
+          price: product.price || '0',
+          price_percentage_change_24h: product.price_percentage_change_24h || '0',
+          volume_24h: product.volume_24h || '0',
+          volume_percentage_change_24h: product.volume_percentage_change_24h || '0',
+          base_increment: product.base_increment || '0.00000001',
+          quote_increment: product.quote_increment || '0.01',
+          quote_min_size: product.quote_min_size || '0',
+          quote_max_size: product.quote_max_size || '0',
+          base_min_size: product.base_min_size || '0',
+          base_max_size: product.base_max_size || '0',
+          base_name: product.base_name || product.base_currency_id || '',
+          quote_name: product.quote_name || product.quote_currency_id || '',
+          status: product.status || 'online',
+          cancel_only: product.cancel_only || false,
+          limit_only: product.limit_only || false,
+          post_only: product.post_only || false,
+          trading_disabled: product.status !== 'online'
+        };
+      });
+      
+      return products;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      return [];
+    }
   }
   
   public async getProductBook(
@@ -351,31 +329,92 @@ class CoinbaseApiClient {
     end?: string,
     granularity?: string
   ): Promise<Candle[]> {
-    const params = new URLSearchParams();
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    if (granularity) params.append('granularity', granularity);
-    
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    
-    // Coinbase Exchange API returns candles as an array of arrays: 
-    // [ time, low, high, open, close, volume ]
-    const candleData = await this.makeRequest<number[][]>(
-      'GET',
-      `/products/${productId}/candles${queryString}`,
-      apiKey,
-      apiSecret
-    );
-    
-    // Convert to our standardized Candle format
-    return candleData.map(candle => ({
-      start: new Date(candle[0] * 1000).toISOString(),
-      low: candle[1].toString(),
-      high: candle[2].toString(),
-      open: candle[3].toString(),
-      close: candle[4].toString(),
-      volume: candle[5].toString()
-    }));
+    try {
+      // For Advanced API, use proper parameters
+      const params = new URLSearchParams();
+      
+      // Convert dates to ISO strings if provided
+      if (start) {
+        const startDate = new Date(start);
+        params.append('start', startDate.toISOString());
+      }
+      
+      if (end) {
+        const endDate = new Date(end);
+        params.append('end', endDate.toISOString());
+      }
+      
+      // Convert granularity to the format expected by Advanced API
+      // Valid values: ONE_MINUTE, FIVE_MINUTE, FIFTEEN_MINUTE, THIRTY_MINUTE, ONE_HOUR, TWO_HOUR, SIX_HOUR, ONE_DAY
+      let granularityParam = 'ONE_HOUR'; // Default
+      
+      if (granularity) {
+        // Convert numeric granularity to named constants
+        switch(granularity) {
+          case '60':
+            granularityParam = 'ONE_MINUTE';
+            break;
+          case '300':
+            granularityParam = 'FIVE_MINUTE';
+            break;
+          case '900':
+            granularityParam = 'FIFTEEN_MINUTE';
+            break;
+          case '1800':
+            granularityParam = 'THIRTY_MINUTE';
+            break;
+          case '3600':
+            granularityParam = 'ONE_HOUR';
+            break;
+          case '7200':
+            granularityParam = 'TWO_HOUR';
+            break;
+          case '21600':
+            granularityParam = 'SIX_HOUR';
+            break;
+          case '86400':
+            granularityParam = 'ONE_DAY';
+            break;
+          default:
+            // If it's already a named constant, use it directly
+            if (['ONE_MINUTE', 'FIVE_MINUTE', 'FIFTEEN_MINUTE', 'THIRTY_MINUTE', 
+                'ONE_HOUR', 'TWO_HOUR', 'SIX_HOUR', 'ONE_DAY'].includes(granularity.toUpperCase())) {
+              granularityParam = granularity.toUpperCase();
+            }
+        }
+      }
+      
+      params.append('granularity', granularityParam);
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      // Advanced Trade API endpoint for candles
+      const response = await this.makeRequest<any>(
+        'GET',
+        `/products/${productId}/candles${queryString}`,
+        apiKey,
+        apiSecret
+      );
+      
+      // Check the response format
+      if (!response.candles || !Array.isArray(response.candles)) {
+        console.error('Unexpected candles response format:', response);
+        return [];
+      }
+      
+      // Convert to our standardized Candle format
+      return response.candles.map((candle: any) => ({
+        start: candle.start || new Date().toISOString(),
+        low: candle.low || '0',
+        high: candle.high || '0',
+        open: candle.open || '0',
+        close: candle.close || '0',
+        volume: candle.volume || '0'
+      }));
+    } catch (error) {
+      console.error(`Error fetching candles for ${productId}:`, error);
+      return [];
+    }
   }
   
   // Account API
