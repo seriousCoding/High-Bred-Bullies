@@ -17,6 +17,7 @@ dotenv.config();
 // OAuth configuration
 const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID;
 const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
+const COINBASE_CLIENT_API_KEY = "3RCxCpxADj5jSHikSRv6HSv2dOMjjakb"; // Client API key for UI access
 const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
@@ -123,8 +124,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Coinbase API Products Endpoints
   app.get('/api/products', async (req: Request, res: Response) => {
     try {
-      // Try to use env vars first, then fall back to headers
-      const apiKey = process.env.COINBASE_API_KEY || req.headers['x-api-key'] as string;
+      // Try to use env vars first, then client API key, then fall back to headers
+      const apiKey = process.env.COINBASE_API_KEY || COINBASE_CLIENT_API_KEY || req.headers['x-api-key'] as string;
       const apiSecret = process.env.COINBASE_API_SECRET || req.headers['x-api-secret'] as string;
       
       if (!apiKey || !apiSecret) {
@@ -142,8 +143,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/products/:productId/book', async (req: Request, res: Response) => {
     try {
       const { productId } = req.params;
-      // Try to use env vars first, then fall back to headers
-      const apiKey = process.env.COINBASE_API_KEY || req.headers['x-api-key'] as string;
+      // Try to use env vars first, then client API key, then fall back to headers
+      const apiKey = process.env.COINBASE_API_KEY || COINBASE_CLIENT_API_KEY || req.headers['x-api-key'] as string;
       const apiSecret = process.env.COINBASE_API_SECRET || req.headers['x-api-secret'] as string;
       
       if (!apiKey || !apiSecret) {
