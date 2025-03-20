@@ -928,6 +928,41 @@ class CoinbaseApiClient {
   
   // Account API
   
+  // Public method for fetching accounts with key rotation
+  public async getAccountsWithRotation(userId: number): Promise<Account[]> {
+    try {
+      console.log('Fetching accounts using key rotation system');
+      
+      // Get the API key credentials
+      const keyData = await this.getApiKeysWithRotation(userId);
+      if (!keyData) {
+        throw new Error('No active API keys available');
+      }
+      
+      const { apiKey, apiSecret, keyId } = keyData;
+      
+      try {
+        // Attempt to fetch accounts with the selected API key
+        const accounts = await this.getAccounts(apiKey, apiSecret);
+        
+        // Mark the key as successful
+        await this.updateKeyStatus(keyId, true);
+        
+        return accounts;
+      } catch (error) {
+        // Mark the key as failed
+        await this.updateKeyStatus(keyId, false);
+        
+        // Re-throw the error
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error fetching accounts with rotation:', error);
+      throw error;
+    }
+  }
+  
+  // Original method, now used internally by the rotation system
   public async getAccounts(apiKey: string, apiSecret: string): Promise<Account[]> {
     try {
       console.log('Fetching accounts using both Advanced Trade API and Coinbase SDK');

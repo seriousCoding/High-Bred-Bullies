@@ -360,17 +360,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Coinbase API Account Endpoints
   app.get('/api/accounts', async (req: Request, res: Response) => {
     try {
-      // Try to use env vars first, then fall back to headers
-      const apiKey = process.env.COINBASE_API_KEY || req.headers['x-api-key'] as string;
-      const apiSecret = process.env.COINBASE_API_SECRET || req.headers['x-api-secret'] as string;
-      
-      if (!apiKey || !apiSecret) {
-        return res.status(401).json({ message: 'API credentials are required' });
-      }
+      // For now, use user ID 1 for simplicity since we haven't implemented full user auth
+      const userId = 1;
       
       try {
-        console.log('Fetching accounts from Coinbase API...');
-        const accounts = await coinbaseApi.getAccounts(apiKey, apiSecret);
+        console.log('Fetching accounts using API key rotation system...');
+        const accounts = await coinbaseApi.getAccountsWithRotation(userId);
         
         if (accounts && Array.isArray(accounts) && accounts.length > 0) {
           console.log(`Successfully retrieved ${accounts.length} accounts from Coinbase`);
