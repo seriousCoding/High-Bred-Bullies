@@ -23,16 +23,88 @@ class CoinbaseApiClient {
   
   // Set up WebSocket connection for real-time data
   private setupWebSocket() {
-    const apiKey = process.env.COINBASE_API_KEY;
-    const apiSecret = process.env.COINBASE_API_SECRET;
+    // Always initialize the WebSocket connection for public data
+    console.log('Initializing WebSocket connection for public data feeds');
     
-    if (apiKey && apiSecret) {
-      console.log('Initializing WebSocket connection with environment API keys');
-      this.connectWebSocket(apiKey, apiSecret);
-    } else {
-      // WebSocket will be initialized when we have API keys from the client
-      console.log('WebSocket connection will be established when API keys are provided');
-    }
+    // Create a WebSocket connection without authentication
+    this.ws = new WebSocket(WEBSOCKET_URL);
+    
+    this.ws.on('open', () => {
+      console.log('WebSocket connection established to Coinbase Advanced Trade');
+      
+      try {
+        // Subscribe only to public channels for default products
+        const level2Message = {
+          type: 'subscribe',
+          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+          channel: 'level2'
+        };
+        
+        console.log('Subscribing to default level2 (order book) channels');
+        this.sendWsMessage(level2Message);
+        
+        // After a delay, subscribe to ticker data
+        setTimeout(() => {
+          const marketChannelsMessage = {
+            type: 'subscribe',
+            product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+            channel: 'ticker'
+          };
+          
+          console.log('Subscribing to default ticker channels');
+          this.sendWsMessage(marketChannelsMessage);
+        }, 1000);
+      } catch (error) {
+        console.error('Error setting up public WebSocket subscriptions:', error);
+      }
+    });
+    
+    this.ws.on('message', (data: Buffer) => {
+      try {
+        const messageStr = data.toString();
+        const message = JSON.parse(messageStr);
+        
+        // Don't log ticker updates as they come frequently
+        if (!message.channel || message.channel !== 'ticker') {
+          console.log(`Received WebSocket message: ${messageStr.substring(0, 200)}...`);
+        }
+        
+        // Handle subscription success/failure
+        if (message.type === 'subscriptions') {
+          console.log(`WebSocket subscriptions confirmed: ${JSON.stringify(message)}`);
+        }
+        
+        // Handle errors
+        if (message.type === 'error') {
+          console.error(`WebSocket error message: ${JSON.stringify(message)}`);
+        }
+        
+        // Notify all message handlers
+        this.messageHandlers.forEach(handler => {
+          try {
+            handler(message);
+          } catch (handlerError) {
+            console.error('Error in WebSocket message handler:', handlerError);
+          }
+        });
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    });
+    
+    this.ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+    
+    this.ws.on('close', (code, reason) => {
+      console.log(`WebSocket connection closed with code ${code}: ${reason}`);
+      
+      // Reconnect after a delay
+      setTimeout(() => {
+        console.log('Reconnecting to WebSocket for public data');
+        this.setupWebSocket();
+      }, 5000);
+    });
   }
   
   // Add message handler for WebSocket data
@@ -71,45 +143,10 @@ class CoinbaseApiClient {
       console.log('WebSocket connection established to Coinbase Advanced Trade');
       
       try {
-        // Calculate the timestamp (seconds since Unix epoch)
-        const timestamp = Math.floor(Date.now() / 1000).toString();
+        // First, subscribe to public channels without authentication
+        // This avoids rate limiting issues with too many immediate subscriptions
         
-        // Create the message to sign per Advanced Trade API docs
-        // Format: timestamp + GET + /ws
-        const signatureMessage = timestamp + 'GET' + '/ws';
-        
-        console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
-        
-        // Create the signature using HMAC-SHA256 and base64 encoding
-        const signature = crypto
-          .createHmac('sha256', apiSecret)
-          .update(signatureMessage)
-          .digest('base64');
-        
-        // First authenticate with the WebSocket using channel: 'subscriptions'
-        const authMessage = {
-          type: 'subscribe',
-          channel: 'subscriptions',
-          api_key: apiKey,
-          timestamp: timestamp,
-          signature: signature
-        };
-        
-        console.log('Sending WebSocket authentication message with subscriptions channel');
-        this.sendWsMessage(authMessage);
-        
-        // Subscribe to market data for default products after authentication is sent
-        // No auth needed for public channels
-        const marketChannelsMessage = {
-          type: 'subscribe',
-          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
-          channel: 'ticker'
-        };
-        
-        console.log('Subscribing to default ticker channels');
-        this.sendWsMessage(marketChannelsMessage);
-        
-        // Subscribe to order book for same products
+        // Subscribe to level2 data first for the order book - most essential
         const level2Message = {
           type: 'subscribe',
           product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
@@ -119,19 +156,48 @@ class CoinbaseApiClient {
         console.log('Subscribing to default level2 (order book) channels');
         this.sendWsMessage(level2Message);
         
-        // Subscribe to the user channel for private data
-        // Using the SDK approach with proper authentication
-        const userChannelMessage = {
-          type: 'subscribe',
-          channel: 'user',
-          api_key: apiKey,
-          timestamp: timestamp,
-          signature: signature
-        };
-        
-        console.log('Subscribing to user channel with authentication');
-        this.sendWsMessage(userChannelMessage);
-        
+        // Add a delay between subscriptions to avoid rate limiting
+        setTimeout(() => {
+          // After a delay, subscribe to ticker data
+          const marketChannelsMessage = {
+            type: 'subscribe',
+            product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+            channel: 'ticker'
+          };
+          
+          console.log('Subscribing to default ticker channels');
+          this.sendWsMessage(marketChannelsMessage);
+          
+          // After the public channels are set up, add authentication for private data
+          setTimeout(() => {
+            // Calculate the timestamp (seconds since Unix epoch)
+            const timestamp = Math.floor(Date.now() / 1000).toString();
+            
+            // Create the message to sign per Advanced Trade API docs
+            // Format: timestamp + GET + /ws
+            const signatureMessage = timestamp + 'GET' + '/ws';
+            
+            console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
+            
+            // Create the signature using HMAC-SHA256 and base64 encoding
+            const signature = crypto
+              .createHmac('sha256', apiSecret)
+              .update(signatureMessage)
+              .digest('base64');
+            
+            // Authenticate with the WebSocket using channel: 'user'
+            const userChannelMessage = {
+              type: 'subscribe',
+              channel: 'user',
+              api_key: apiKey,
+              timestamp: timestamp,
+              signature: signature
+            };
+            
+            console.log('Subscribing to user channel with authentication');
+            this.sendWsMessage(userChannelMessage);
+          }, 1000); // 1 second delay for auth request
+        }, 1000); // 1 second delay between public subscriptions
       } catch (error) {
         console.error('Error setting up WebSocket authentication:', error);
       }

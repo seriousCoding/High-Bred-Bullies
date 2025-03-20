@@ -41,9 +41,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     path: '/ws' 
   });
 
-  // Handle WebSocket connections
+  // Handle WebSocket connections with rate limiting
   wss.on('connection', (ws) => {
     console.log('Client connected to WebSocket');
+    
+    // Track subscription requests to implement rate limiting
+    const subscriptionQueue: any[] = [];
+    let isProcessingQueue = false;
+    
+    // Process subscriptions one at a time with delay to prevent rate limiting
+    const processSubscriptionQueue = async () => {
+      if (subscriptionQueue.length === 0 || isProcessingQueue) {
+        return;
+      }
+      
+      isProcessingQueue = true;
+      
+      try {
+        const data = subscriptionQueue.shift();
+        console.log(`Processing subscription request for channel: ${data.channel || 'unknown'}`);
+        
+        // Forward subscription to Coinbase
+        const subscriptionResult = await coinbaseApi.subscribeToFeed(data);
+        
+        // Send result back to client
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscriptionResult));
+        }
+        
+        // Wait 1 second between subscriptions to avoid rate limiting
+        setTimeout(() => {
+          isProcessingQueue = false;
+          processSubscriptionQueue(); // Process next item in queue
+        }, 1000);
+      } catch (error) {
+        console.error('Failed to process subscription:', error);
+        isProcessingQueue = false;
+        
+        // Continue processing other items even if one fails
+        setTimeout(processSubscriptionQueue, 1000);
+      }
+    };
     
     ws.on('message', async (message) => {
       try {
@@ -51,13 +89,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle subscription requests
         if (data.type === 'subscribe') {
-          // Forward subscription to Coinbase
-          const subscriptionResult = await coinbaseApi.subscribeToFeed(data);
-          ws.send(JSON.stringify(subscriptionResult));
+          // Add to queue instead of sending immediately
+          subscriptionQueue.push(data);
+          
+          // Start processing queue if not already running
+          if (!isProcessingQueue) {
+            processSubscriptionQueue();
+          }
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
-        ws.send(JSON.stringify({ error: 'Invalid message format' }));
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ error: 'Invalid message format' }));
+        }
       }
     });
     

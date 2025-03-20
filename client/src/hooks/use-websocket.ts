@@ -18,6 +18,38 @@ export function useWebSocket() {
   const [messages, setMessages] = React.useState<any[]>([]);
   const socketRef = React.useRef<WebSocket | null>(null);
   const messageQueue = React.useRef<WebSocketMessage[]>([]);
+  const isProcessingQueue = React.useRef<boolean>(false);
+  
+  // Process queue function reference to avoid dependency cycles
+  const processQueueRef = React.useRef<() => void>();
+  
+  // Define the queue processing function
+  processQueueRef.current = () => {
+    if (isProcessingQueue.current || messageQueue.current.length === 0 || 
+        !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    
+    isProcessingQueue.current = true;
+    const message = messageQueue.current.shift();
+    
+    try {
+      if (message) {
+        console.log(`Sending subscription for channel: ${message.channel || 'unknown'}`);
+        socketRef.current.send(JSON.stringify(message));
+      }
+    } catch (error) {
+      console.error('Failed to send WebSocket message:', error);
+    }
+    
+    // Rate limit to one message per second to avoid "rate limit exceeded" errors
+    setTimeout(() => {
+      isProcessingQueue.current = false;
+      if (messageQueue.current.length > 0 && processQueueRef.current) {
+        processQueueRef.current();
+      }
+    }, 1000);
+  };
 
   // Initialize WebSocket connection
   React.useEffect(() => {
@@ -35,20 +67,37 @@ export function useWebSocket() {
         console.log("WebSocket connection established");
         setStatus("open");
         
-        // Process any queued messages
-        if (messageQueue.current.length > 0) {
-          messageQueue.current.forEach(msg => {
-            if (socketRef.current?.readyState === WebSocket.OPEN) {
-              socketRef.current.send(JSON.stringify(msg));
-            }
-          });
-          messageQueue.current = [];
+        // Start processing queued messages with rate limiting
+        if (messageQueue.current.length > 0 && !isProcessingQueue.current && processQueueRef.current) {
+          processQueueRef.current();
         }
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          
+          // Handle special error messages from Coinbase
+          if (data.type === 'error') {
+            console.warn('WebSocket error from Coinbase:', data.message);
+            
+            if (data.message === 'rate limit exceeded') {
+              // Pause the queue processing and restart with longer delay on rate limit error
+              isProcessingQueue.current = false;
+              console.log('Rate limit exceeded. Adding longer delay to message queue.');
+              
+              setTimeout(() => {
+                if (messageQueue.current.length > 0 && processQueueRef.current) {
+                  processQueueRef.current();
+                }
+              }, 2000); // Longer delay on rate limit
+              
+              // Don't add rate limit errors to the message feed
+              return;
+            }
+          }
+          
+          // Add to message feed for components to consume
           setMessages(prevMessages => {
             // Limit stored messages to prevent memory issues
             if (prevMessages.length > 100) {
@@ -88,9 +137,9 @@ export function useWebSocket() {
         socketRef.current = null;
       }
     };
-  }, [isAuthenticated, apiKey, currentKeyId]);
-
-  // Function to send subscription messages
+  }, [isAuthenticated, apiKey, currentKeyId]); // No more circular dependencies
+  
+  // Function to send subscription messages with rate limiting
   const subscribe = React.useCallback((message: WebSocketMessage) => {
     if (!isAuthenticated) {
       console.warn("Cannot subscribe: Not authenticated with Coinbase");
@@ -101,11 +150,12 @@ export function useWebSocket() {
     // We don't need to add authentication details to the client-side messages
     // This prevents sensitive API keys from being exposed in the browser
     
-    // Send the message if socket is ready, otherwise queue it
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(message));
-    } else {
-      messageQueue.current.push(message);
+    // Always queue messages for rate-limited processing
+    messageQueue.current.push(message);
+    
+    // Start processing if not already doing so and socket is ready
+    if (!isProcessingQueue.current && socketRef.current?.readyState === WebSocket.OPEN && processQueueRef.current) {
+      processQueueRef.current();
     }
   }, [isAuthenticated]);
 
