@@ -9,7 +9,11 @@ interface WebSocketMessage {
 }
 
 export function useWebSocket() {
-  const { isAuthenticated, apiKey, currentKey } = useApiKeys();
+  const apiKeysContext = useApiKeys();
+  const isAuthenticated = apiKeysContext.isAuthenticated;
+  const apiKey = apiKeysContext.apiKey;
+  const currentKeyId = apiKeysContext.currentKey?.id;
+  
   const [status, setStatus] = React.useState<WebSocketStatus>("closed");
   const [messages, setMessages] = React.useState<any[]>([]);
   const socketRef = React.useRef<WebSocket | null>(null);
@@ -84,7 +88,7 @@ export function useWebSocket() {
         socketRef.current = null;
       }
     };
-  }, [isAuthenticated, apiKey, currentKey?.id]);
+  }, [isAuthenticated, apiKey, currentKeyId]);
 
   // Function to send subscription messages
   const subscribe = React.useCallback((message: WebSocketMessage) => {
@@ -117,5 +121,8 @@ export function useWebSocket() {
     messages,
     subscribe,
     clearMessages,
+    isConnected: status === "open",
+    isConnecting: status === "connecting",
+    hasError: status === "error"
   };
 }
