@@ -9,9 +9,10 @@ export default function UnifiedAuthPage() {
   const [location, navigate] = useLocation();
   const { user, isLoading, loginWithOAuth } = useUnifiedAuth();
 
-  // Redirect to home if user is already authenticated
+  // Check if user is authenticated with Coinbase
   useEffect(() => {
-    if (!isLoading && user?.authenticated) {
+    if (!isLoading && user?.authenticated && user?.authType) {
+      // If already authenticated with Coinbase, redirect to dashboard
       navigate('/');
     }
   }, [user, isLoading, navigate]);

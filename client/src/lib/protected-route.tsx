@@ -33,7 +33,7 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
   if (!hasApiKeys) {
     return (
       <Route path={path}>
-        {(params) => <Redirect to="/add-api-key" />}
+        {(params) => <Redirect to="/connect-coinbase" />}
       </Route>
     );
   }
