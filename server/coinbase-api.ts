@@ -18,10 +18,18 @@ class CoinbaseApiClient {
   private ws: WebSocket | null = null;
   private messageHandlers: Array<(data: any) => void> = [];
   private coinbaseClient: CoinbaseClient | null = null;
+  private lastFailedKey: number | null = null;
+  private usedKeyIds: Set<number> = new Set();
   
   constructor() {
     // Initialize WebSocket connection
     this.setupWebSocket();
+  }
+  
+  // Reset the key rotation state
+  public resetKeyRotation() {
+    this.lastFailedKey = null;
+    this.usedKeyIds.clear();
   }
   
   // Initialize Coinbase client with API credentials
@@ -351,6 +359,92 @@ class CoinbaseApiClient {
       'CB-ACCESS-SIGN': signature,
       'CB-ACCESS-TIMESTAMP': timestamp
     };
+  }
+  
+  // Make authenticated request with key rotation
+  public async getApiKeysWithRotation(userId: number): Promise<{apiKey: string, apiSecret: string, keyId: number} | null> {
+    try {
+      // Import storage inside the method to avoid circular dependencies
+      const { storage } = await import('./storage');
+      
+      // Get the active API keys, already sorted by priority and health
+      const keys = await storage.getActiveApiKeys(userId);
+      
+      if (!keys || keys.length === 0) {
+        console.error('No active API keys found for user');
+        return null;
+      }
+      
+      // Skip keys that recently failed
+      const availableKeys = keys.filter(key => {
+        // Skip the last failed key if it exists
+        if (this.lastFailedKey === key.id) {
+          return false;
+        }
+        
+        // Skip keys that have been used in this rotation cycle
+        if (this.usedKeyIds.has(key.id)) {
+          return false;
+        }
+        
+        // Skip keys with too many recent failures
+        if ((key.failCount || 0) > 5) {
+          // Only try keys with high failure counts if we have nothing else
+          return keys.length <= 1;
+        }
+        
+        return true;
+      });
+      
+      if (availableKeys.length === 0) {
+        // If we've tried all keys, reset and start again
+        this.resetKeyRotation();
+        
+        // If reset doesn't give us keys, fall back to any key
+        if (keys.length > 0) {
+          const fallbackKey = keys[0];
+          console.log(`Using fallback key ${fallbackKey.id} after rotation cycle completed`);
+          return {
+            apiKey: fallbackKey.apiKey,
+            apiSecret: fallbackKey.apiSecret,
+            keyId: fallbackKey.id
+          };
+        }
+        
+        return null;
+      }
+      
+      // Get the first available key
+      const selectedKey = availableKeys[0];
+      this.usedKeyIds.add(selectedKey.id);
+      
+      console.log(`Selected API key ${selectedKey.id} for request`);
+      return {
+        apiKey: selectedKey.apiKey,
+        apiSecret: selectedKey.apiSecret, 
+        keyId: selectedKey.id
+      };
+    } catch (error) {
+      console.error('Error getting API keys for rotation:', error);
+      return null;
+    }
+  }
+  
+  // Handle API key success or failure
+  public async updateKeyStatus(keyId: number, success: boolean): Promise<void> {
+    try {
+      const { storage } = await import('./storage');
+      await storage.updateApiKeyStatus(keyId, success);
+      
+      if (!success) {
+        this.lastFailedKey = keyId;
+        console.error(`Marked API key ${keyId} as failed`);
+      } else {
+        console.log(`Marked API key ${keyId} as successful`);
+      }
+    } catch (error) {
+      console.error('Error updating key status:', error);
+    }
   }
   
   // Make authenticated request to Coinbase API using API keys
