@@ -101,6 +101,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle subscription requests
         if (data.type === 'subscribe') {
+          console.log(`Processing subscription for channel: ${data.channel || 'unknown'}`);
+          
+          // Special handling for heartbeat channel - immediately respond with success
+          if (data.channel === 'heartbeat') {
+            console.log('Heartbeat subscription received - acknowledging');
+            ws.send(JSON.stringify({
+              type: 'subscribed',
+              channel: 'heartbeat',
+              product_ids: data.product_ids || []
+            }));
+            
+            // Add to queue for actual subscription to Coinbase
+            subscriptionQueue.push(data);
+            // Start processing queue if not already processing
+            if (!isProcessingQueue) {
+              processSubscriptionQueue();
+            }
+            return;
+          }
+          
           // Check if this is an authenticated channel requiring signature
           if (data.channel === 'user') {
             // Extract API key and API secret from headers or environment variables

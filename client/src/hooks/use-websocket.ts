@@ -67,6 +67,20 @@ export function useWebSocket() {
         console.log("WebSocket connection established");
         setStatus("open");
         
+        // Always immediately send a heartbeat subscription to avoid "subscribe required" errors
+        const heartbeatSubscription = {
+          type: 'subscribe',
+          channel: 'heartbeat',
+          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
+        };
+        
+        try {
+          console.log("Initializing heartbeat subscription");
+          ws.send(JSON.stringify(heartbeatSubscription));
+        } catch (error) {
+          console.error("Failed to send heartbeat subscription", error);
+        }
+        
         // Start processing queued messages with rate limiting
         if (messageQueue.current.length > 0 && !isProcessingQueue.current && processQueueRef.current) {
           // Add a small delay before starting to process the queue
