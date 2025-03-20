@@ -250,9 +250,74 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
           
           if (proxyData.redirect_url) {
             console.log("Received redirect URL from proxy, redirecting to:", proxyData.redirect_url);
+            
             // Store state for CSRF protection
             localStorage.setItem("auth_state_key", data.state);
-            // Redirect to the URL obtained from the proxy
+            
+            // Show a popup with the URL for easy copying since direct navigation might be blocked
+            const useRedirectDialog = true; // Enable this for environments where direct redirection is blocked
+            
+            if (useRedirectDialog) {
+              // Create a modal dialog to show the URL and instructions
+              const dialog = document.createElement('div');
+              dialog.style.position = 'fixed';
+              dialog.style.top = '0';
+              dialog.style.left = '0';
+              dialog.style.width = '100%';
+              dialog.style.height = '100%';
+              dialog.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+              dialog.style.zIndex = '9999';
+              dialog.style.display = 'flex';
+              dialog.style.justifyContent = 'center';
+              dialog.style.alignItems = 'center';
+              
+              const content = document.createElement('div');
+              content.style.backgroundColor = '#272a30';
+              content.style.borderRadius = '10px';
+              content.style.padding = '30px';
+              content.style.width = '90%';
+              content.style.maxWidth = '600px';
+              content.style.color = '#eaeaea';
+              content.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+              
+              content.innerHTML = `
+                <h2 style="color: #0052FF; margin-top: 0; text-align: center;">Coinbase Login URL</h2>
+                <p style="margin-bottom: 20px; text-align: center;">
+                  Direct navigation to Coinbase is blocked in this environment. Please copy the URL below and paste it into a new browser tab to continue.
+                </p>
+                <div style="background: #1a1b1e; padding: 15px; border-radius: 5px; margin-bottom: 20px; word-break: break-all; font-family: monospace; font-size: 14px;">
+                  ${proxyData.redirect_url}
+                </div>
+                <div style="display: flex; justify-content: center; gap: 10px;">
+                  <button id="copy-url-btn" style="background-color: #0052FF; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Copy URL</button>
+                  <button id="try-redirect-btn" style="background-color: #444; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Try Direct Redirect</button>
+                  <button id="close-dialog-btn" style="background-color: #333; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Close</button>
+                </div>
+              `;
+              
+              dialog.appendChild(content);
+              document.body.appendChild(dialog);
+              
+              // Add event listeners for buttons
+              document.getElementById('copy-url-btn')?.addEventListener('click', () => {
+                navigator.clipboard.writeText(proxyData.redirect_url)
+                  .then(() => alert('Coinbase URL copied to clipboard!'))
+                  .catch(err => console.error('Could not copy URL: ', err));
+              });
+              
+              document.getElementById('try-redirect-btn')?.addEventListener('click', () => {
+                window.open(proxyData.redirect_url, '_blank');
+                // Keep the dialog open in case it doesn't work
+              });
+              
+              document.getElementById('close-dialog-btn')?.addEventListener('click', () => {
+                document.body.removeChild(dialog);
+              });
+              
+              return;
+            }
+            
+            // If dialog is disabled, try direct redirect (this will likely be blocked in Replit)
             window.location.href = proxyData.redirect_url;
             return;
           }
