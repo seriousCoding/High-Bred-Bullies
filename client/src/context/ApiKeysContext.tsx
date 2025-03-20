@@ -205,9 +205,16 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     setAccessToken(null);
     setRefreshToken(null);
     setExpiresAt(null);
+    
+    // Clear tokens from localStorage
     localStorage.removeItem("trading_access_token");
     localStorage.removeItem("trading_refresh_token");
     localStorage.removeItem("trading_expires_at");
+    
+    // Also clear any OAuth-related data that might be lingering
+    localStorage.removeItem("oauth_code");
+    localStorage.removeItem("auth_state_key");
+    sessionStorage.removeItem("auth_state_key");
   };
   
   // Initiate OAuth login flow

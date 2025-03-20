@@ -203,9 +203,10 @@ export default function OAuthCallback() {
       // Save tokens using the context provider function
       saveTokens(data.access_token, data.refresh_token, expiresIn, true);
       
-      // Clear temporary data
+      // Clear temporary data from both storage mechanisms
       localStorage.removeItem("oauth_code");
       localStorage.removeItem("auth_state_key");
+      sessionStorage.removeItem("auth_state_key");
 
       toast({
         title: "Authentication Complete",
