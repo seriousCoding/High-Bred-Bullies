@@ -1,4 +1,4 @@
-import { useEffect, useState, useLayoutEffect, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useMarkets } from "@/context/MarketsContext";
 import { useWebSocket } from "@/hooks/use-websocket";
 
@@ -16,76 +16,76 @@ export function RecentTrades() {
   const { selectedMarket } = useMarkets();
   const { subscribe, messages, status } = useWebSocket();
   const lastFetchedMarketRef = useRef<string | null>(null);
+  const lastMessagesLengthRef = useRef(0);
   
-  // Use layout effect to run synchronously before rendering and prevent the rerender cycle
-  useLayoutEffect(() => {
-    let isMounted = true;
+  // Define fetchTrades as a memoized callback to prevent it from being recreated on each render
+  const fetchTrades = useCallback(async (productId: string) => {
+    if (lastFetchedMarketRef.current === productId) return;
     
-    const fetchTrades = async () => {
-      if (!selectedMarket) return;
+    setLoading(true);
+    
+    try {
+      // This endpoint does not require API credentials anymore as it uses the public Exchange API
+      const response = await fetch(`/api/products/${productId}/trades`);
       
-      // Skip fetching if we've already fetched for this market
-      if (lastFetchedMarketRef.current === selectedMarket.product_id) return;
-      
-      setLoading(true);
-      
-      try {
-        // This endpoint does not require API credentials anymore as it uses the public Exchange API
-        const response = await fetch(`/api/products/${selectedMarket.product_id}/trades`);
-        
-        if (!response.ok) {
-          throw new Error(`Error fetching trades: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        if (Array.isArray(data) && isMounted) {
-          setTrades(data.slice(0, 10)); // Show only 10 most recent trades
-          lastFetchedMarketRef.current = selectedMarket.product_id;
-        }
-      } catch (error) {
-        console.error("Failed to fetch trades:", error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+      if (!response.ok) {
+        throw new Error(`Error fetching trades: ${response.statusText}`);
       }
-    };
-    
-    if (selectedMarket) {
-      fetchTrades();
       
-      // Subscribe to matches channel
-      subscribe({
-        type: "subscribe",
-        product_ids: [selectedMarket.product_id],
-        channel: "matches"
-      });
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setTrades(data.slice(0, 10)); // Show only 10 most recent trades
+        lastFetchedMarketRef.current = productId;
+      }
+    } catch (error) {
+      console.error("Failed to fetch trades:", error);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+  
+  // Handle market selection changes
+  useEffect(() => {
+    if (!selectedMarket) return;
+    
+    const productId = selectedMarket.product_id;
+    
+    // Fetch trades for the selected market
+    fetchTrades(productId);
+    
+    // Subscribe to matches channel
+    subscribe({
+      type: "subscribe",
+      product_ids: [productId],
+      channel: "matches"
+    });
     
     return () => {
-      isMounted = false;
-      
       // Unsubscribe when unmounting or changing market
-      if (selectedMarket) {
-        subscribe({
-          type: "unsubscribe",
-          product_ids: [selectedMarket.product_id],
-          channel: "matches"
-        });
-      }
+      subscribe({
+        type: "unsubscribe",
+        product_ids: [productId],
+        channel: "matches"
+      });
     };
-  }, [selectedMarket?.product_id, subscribe]);
+  }, [selectedMarket, subscribe, fetchTrades]);
   
   // Process WebSocket messages for new trades
   useEffect(() => {
-    if (!messages.length || !selectedMarket) return;
+    if (!messages.length || !selectedMarket || messages.length === lastMessagesLengthRef.current) return;
+    
+    // Update the reference to avoid processing the same messages again
+    lastMessagesLengthRef.current = messages.length;
+    
+    // Get only the new messages since last check
+    const newMessages = messages.slice(-5); // Just check the last 5 messages to avoid performance issues
     
     // Find match messages for the selected market
-    const matchMessages = messages.filter(msg => 
+    const matchMessages = newMessages.filter(msg => 
       msg.channel === "matches" && 
       msg.events && 
       msg.events.length > 0 &&
-      msg.events[0].trades && 
+      msg.events[0]?.trades && 
       msg.events[0].trades.some((t: any) => t.product_id === selectedMarket.product_id)
     );
     
@@ -103,8 +103,10 @@ export function RecentTrades() {
           }))
       );
       
-      // Add new trades to the beginning and keep only the latest 10
-      setTrades(prev => [...newTrades, ...prev].slice(0, 10));
+      if (newTrades.length > 0) {
+        // Add new trades to the beginning and keep only the latest 10
+        setTrades(prev => [...newTrades, ...prev].slice(0, 10));
+      }
     }
   }, [messages, selectedMarket]);
   

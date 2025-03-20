@@ -781,19 +781,15 @@ class CoinbaseApiClient {
     granularity?: string
   ): Promise<Candle[]> {
     try {
-      // For Advanced API, use proper parameters
-      const params = new URLSearchParams();
+      console.log(`Fetching candles for ${productId} with Advanced Trade SDK`);
       
-      // Convert dates to ISO strings if provided
-      if (start) {
-        const startDate = new Date(start);
-        params.append('start', startDate.toISOString());
-      }
+      // Use the Coinbase Advanced Trade SDK
+      const { CoinbaseAdvTradeCredentials, CoinbaseAdvTradeClient, ProductsService } = require('@coinbase-sample/advanced-trade-sdk-ts');
       
-      if (end) {
-        const endDate = new Date(end);
-        params.append('end', endDate.toISOString());
-      }
+      // Create credentials and client
+      const credentials = new CoinbaseAdvTradeCredentials(apiKey, apiSecret);
+      const client = new CoinbaseAdvTradeClient(credentials);
+      const productService = new ProductsService(client);
       
       // Convert granularity to the format expected by Advanced API
       // Valid values: ONE_MINUTE, FIVE_MINUTE, FIFTEEN_MINUTE, THIRTY_MINUTE, ONE_HOUR, TWO_HOUR, SIX_HOUR, ONE_DAY
@@ -835,21 +831,33 @@ class CoinbaseApiClient {
         }
       }
       
-      params.append('granularity', granularityParam);
+      // Build request parameters
+      const requestParams: any = {
+        productId: productId,
+        granularity: granularityParam
+      };
       
-      const queryString = params.toString() ? `?${params.toString()}` : '';
+      // Convert dates to ISO strings if provided
+      if (start) {
+        const startDate = new Date(start);
+        requestParams.start = startDate.toISOString();
+      }
       
-      // Advanced Trade API endpoint for candles
-      const response = await this.makeRequest<any>(
-        'GET',
-        `/products/${productId}/candles${queryString}`,
-        apiKey,
-        apiSecret
-      );
+      if (end) {
+        const endDate = new Date(end);
+        requestParams.end = endDate.toISOString();
+      }
+      
+      console.log(`SDK request params: ${JSON.stringify(requestParams)}`);
+      
+      // Make the SDK request
+      const response = await productService.getCandles(requestParams);
+      
+      console.log('SDK Candles response:', JSON.stringify(response).substring(0, 200) + '...');
       
       // Check the response format
       if (!response.candles || !Array.isArray(response.candles)) {
-        console.error('Unexpected candles response format:', response);
+        console.error('Unexpected candles response format from SDK:', response);
         return [];
       }
       
@@ -863,7 +871,7 @@ class CoinbaseApiClient {
         volume: candle.volume || '0'
       }));
     } catch (error) {
-      console.error(`Error fetching candles for ${productId}:`, error);
+      console.error(`Error fetching candles for ${productId} with SDK:`, error);
       return [];
     }
   }
