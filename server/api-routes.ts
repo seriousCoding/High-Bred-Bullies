@@ -47,16 +47,21 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
       
       try {
         const data = subscriptionQueue.shift();
-        log(`Processing subscription request for channel: ${data.channel || 'unknown'}`, 'ws');
+        // Extract channels from the request, supporting both old and new format
+        const channels = data.channels || (data.channel ? [data.channel] : []);
+        log(`Processing subscription request for channels: ${channels.join(', ')}`, 'ws');
         
-        // Forward subscription to Coinbase
-        await coinbaseClient.subscribe(data.channel, data.product_ids);
+        // Process each channel in the subscription
+        for (const channel of channels) {
+          // Forward subscription to Coinbase
+          await coinbaseClient.subscribe(channel, data.product_ids);
+        }
         
         // Send result back to client
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
           ws.send(JSON.stringify({
             type: 'subscribed',
-            channel: data.channel,
+            channels: channels,
             product_ids: data.product_ids || []
           }));
         }
@@ -82,14 +87,16 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         
         // Handle subscription requests
         if (data.type === 'subscribe') {
-          log(`Received subscription request for ${data.channel}`, 'ws');
+          // Extract channels from the request, supporting both old and new format
+          const channels = data.channels || (data.channel ? [data.channel] : []);
+          log(`Received subscription request for channels: ${channels.join(', ')}`, 'ws');
           
           // Special handling for heartbeat channel - immediately respond with success
-          if (data.channel === 'heartbeat') {
+          if (channels.includes('heartbeat')) {
             log('Heartbeat subscription received - acknowledging', 'ws');
             ws.send(JSON.stringify({
               type: 'subscribed',
-              channel: 'heartbeat',
+              channels: ['heartbeat'],
               product_ids: data.product_ids || []
             }));
             
@@ -103,7 +110,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
           }
           
           // Check if this is an authenticated channel requiring signature
-          if (data.channel === 'user') {
+          if (channels.includes('user')) {
             // Extract API key and API secret from headers or environment variables
             // Use environment variables if available to ensure we have access to secrets
             const apiKey = process.env.COINBASE_API_KEY;
