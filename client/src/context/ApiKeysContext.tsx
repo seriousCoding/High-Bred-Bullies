@@ -249,68 +249,18 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
           const proxyData = await proxyResponse.json();
           
           if (proxyData.redirect_url) {
-            console.log("Received redirect URL from proxy, redirecting to:", proxyData.redirect_url);
+            console.log("Received redirect URL from proxy, redirecting to enhanced redirect page...");
             
             // Store state for CSRF protection
             localStorage.setItem("auth_state_key", data.state);
             
-            // Show a popup with the URL for easy copying since direct navigation might be blocked
-            const useRedirectDialog = true; // Enable this for environments where direct redirection is blocked
+            // Use our server-side redirect page instead of trying direct navigation
+            const useServerRedirect = true;
             
-            if (useRedirectDialog) {
-              // Simply show an alert with the URL for now since dynamic DOM manipulation might be restricted
-              alert(`Direct navigation to Coinbase is blocked in this environment.\n\nPlease copy this URL and paste it into a new browser tab to continue:\n\n${proxyData.redirect_url}`);
-              
-              // Also log it to console for easy access
-              console.log("COINBASE LOGIN URL (copy and paste this in a new tab):", proxyData.redirect_url);
-              
-              // Attempt to copy to clipboard
-              try {
-                navigator.clipboard.writeText(proxyData.redirect_url)
-                  .then(() => console.log("URL copied to clipboard!"))
-                  .catch(() => console.log("Could not automatically copy URL - please copy it manually"));
-              } catch (e) {
-                console.log("Could not access clipboard API");
-              }
-              
-              // Create a simple app-level alert
-              const alertDiv = document.createElement('div');
-              alertDiv.id = 'coinbase-url-alert';
-              alertDiv.style.cssText = `
-                position: fixed;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background-color: #272a30;
-                color: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                z-index: 10000;
-                width: 90%;
-                max-width: 600px;
-                text-align: center;
-              `;
-              
-              alertDiv.innerHTML = `
-                <h3 style="color: #0052FF; margin-top: 0;">Coinbase Login URL</h3>
-                <p style="margin-bottom: 15px;">
-                  Direct navigation is blocked. Copy this URL and open in a new tab:
-                </p>
-                <textarea style="width: 100%; height: 60px; padding: 8px; margin-bottom: 15px; background: #1a1b1e; color: white; border: 1px solid #444; border-radius: 4px;">${proxyData.redirect_url}</textarea>
-                <p style="font-size: 12px; margin-top: 15px; color: #999;">This message will auto-close in 60 seconds</p>
-              `;
-              
-              // Add to DOM
-              document.body.appendChild(alertDiv);
-              
-              // Auto-remove after 60 seconds
-              setTimeout(() => {
-                if (document.body.contains(alertDiv)) {
-                  document.body.removeChild(alertDiv);
-                }
-              }, 60000);
-              
+            if (useServerRedirect) {
+              // Redirect to our enhanced server-side redirect page
+              // This page has multiple strategies for getting to Coinbase
+              window.location.href = `/auth/redirect?auth_url=${encodeURIComponent(data.auth_url)}&state=${encodeURIComponent(data.state)}`;
               return;
             }
             
