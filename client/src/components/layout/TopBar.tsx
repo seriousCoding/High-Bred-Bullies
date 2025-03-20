@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useMarkets } from "@/context/MarketsContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface TopBarProps {
   onApiKeyModalOpen: () => void;
@@ -8,7 +9,8 @@ interface TopBarProps {
 
 export function TopBar({ onApiKeyModalOpen }: TopBarProps) {
   const { selectedMarket, setSelectedMarket, markets } = useMarkets();
-  const { hasKeys } = useApiKeys();
+  const { hasKeys, logout, isAuthenticated } = useApiKeys();
+  const { toast } = useToast();
 
   return (
     <header className="bg-card-bg border-b border-[#3A3A3A] h-16 flex items-center justify-between px-4 sticky top-0 z-10">
@@ -95,6 +97,22 @@ export function TopBar({ onApiKeyModalOpen }: TopBarProps) {
             </>
           )}
         </button>
+        
+        {isAuthenticated && (
+          <button 
+            onClick={() => {
+              logout();
+              toast({
+                title: "Logged out",
+                description: "You have been disconnected from Coinbase",
+              });
+            }}
+            className="bg-gray-800 text-gray-300 hover:text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-700 flex items-center"
+          >
+            <span className="material-icons text-sm mr-1">logout</span>
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        )}
         
         <div className="relative ml-4">
           <button className="text-gray-300 hover:text-white">
