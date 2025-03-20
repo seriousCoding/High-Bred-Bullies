@@ -152,9 +152,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     setExpiresAt(expirationTime);
     
     if (remember) {
-      localStorage.setItem("coinbase_access_token", token);
-      localStorage.setItem("coinbase_refresh_token", refresh);
-      localStorage.setItem("coinbase_expires_at", expirationTime.toString());
+      localStorage.setItem("trading_access_token", token);
+      localStorage.setItem("trading_refresh_token", refresh);
+      localStorage.setItem("trading_expires_at", expirationTime.toString());
     }
   };
   
@@ -163,9 +163,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     setAccessToken(null);
     setRefreshToken(null);
     setExpiresAt(null);
-    localStorage.removeItem("coinbase_access_token");
-    localStorage.removeItem("coinbase_refresh_token");
-    localStorage.removeItem("coinbase_expires_at");
+    localStorage.removeItem("trading_access_token");
+    localStorage.removeItem("trading_refresh_token");
+    localStorage.removeItem("trading_expires_at");
   };
   
   // Initiate OAuth login flow
