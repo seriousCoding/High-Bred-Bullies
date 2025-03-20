@@ -656,57 +656,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log("Initializing OAuth with redirect URI:", redirectUri);
       
-      // Create authorization URL using the proper format as recommended
-      // Try using the old format first
-      const useOldFormat = true;
-      let authUrlString = "";
+      // Create authorization URL using the proper format
+      // Generate URL for authentication based on Coinbase documentation
       
-      if (useOldFormat) {
-        // Try the old format as in the example doc (www.coinbase.com/oauth/authorize)
-        authUrlString = `https://www.coinbase.com/oauth/authorize?client_id=${encodeURIComponent(COINBASE_OAUTH_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
-        
-        // Add required scopes 
-        const scopes = [
-          "wallet:accounts:read",
-          "wallet:user:read",
-          "wallet:buys:read",
-          "wallet:sells:read",
-          "wallet:transactions:read",
-          "wallet:payment-methods:read",
-          "wallet:addresses:read",
-          "wallet:orders:read",
-          "wallet:orders:create", 
-          "wallet:orders:update",
-          "wallet:trades:read",
-          "offline_access"
-        ];
-        authUrlString += `&scope=${encodeURIComponent(scopes.join(" "))}`;
-        authUrlString += `&state=${encodeURIComponent(state)}`;
-      } else {
-        // Use the new format with URL object (login.coinbase.com/oauth2/auth)
+      // Define the scopes needed for the application
+      const scopes = [
+        "wallet:accounts:read",
+        "wallet:user:read",
+        "wallet:buys:read",
+        "wallet:sells:read",
+        "wallet:transactions:read",
+        "wallet:payment-methods:read",
+        "wallet:addresses:read",
+        "wallet:orders:read",
+        "wallet:orders:create", 
+        "wallet:orders:update",
+        "wallet:trades:read",
+        "offline_access"
+      ];
+      
+      // Check the client's user agent to determine optimal strategy
+      const userAgent = req.headers['user-agent'] || '';
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      
+      // Start with the preferred URL format
+      let authUrlString = '';
+      
+      if (isMobile) {
+        // Mobile devices often have fewer redirect/cookie issues with direct login URL
         const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
         authUrl.searchParams.append("response_type", "code");
         authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
         authUrl.searchParams.append("redirect_uri", redirectUri);
         authUrl.searchParams.append("state", state);
-        
-        // Add required scopes - try with space separation instead of comma
-        const scopes = [
-          "wallet:accounts:read",
-          "wallet:user:read",
-          "wallet:buys:read",
-          "wallet:sells:read",
-          "wallet:transactions:read",
-          "wallet:payment-methods:read",
-          "wallet:addresses:read",
-          "wallet:orders:read",
-          "wallet:orders:create",
-          "wallet:orders:update",
-          "wallet:trades:read",
-          "offline_access"
-        ];
         authUrl.searchParams.append("scope", scopes.join(" "));
         authUrlString = authUrl.toString();
+      } else {
+        // For desktop browsers, the classic URL sometimes works better with ad-blockers and privacy plugins
+        authUrlString = `https://www.coinbase.com/oauth/authorize?client_id=${encodeURIComponent(COINBASE_OAUTH_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes.join(" "))}&state=${encodeURIComponent(state)}`;
       }
       
       // Return auth URL and state

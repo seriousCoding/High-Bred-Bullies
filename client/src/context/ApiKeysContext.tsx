@@ -251,7 +251,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
             console.log("Received redirect URL from proxy, redirecting to enhanced redirect page...");
             
             // Store state for CSRF protection
+            // Store state in both localStorage and sessionStorage for redundancy
             localStorage.setItem("auth_state_key", data.state);
+            sessionStorage.setItem("auth_state_key", data.state);
             
             // Use our server-side redirect page instead of trying direct navigation
             const useServerRedirect = true;

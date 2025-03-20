@@ -51,7 +51,12 @@ export default function OAuthCallback() {
     const errorDescription = urlParams.get("error_description");
     const code = urlParams.get("code");
     const state = urlParams.get("state");
-    const savedState = localStorage.getItem("auth_state_key");
+    
+    // Try to get state from both storage mechanisms for redundancy
+    const savedStateLocal = localStorage.getItem("auth_state_key");
+    const savedStateSession = sessionStorage.getItem("auth_state_key");
+    // Use whichever state is available, prioritizing localStorage
+    const savedState = savedStateLocal || savedStateSession;
     
     // Log details about what we found
     console.log("OAuth callback parameter analysis:");
