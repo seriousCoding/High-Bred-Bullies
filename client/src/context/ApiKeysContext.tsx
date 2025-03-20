@@ -1,68 +1,263 @@
 import * as React from "react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  addApiKey,
+  getActiveApiKey,
+  setActiveKeyId,
+  clearActiveKey,
+  getAllApiKeys,
+  removeApiKey,
+  VaultedApiKey,
+} from "@/lib/apiKeyVault";
 
-interface AuthContextType {
-  accessToken: string | null;
-  refreshToken: string | null;
-  expiresAt: number | null; // timestamp when the token expires
+// Define the context shape for API keys management
+interface ApiKeysContextType {
+  // Current active API key
+  activeApiKey: VaultedApiKey | null;
+  // All stored API keys
+  apiKeys: VaultedApiKey[];
+  // Loading states
+  isLoading: boolean;
+  // Authentication status
   isAuthenticated: boolean;
-  saveTokens: (accessToken: string, refreshToken: string, expiresIn: number, remember: boolean) => void;
+  // API key management functions
+  addNewApiKey: (label: string, apiKey: string, apiSecret: string) => Promise<void>;
+  removeApiKeyById: (id: string) => Promise<void>;
+  selectApiKey: (id: string) => void;
   logout: () => void;
-  initiateOAuthFlow: () => void;
+  // Legacy OAuth support
+  initiateOAuthFlow: () => Promise<void>;
 }
 
-export const ApiKeysContext = React.createContext<AuthContextType | null>(null);
+// Create the context with a default empty value
+export const ApiKeysContext = React.createContext<ApiKeysContextType>({
+  activeApiKey: null,
+  apiKeys: [],
+  isLoading: false,
+  isAuthenticated: false,
+  addNewApiKey: async () => {},
+  removeApiKeyById: async () => {},
+  selectApiKey: () => {},
+  logout: () => {},
+  initiateOAuthFlow: async () => {},
+});
 
 interface ApiKeysProviderProps {
   children: React.ReactNode;
 }
 
-// OAuth2 configuration
-const CLIENT_ID = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID || ""; // Should be provided by environment variable
+// OAuth2 configuration is kept for backward compatibility
+const CLIENT_ID = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID || "";
 const REDIRECT_URI = window.location.origin + "/auth/callback";
 const OAUTH_STATE_KEY = "auth_state_key";
 
-// Debug OAuth configuration
+// Debug OAuth configuration 
 console.log("OAuth client configuration:", {
   client_id_available: !!CLIENT_ID,
   redirect_uri: REDIRECT_URI
 });
 
 export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
-  const [accessToken, setAccessToken] = React.useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = React.useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = React.useState<number | null>(null);
+  // State for API key management
+  const [activeApiKey, setActiveApiKey] = React.useState<VaultedApiKey | null>(null);
+  const [apiKeys, setApiKeys] = React.useState<VaultedApiKey[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   
-  // Load saved tokens from localStorage on initial render
+  // Toast notifications
+  const { toast } = useToast();
+  
+  // Load saved API keys from the vault on initial render
   React.useEffect(() => {
-    const savedAccessToken = localStorage.getItem("trading_access_token");
-    const savedRefreshToken = localStorage.getItem("trading_refresh_token");
-    const savedExpiresAt = localStorage.getItem("trading_expires_at");
-    
-    if (savedAccessToken && savedRefreshToken && savedExpiresAt) {
+    const loadApiKeys = () => {
       try {
-        const expiresAtTimestamp = parseInt(savedExpiresAt, 10);
+        // Get all API keys from the vault
+        const keys = getAllApiKeys();
+        setApiKeys(keys);
         
-        if (expiresAtTimestamp > Date.now()) {
-          // Token is still valid
-          setAccessToken(savedAccessToken);
-          setRefreshToken(savedRefreshToken);
-          setExpiresAt(expiresAtTimestamp);
+        // Get the active API key
+        const active = getActiveApiKey();
+        if (active) {
+          setActiveApiKey(active);
+          
+          // Verify the active key with the server
+          verifyApiKey(active);
         } else {
-          // Token has expired, should refresh it
-          refreshAccessToken(savedRefreshToken);
+          setIsLoading(false);
         }
       } catch (error) {
-        console.error("Failed to load auth tokens:", error);
-        // Clear potentially corrupted data
-        clearTokens();
+        console.error("Failed to load API keys from vault:", error);
+        setIsLoading(false);
       }
-    }
+    };
     
-    // Check for OAuth callback response
+    loadApiKeys();
+    
+    // Also check for OAuth callback response for backward compatibility
     checkForOAuthResponse();
   }, []);
   
-  // Check if current URL contains OAuth response
+  // Verify an API key with the server
+  const verifyApiKey = async (key: VaultedApiKey) => {
+    try {
+      // Make a test request to the server to verify the API key
+      const response = await apiRequest('/api/accounts', {
+        method: 'GET',
+        headers: {
+          'X-API-Key': key.apiKey,
+          'X-API-Secret': key.apiSecret,
+        },
+      });
+      
+      if (response) {
+        // Key is valid
+        toast({
+          title: 'Auto-Login Successful',
+          description: `Connected using your saved API key: ${key.label}`,
+        });
+      }
+    } catch (error) {
+      console.error('API key verification failed:', error);
+      toast({
+        title: 'Auto-Login Failed',
+        description: 'Your saved API key could not be verified. Please try again or add a new key.',
+        variant: 'destructive',
+      });
+      
+      // Don't remove the key automatically, as it might be a temporary server issue
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Add a new API key
+  const addNewApiKey = async (label: string, apiKey: string, apiSecret: string) => {
+    try {
+      setIsLoading(true);
+      
+      // Store the key in our vault
+      const newKey = addApiKey({
+        label,
+        apiKey,
+        apiSecret,
+        isActive: true,
+      });
+      
+      // Register the key with the server (if needed)
+      await apiRequest('/api/keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: 1, // In a real app, this would come from auth
+          apiKey: apiKey,
+          apiSecret: apiSecret,
+          label: label,
+          isActive: true
+        })
+      });
+      
+      // Update the local state
+      setActiveApiKey(newKey);
+      setApiKeys(getAllApiKeys());
+      
+      toast({
+        title: 'API Key Added',
+        description: `Your Coinbase API key "${label}" has been successfully added and activated.`,
+      });
+    } catch (error) {
+      console.error('Error adding API key:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add your API key. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Remove an API key
+  const removeApiKeyById = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      // If we're removing the active key, clear it first
+      if (activeApiKey?.id === id) {
+        setActiveApiKey(null);
+      }
+      
+      // Remove the key from the vault
+      removeApiKey(id);
+      
+      // Update the local state
+      setApiKeys(getAllApiKeys());
+      
+      // Get the new active key if there is one
+      const newActive = getActiveApiKey();
+      if (newActive) {
+        setActiveApiKey(newActive);
+      }
+      
+      toast({
+        title: 'API Key Removed',
+        description: 'Your Coinbase API key has been removed from the vault.',
+      });
+    } catch (error) {
+      console.error('Error removing API key:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove your API key. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Set an API key as active
+  const selectApiKey = (id: string) => {
+    try {
+      // Get the key from the vault
+      const keys = getAllApiKeys();
+      const key = keys.find(k => k.id === id);
+      
+      if (key) {
+        // Set as active in the vault
+        setActiveKeyId(id);
+        
+        // Update the local state
+        setActiveApiKey(key);
+        
+        toast({
+          title: 'API Key Activated',
+          description: `Now using "${key.label}" to connect to Coinbase.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error selecting API key:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to switch API keys. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+  
+  // Logout - clear the active API key
+  const logout = () => {
+    clearActiveKey();
+    setActiveApiKey(null);
+    
+    toast({
+      title: 'Logged Out',
+      description: 'You have been disconnected from Coinbase.',
+    });
+  };
+  
+  // ========================
+  // Legacy OAuth Support
+  // ========================
+  
+  // Check if current URL contains OAuth response (kept for backwards compatibility)
   const checkForOAuthResponse = () => {
     if (window.location.pathname === "/auth/callback") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -81,137 +276,51 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     }
   };
   
-  // Exchange authorization code for access token
+  // Exchange authorization code for access token (kept for backwards compatibility)
   const exchangeCodeForToken = async (authCode: string) => {
     try {
       console.log("---------------------------------------------");
       console.log("CLIENT-SIDE TOKEN EXCHANGE - START");
-      console.log("Exchanging code for token with:");
-      console.log("- Code length:", authCode.length);
-      console.log("- Redirect URI:", REDIRECT_URI);
-      console.log("- Client ID available:", !!CLIENT_ID);
       
-      const requestBody = {
-        code: authCode,
-        redirect_uri: REDIRECT_URI
-      };
-      
-      console.log("Request body structure:", JSON.stringify(requestBody, null, 2));
-      
-      console.log("Making fetch request to /api/oauth/token");
       const response = await fetch("/api/oauth/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log("Response status:", response.status, response.statusText);
-      
-      // Log only important headers to avoid the iteration error
-      console.log("Response content-type:", response.headers.get("content-type"));
-      
-      const data = await response.json();
-      console.log("Response body structure:", Object.keys(data));
-      
-      if (!response.ok) {
-        console.error("TOKEN EXCHANGE FAILED");
-        console.error("Error details:", JSON.stringify(data, null, 2));
-        throw new Error(data.message || "Failed to exchange code for token");
-      }
-      
-      console.log("TOKEN EXCHANGE SUCCESSFUL");
-      console.log("Received tokens with properties:", {
-        access_token_length: data.access_token ? data.access_token.length : 0,
-        refresh_token_length: data.refresh_token ? data.refresh_token.length : 0,
-        expires_in: data.expires_in,
-        token_type: data.token_type,
-        scope: data.scope
-      });
-      
-      saveTokens(
-        data.access_token,
-        data.refresh_token,
-        data.expires_in,
-        true // Always remember OAuth tokens
-      );
-      
-      console.log("Tokens saved successfully");
-      console.log("Redirecting to home page");
-      console.log("---------------------------------------------");
-      
-      // Redirect to home page after successful login
-      window.history.replaceState({}, document.title, "/");
-    } catch (error) {
-      console.error("---------------------------------------------");
-      console.error("TOKEN EXCHANGE ERROR");
-      console.error("Error exchanging code for token:", error);
-      console.error("---------------------------------------------");
-    }
-  };
-  
-  // Refresh access token using refresh token
-  const refreshAccessToken = async (token: string) => {
-    try {
-      const response = await fetch("/api/oauth/refresh", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
-          refresh_token: token
+          code: authCode,
+          redirect_uri: REDIRECT_URI
         })
       });
       
       if (!response.ok) {
-        throw new Error("Failed to refresh token");
+        throw new Error("Failed to exchange code for token");
       }
       
       const data = await response.json();
-      saveTokens(
-        data.access_token,
-        data.refresh_token || token, // Use new refresh token if provided
-        data.expires_in,
-        true
-      );
+      
+      // Convert OAuth token to API key format and store in vault
+      if (data.access_token) {
+        addApiKey({
+          label: "Coinbase OAuth Connection",
+          apiKey: data.access_token,
+          apiSecret: data.refresh_token || "oauth-key",
+          isActive: true,
+        });
+        
+        // Update local state
+        setApiKeys(getAllApiKeys());
+        setActiveApiKey(getActiveApiKey());
+        
+        // Redirect to home page after successful login
+        window.history.replaceState({}, document.title, "/");
+      }
     } catch (error) {
-      console.error("Error refreshing token:", error);
-      clearTokens();
+      console.error("TOKEN EXCHANGE ERROR:", error);
     }
   };
   
-  // Save auth tokens
-  const saveTokens = (
-    token: string, 
-    refresh: string, 
-    expiresIn: number, 
-    remember: boolean
-  ) => {
-    const expirationTime = Date.now() + expiresIn * 1000;
-    
-    setAccessToken(token);
-    setRefreshToken(refresh);
-    setExpiresAt(expirationTime);
-    
-    if (remember) {
-      localStorage.setItem("trading_access_token", token);
-      localStorage.setItem("trading_refresh_token", refresh);
-      localStorage.setItem("trading_expires_at", expirationTime.toString());
-    }
-  };
-  
-  // Clear auth tokens
-  const clearTokens = () => {
-    setAccessToken(null);
-    setRefreshToken(null);
-    setExpiresAt(null);
-    localStorage.removeItem("trading_access_token");
-    localStorage.removeItem("trading_refresh_token");
-    localStorage.removeItem("trading_expires_at");
-  };
-  
-  // Initiate OAuth login flow
+  // Initiate OAuth login flow (kept for backwards compatibility)
   const initiateOAuthFlow = async () => {
     try {
       console.log("---------------------------------------------");
@@ -223,74 +332,33 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
       const response = await fetch(`/api/oauth/init?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server OAuth initialization failed:", errorData);
-        throw new Error(errorData.message || "Failed to initialize OAuth flow");
+        throw new Error("Failed to initialize OAuth flow");
       }
       
       const data = await response.json();
       console.log("Received OAuth URL and state from server");
       
-      // We have two options for OAuth flow:
+      // Store state for CSRF protection
+      localStorage.setItem("auth_state_key", data.state);
       
-      // Option 1: Using server-side proxy for the request
-      const useProxy = true; // Toggle this to try different approaches
+      // Make a proxy request through our server to bypass CORS/connection issues
+      console.log("Attempting to use server-side proxy to connect to Coinbase");
+      const proxyResponse = await fetch(`/api/oauth/proxy?auth_url=${encodeURIComponent(data.auth_url)}`);
       
-      if (useProxy) {
-        try {
-          // Make a proxy request through our server to bypass CORS/connection issues
-          console.log("Attempting to use server-side proxy to connect to Coinbase");
-          const proxyResponse = await fetch(`/api/oauth/proxy?auth_url=${encodeURIComponent(data.auth_url)}`);
-          
-          if (!proxyResponse.ok) {
-            throw new Error(`Proxy request failed with status: ${proxyResponse.status}`);
-          }
-          
-          const proxyData = await proxyResponse.json();
-          
-          if (proxyData.redirect_url) {
-            console.log("Received redirect URL from proxy, redirecting to enhanced redirect page...");
-            
-            // Store state for CSRF protection
-            localStorage.setItem("auth_state_key", data.state);
-            
-            // Use our server-side redirect page instead of trying direct navigation
-            const useServerRedirect = true;
-            
-            if (useServerRedirect) {
-              // Redirect to our enhanced server-side redirect page
-              // This page has multiple strategies for getting to Coinbase
-              window.location.href = `/auth/redirect?auth_url=${encodeURIComponent(data.auth_url)}&state=${encodeURIComponent(data.state)}`;
-              return;
-            }
-            
-            // If dialog is disabled, try direct redirect (this will likely be blocked in Replit)
-            window.location.href = proxyData.redirect_url;
-            return;
-          }
-        } catch (proxyError) {
-          console.error("Proxy approach failed:", proxyError);
-          console.log("Falling back to HTML redirect page approach");
-        }
+      if (!proxyResponse.ok) {
+        throw new Error(`Proxy request failed with status: ${proxyResponse.status}`);
       }
       
-      // Option 2: Using our HTML redirect page (fallback)
-      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA HTML REDIRECT PAGE");
-      console.log("Will redirect to:", REDIRECT_URI);
+      const proxyData = await proxyResponse.json();
       
-      // Instead of directly redirecting to Coinbase (which might be blocked),
-      // redirect to our server-side HTML page that will handle the Coinbase redirect
-      const redirectUrl = `/auth/redirect?auth_url=${encodeURIComponent(data.auth_url)}&state=${encodeURIComponent(data.state)}`;
-      
-      console.log("Redirecting to intermediary HTML page:", redirectUrl);
-      
-      // Redirect to our HTML page which will then redirect to Coinbase
-      window.location.href = redirectUrl;
+      if (proxyData.redirect_url) {
+        console.log("Received redirect URL from proxy, redirecting to enhanced redirect page...");
+        
+        // Redirect to our enhanced server-side redirect page
+        window.location.href = `/auth/redirect?auth_url=${encodeURIComponent(data.auth_url)}&state=${encodeURIComponent(data.state)}`;
+      }
     } catch (error) {
-      console.error("---------------------------------------------");
-      console.error("OAUTH INITIALIZATION ERROR:");
-      console.error(error);
-      console.error("---------------------------------------------");
+      console.error("OAUTH INITIALIZATION ERROR:", error);
       throw error; // Re-throw so the component can handle it
     }
   };
@@ -298,12 +366,14 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   return (
     <ApiKeysContext.Provider 
       value={{
-        accessToken,
-        refreshToken,
-        expiresAt,
-        isAuthenticated: !!accessToken && !!expiresAt && expiresAt > Date.now(),
-        saveTokens,
-        logout: clearTokens,
+        activeApiKey,
+        apiKeys,
+        isLoading,
+        isAuthenticated: !!activeApiKey,
+        addNewApiKey,
+        removeApiKeyById,
+        selectApiKey,
+        logout,
         initiateOAuthFlow
       }}
     >

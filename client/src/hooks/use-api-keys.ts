@@ -1,23 +1,37 @@
 import * as React from "react";
 import { ApiKeysContext } from "@/context/ApiKeysContext";
+import type { VaultedApiKey } from "@/lib/apiKeyVault";
 
 export function useApiKeys() {
   const context = React.useContext(ApiKeysContext);
   
-  if (!context) {
+  if (context === null) {
     throw new Error("useApiKeys must be used within an ApiKeysProvider");
   }
   
+  // Get active API key details for use in API calls
+  const activeKey = context.activeApiKey;
+  
   return {
     ...context,
-    // For backward compatibility
+    // Provide all vault-related actions
     hasKeys: context.isAuthenticated,
-    apiKey: context.accessToken,
-    apiSecret: context.refreshToken,
+    allApiKeys: context.apiKeys,
+    currentKey: activeKey,
+    
+    // For direct API usage (current active key)
+    apiKey: activeKey?.apiKey || null,
+    apiSecret: activeKey?.apiSecret || null,
+    
+    // Helper functions for API key management
+    addKey: context.addNewApiKey,
+    removeKey: context.removeApiKeyById,
+    selectKey: context.selectApiKey,
+    
+    // For backward compatibility with older code
     saveKeys: (key: string, secret: string, remember: boolean) => {
-      // This function is kept for backward compatibility but will log a deprecation warning
-      console.warn('saveKeys is deprecated. Please use saveTokens or initiateOAuthFlow instead.');
-      context.saveTokens(key, secret, 3600, remember);
+      console.warn('saveKeys is deprecated. Please use addNewApiKey instead.');
+      context.addNewApiKey('Manual API Key', key, secret);
     },
     clearKeys: context.logout
   };
