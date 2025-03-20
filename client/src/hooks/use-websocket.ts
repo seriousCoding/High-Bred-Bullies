@@ -69,7 +69,12 @@ export function useWebSocket() {
         
         // Start processing queued messages with rate limiting
         if (messageQueue.current.length > 0 && !isProcessingQueue.current && processQueueRef.current) {
-          processQueueRef.current();
+          // Add a small delay before starting to process the queue
+          setTimeout(() => {
+            if (processQueueRef.current) {
+              processQueueRef.current();
+            }
+          }, 500);
         }
       };
 
@@ -155,7 +160,13 @@ export function useWebSocket() {
     
     // Start processing if not already doing so and socket is ready
     if (!isProcessingQueue.current && socketRef.current?.readyState === WebSocket.OPEN && processQueueRef.current) {
-      processQueueRef.current();
+      // Use setTimeout to add a small delay before processing
+      // This helps prevent rate limiting issues when multiple subscriptions are queued at once
+      setTimeout(() => {
+        if (processQueueRef.current) {
+          processQueueRef.current();
+        }
+      }, 300);
     }
   }, [isAuthenticated]);
 

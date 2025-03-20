@@ -65,7 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const subscriptionResult = await coinbaseApi.subscribeToFeed(data);
         
         // Send result back to client
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === 1) { // WebSocket.OPEN = 1
           ws.send(JSON.stringify(subscriptionResult));
         }
         
@@ -99,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === 1) { // WebSocket.OPEN = 1
           ws.send(JSON.stringify({ error: 'Invalid message format' }));
         }
       }
@@ -113,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Forward real-time data from Coinbase to connected clients
   coinbaseApi.onMessage((data) => {
     wss.clients.forEach((client) => {
-      if (client.readyState === client.OPEN) {
+      if (client.readyState === 1) { // client.OPEN = 1
         client.send(JSON.stringify(data));
       }
     });

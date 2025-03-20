@@ -187,32 +187,49 @@ export function useMarketData(productId: string) {
     });
   }, []);
   
-  // Subscribe to relevant feeds when connected
+  // Subscribe to relevant feeds when connected with rate limiting
   React.useEffect(() => {
     if (!isConnected || !productId) return;
     
-    // Subscribe to order book updates
+    // Start with order book updates (most important)
+    console.log(`Subscribing to market data for ${productId} with rate limiting`);
+    
     subscribe({
       type: 'subscribe',
       product_ids: [productId],
       channel: 'level2'
     });
     
-    // Subscribe to ticker updates
-    subscribe({
-      type: 'subscribe',
-      product_ids: [productId],
-      channel: 'ticker'
-    });
+    // Add delays between subscriptions to avoid rate limiting
+    // Subscribe to ticker updates after a delay
+    const tickerTimeout = setTimeout(() => {
+      if (isConnected) {
+        subscribe({
+          type: 'subscribe',
+          product_ids: [productId],
+          channel: 'ticker'
+        });
+      }
+    }, 2000);
     
-    // Subscribe to matches (trades)
-    subscribe({
-      type: 'subscribe',
-      product_ids: [productId],
-      channel: 'matches'
-    });
+    // Subscribe to matches (trades) after a longer delay
+    const matchesTimeout = setTimeout(() => {
+      if (isConnected) {
+        subscribe({
+          type: 'subscribe',
+          product_ids: [productId],
+          channel: 'matches'
+        });
+      }
+    }, 4000);
     
     setIsLoading(false);
+    
+    // Clean up timeouts if component unmounts or productId changes
+    return () => {
+      clearTimeout(tickerTimeout);
+      clearTimeout(matchesTimeout);
+    };
   }, [isConnected, productId, subscribe]);
   
   // Process incoming WebSocket messages
