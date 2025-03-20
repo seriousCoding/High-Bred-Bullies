@@ -215,11 +215,10 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   const initiateOAuthFlow = async () => {
     try {
       console.log("---------------------------------------------");
-      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA SERVER PROXY");
+      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA HTML REDIRECT PAGE");
       console.log("Will redirect to:", REDIRECT_URI);
       
-      // Use server-side proxy to generate the OAuth URL
-      // This helps avoid CORS/connection issues by having the server make the initial request
+      // First get the OAuth URL from the server
       const response = await fetch(`/api/oauth/init?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`);
       
       if (!response.ok) {
@@ -229,19 +228,16 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
       }
       
       const data = await response.json();
+      console.log("Received OAuth URL and state from server");
       
-      // Store the state for CSRF protection
-      localStorage.setItem(OAUTH_STATE_KEY, data.state);
+      // Instead of directly redirecting to Coinbase (which might be blocked),
+      // redirect to our server-side HTML page that will handle the Coinbase redirect
+      const redirectUrl = `/auth/redirect?auth_url=${encodeURIComponent(data.auth_url)}&state=${encodeURIComponent(data.state)}`;
       
-      console.log("Received OAuth URL from server");
-      console.log("Starting OAuth flow with state:", data.state.substring(0, 5) + "...");
+      console.log("Redirecting to intermediary HTML page:", redirectUrl);
       
-      // Redirect user to authorization page
-      const authUrl = data.auth_url;
-      console.log("Redirecting to authorization URL:", authUrl.substring(0, 60) + "...");
-      
-      // Redirect user to authorization page
-      window.location.href = authUrl;
+      // Redirect to our HTML page which will then redirect to Coinbase
+      window.location.href = redirectUrl;
     } catch (error) {
       console.error("---------------------------------------------");
       console.error("OAUTH INITIALIZATION ERROR:");
