@@ -97,19 +97,17 @@ export function useWebSocket() {
       return;
     }
 
-    // Add authentication to subscription message if needed
-    if (message.type === "subscribe") {
-      // Add API key to subscription message
-      message.api_key = apiKey || '';
-    }
-
+    // The authentication is handled by the server-side proxy
+    // We don't need to add authentication details to the client-side messages
+    // This prevents sensitive API keys from being exposed in the browser
+    
     // Send the message if socket is ready, otherwise queue it
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(message));
     } else {
       messageQueue.current.push(message);
     }
-  }, [isAuthenticated, apiKey]);
+  }, [isAuthenticated]);
 
   // Clear messages, useful when changing subscriptions
   const clearMessages = React.useCallback(() => {

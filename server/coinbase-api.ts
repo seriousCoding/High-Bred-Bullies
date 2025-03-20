@@ -52,7 +52,7 @@ class CoinbaseApiClient {
     }
   }
   
-  // Connect to WebSocket with authentication for Coinbase Advanced Trade API
+  // Connect to WebSocket with authentication for Coinbase Advanced Trade API using the SDK approach
   public connectWebSocket(apiKey: string, apiSecret: string) {
     // Store credentials for potential reconnection
     const storedApiKey = apiKey; 
@@ -64,58 +64,77 @@ class CoinbaseApiClient {
       this.ws = null;
     }
     
-    console.log('Connecting to Coinbase Advanced Trade WebSocket API');
+    console.log('Connecting to Coinbase Advanced Trade WebSocket API using SDK approach');
     this.ws = new WebSocket(WEBSOCKET_URL);
     
     this.ws.on('open', () => {
       console.log('WebSocket connection established to Coinbase Advanced Trade');
       
-      // Calculate the timestamp (seconds since Unix epoch)
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      
-      // Create the message to sign per Advanced Trade API docs
-      // Format: timestamp + HTTP method + requestPath
-      const signatureMessage = timestamp + 'GET' + '/ws';
-      
-      console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
-      
-      // Create the signature using HMAC-SHA256 and base64 encoding
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(signatureMessage)
-        .digest('base64');
-      
-      // First authenticate with the WebSocket
-      const authMessage = {
-        type: 'subscribe',
-        channel: 'user',
-        api_key: apiKey,
-        timestamp: timestamp,
-        signature: signature
-      };
-      
-      console.log('Sending WebSocket authentication message');
-      this.sendWsMessage(authMessage);
-      
-      // Also subscribe to market data for default products
-      const marketChannelsMessage = {
-        type: 'subscribe',
-        product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
-        channel: 'ticker'
-      };
-      
-      console.log('Subscribing to default ticker channels');
-      this.sendWsMessage(marketChannelsMessage);
-      
-      // Subscribe to order book for same products
-      const level2Message = {
-        type: 'subscribe',
-        product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
-        channel: 'level2'
-      };
-      
-      console.log('Subscribing to default level2 (order book) channels');
-      this.sendWsMessage(level2Message);
+      try {
+        // Calculate the timestamp (seconds since Unix epoch)
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        
+        // Create the message to sign per Advanced Trade API docs
+        // Format: timestamp + GET + /ws
+        const signatureMessage = timestamp + 'GET' + '/ws';
+        
+        console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
+        
+        // Create the signature using HMAC-SHA256 and base64 encoding
+        const signature = crypto
+          .createHmac('sha256', apiSecret)
+          .update(signatureMessage)
+          .digest('base64');
+        
+        // First authenticate with the WebSocket using channel: 'subscriptions'
+        const authMessage = {
+          type: 'subscribe',
+          channel: 'subscriptions',
+          api_key: apiKey,
+          timestamp: timestamp,
+          signature: signature
+        };
+        
+        console.log('Sending WebSocket authentication message with subscriptions channel');
+        this.sendWsMessage(authMessage);
+        
+        // Subscribe to market data for default products after authentication is sent
+        // No auth needed for public channels
+        const marketChannelsMessage = {
+          type: 'subscribe',
+          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+          channel: 'ticker'
+        };
+        
+        console.log('Subscribing to default ticker channels');
+        this.sendWsMessage(marketChannelsMessage);
+        
+        // Subscribe to order book for same products
+        const level2Message = {
+          type: 'subscribe',
+          product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+          channel: 'level2'
+        };
+        
+        console.log('Subscribing to default level2 (order book) channels');
+        this.sendWsMessage(level2Message);
+        
+        // Subscribe to the user channel for private data
+        // Using the SDK approach with proper authentication
+        const userChannelMessage = {
+          type: 'subscribe',
+          channel: 'user',
+          api_key: apiKey,
+          timestamp: timestamp,
+          signature: signature
+        };
+        
+        console.log('Subscribing to user channel with authentication');
+        this.sendWsMessage(userChannelMessage);
+        
+      } catch (error) {
+        console.error('Error setting up WebSocket authentication:', error);
+      }
     });
     
     this.ws.on('message', (data: Buffer) => {
