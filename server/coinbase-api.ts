@@ -52,45 +52,100 @@ class CoinbaseApiClient {
     }
   }
   
-  // Connect to WebSocket with authentication
+  // Connect to WebSocket with authentication for Coinbase Advanced Trade API
   public connectWebSocket(apiKey: string, apiSecret: string) {
+    // Store credentials for potential reconnection
+    const storedApiKey = apiKey; 
+    const storedApiSecret = apiSecret;
+    
     if (this.ws) {
+      console.log('Closing existing WebSocket connection');
       this.ws.close();
+      this.ws = null;
     }
     
+    console.log('Connecting to Coinbase Advanced Trade WebSocket API');
     this.ws = new WebSocket(WEBSOCKET_URL);
     
     this.ws.on('open', () => {
-      console.log('WebSocket connection established');
+      console.log('WebSocket connection established to Coinbase Advanced Trade');
       
-      // For Coinbase Exchange WebSocket API
-      const timestamp = Date.now() / 1000;
-      const message = timestamp + 'GET' + '/users/self/verify';
+      // Calculate the timestamp (seconds since Unix epoch)
+      const timestamp = Math.floor(Date.now() / 1000).toString();
       
+      // Create the message to sign per Advanced Trade API docs
+      // Format: timestamp + HTTP method + requestPath
+      const signatureMessage = timestamp + 'GET' + '/ws';
+      
+      console.log(`Creating WebSocket auth signature with message: ${signatureMessage}`);
+      
+      // Create the signature using HMAC-SHA256 and base64 encoding
       const signature = crypto
-        .createHmac('sha256', Buffer.from(apiSecret, 'base64'))
-        .update(message)
+        .createHmac('sha256', apiSecret)
+        .update(signatureMessage)
         .digest('base64');
       
-      // Send authentication message (subscribe to heartbeat channel for connection verification)
+      // First authenticate with the WebSocket
       const authMessage = {
         type: 'subscribe',
-        product_ids: ['BTC-USD'], // Add default subscription to Bitcoin
-        channels: ['heartbeat', 'ticker'],
-        key: apiKey,
-        timestamp: timestamp.toString(),
-        passphrase: '',  // Passphrase is required for some exchange accounts
+        channel: 'user',
+        api_key: apiKey,
+        timestamp: timestamp,
         signature: signature
       };
       
+      console.log('Sending WebSocket authentication message');
       this.sendWsMessage(authMessage);
+      
+      // Also subscribe to market data for default products
+      const marketChannelsMessage = {
+        type: 'subscribe',
+        product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+        channel: 'ticker'
+      };
+      
+      console.log('Subscribing to default ticker channels');
+      this.sendWsMessage(marketChannelsMessage);
+      
+      // Subscribe to order book for same products
+      const level2Message = {
+        type: 'subscribe',
+        product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+        channel: 'level2'
+      };
+      
+      console.log('Subscribing to default level2 (order book) channels');
+      this.sendWsMessage(level2Message);
     });
     
     this.ws.on('message', (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString());
+        const messageStr = data.toString();
+        const message = JSON.parse(messageStr);
+        
+        // Don't log ticker updates as they come frequently
+        if (!message.channel || message.channel !== 'ticker') {
+          console.log(`Received WebSocket message: ${messageStr.substring(0, 200)}...`);
+        }
+        
+        // Handle subscription success/failure
+        if (message.type === 'subscriptions') {
+          console.log(`WebSocket subscriptions confirmed: ${JSON.stringify(message)}`);
+        }
+        
+        // Handle errors
+        if (message.type === 'error') {
+          console.error(`WebSocket error message: ${JSON.stringify(message)}`);
+        }
+        
         // Notify all message handlers
-        this.messageHandlers.forEach(handler => handler(message));
+        this.messageHandlers.forEach(handler => {
+          try {
+            handler(message);
+          } catch (handlerError) {
+            console.error('Error in WebSocket message handler:', handlerError);
+          }
+        });
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
       }
@@ -100,15 +155,21 @@ class CoinbaseApiClient {
       console.error('WebSocket error:', error);
     });
     
-    this.ws.on('close', () => {
-      console.log('WebSocket connection closed');
+    this.ws.on('close', (code, reason) => {
+      console.log(`WebSocket connection closed with code ${code}: ${reason}`);
       
-      // Attempt to reconnect after a delay
+      // Implement reconnection logic with exponential backoff
+      let reconnectDelay = 5000; // Start with 5 seconds
+      
+      console.log(`Attempting to reconnect WebSocket in ${reconnectDelay/1000} seconds`);
       setTimeout(() => {
-        if (apiKey && apiSecret) {
-          this.connectWebSocket(apiKey, apiSecret);
+        if (storedApiKey && storedApiSecret) {
+          console.log('Reconnecting WebSocket with stored credentials');
+          this.connectWebSocket(storedApiKey, storedApiSecret);
+        } else {
+          console.log('Cannot reconnect WebSocket, no stored credentials');
         }
-      }, 5000);
+      }, reconnectDelay);
     });
   }
   
