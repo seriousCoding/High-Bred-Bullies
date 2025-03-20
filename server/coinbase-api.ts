@@ -602,151 +602,23 @@ class CoinbaseApiClient {
     }
   }
   
-  // Helper method to create fallback products if all APIs fail
+  // This method has been removed to ensure we only use authentic data from Coinbase API
   private getFallbackProducts(): Product[] {
-    console.log('Using completely static fallback product data');
-    
-    // Create static fallback data for major cryptocurrencies
-    const fallbackProducts: Product[] = [
-      {
-        product_id: 'BTC-USD',
-        price: '86000',
-        price_percentage_change_24h: '2.5',
-        volume_24h: '1200000000',
-        volume_percentage_change_24h: '5.2',
-        base_increment: '0.00000001',
-        quote_increment: '0.01',
-        quote_min_size: '1.00',
-        quote_max_size: '1000000.00',
-        base_min_size: '0.0001',
-        base_max_size: '10000.0',
-        base_name: 'BTC',
-        quote_name: 'USD',
-        status: 'online',
-        cancel_only: false,
-        limit_only: false,
-        post_only: false,
-        trading_disabled: false
-      },
-      {
-        product_id: 'ETH-USD',
-        price: '4000',
-        price_percentage_change_24h: '1.8',
-        volume_24h: '800000000',
-        volume_percentage_change_24h: '3.7',
-        base_increment: '0.00000001',
-        quote_increment: '0.01',
-        quote_min_size: '1.00',
-        quote_max_size: '1000000.00',
-        base_min_size: '0.001',
-        base_max_size: '10000.0',
-        base_name: 'ETH',
-        quote_name: 'USD',
-        status: 'online',
-        cancel_only: false,
-        limit_only: false,
-        post_only: false,
-        trading_disabled: false
-      },
-      {
-        product_id: 'SOL-USD',
-        price: '135',
-        price_percentage_change_24h: '3.2',
-        volume_24h: '350000000',
-        volume_percentage_change_24h: '7.1',
-        base_increment: '0.00000001',
-        quote_increment: '0.01',
-        quote_min_size: '1.00',
-        quote_max_size: '1000000.00',
-        base_min_size: '0.01',
-        base_max_size: '10000.0',
-        base_name: 'SOL',
-        quote_name: 'USD',
-        status: 'online',
-        cancel_only: false,
-        limit_only: false,
-        post_only: false,
-        trading_disabled: false
-      }
-    ];
-    
-    // Add more cryptocurrencies to the fallback list
-    fallbackProducts.push(
-      {
-        product_id: 'XRP-USD',
-        price: '0.50',
-        price_percentage_change_24h: '1.1',
-        volume_24h: '120000000',
-        volume_percentage_change_24h: '2.3',
-        base_increment: '0.00000001',
-        quote_increment: '0.0001',
-        quote_min_size: '1.00',
-        quote_max_size: '1000000.00',
-        base_min_size: '1',
-        base_max_size: '1000000.0',
-        base_name: 'XRP',
-        quote_name: 'USD',
-        status: 'online',
-        cancel_only: false,
-        limit_only: false,
-        post_only: false,
-        trading_disabled: false
-      },
-      {
-        product_id: 'ADA-USD',
-        price: '0.45',
-        price_percentage_change_24h: '0.9',
-        volume_24h: '90000000',
-        volume_percentage_change_24h: '1.8',
-        base_increment: '0.00000001',
-        quote_increment: '0.0001',
-        quote_min_size: '1.00',
-        quote_max_size: '1000000.00',
-        base_min_size: '1',
-        base_max_size: '1000000.0',
-        base_name: 'ADA',
-        quote_name: 'USD',
-        status: 'online',
-        cancel_only: false,
-        limit_only: false,
-        post_only: false,
-        trading_disabled: false
-      }
-    );
-    
-    return fallbackProducts;
+    console.error('Fallback product data has been disabled to ensure data integrity');
+    throw new Error('Fallback product data is not available. Only authentic Coinbase data can be used.');
   }
   
-  // Helper method to add realistic price data to products when CoinGecko fails
+  // This method has been removed to ensure we only use authentic data from Coinbase API
   private enrichProductsWithFallbackPrices(exchangeProducts: any[]): Product[] {
-    console.log('Enriching Coinbase Exchange products with fallback price data');
+    console.error('Fallback price data has been disabled to ensure data integrity');
     
-    // Create a map of fallback prices for major cryptocurrencies
-    const fallbackPrices = new Map<string, any>([
-      ['BTC', { price: '86000', change: '2.5', volume: '1200000000' }],
-      ['ETH', { price: '4000', change: '1.8', volume: '800000000' }],
-      ['SOL', { price: '135', change: '3.2', volume: '350000000' }],
-      ['XRP', { price: '0.50', change: '1.1', volume: '120000000' }],
-      ['ADA', { price: '0.45', change: '0.9', volume: '90000000' }],
-      ['DOGE', { price: '0.10', change: '1.5', volume: '70000000' }],
-      ['LINK', { price: '15.20', change: '2.2', volume: '110000000' }],
-      ['DOT', { price: '6.80', change: '1.7', volume: '85000000' }],
-      ['LTC', { price: '75.50', change: '0.8', volume: '60000000' }],
-      ['UNI', { price: '7.20', change: '2.1', volume: '45000000' }],
-      ['MATIC', { price: '0.65', change: '1.4', volume: '55000000' }]
-    ]);
-    
-    // Convert to our standardized format with fallback pricing
+    // Return products with zeros for unknown price data instead of fallback values
     return exchangeProducts.map((product: any) => {
-      const baseCurrency = product.base_currency?.toUpperCase() || '';
-      // Find fallback price data
-      const fallbackData = fallbackPrices.get(baseCurrency);
-      
       return {
         product_id: product.id || '',
-        price: fallbackData ? fallbackData.price : '0',
-        price_percentage_change_24h: fallbackData ? fallbackData.change : '0',
-        volume_24h: fallbackData ? fallbackData.volume : '0',
+        price: '0', // Only use real price data from the API
+        price_percentage_change_24h: '0',
+        volume_24h: '0',
         volume_percentage_change_24h: '0',
         base_increment: product.base_increment || '0.00000001',
         quote_increment: product.quote_increment || '0.01',
@@ -976,7 +848,8 @@ class CoinbaseApiClient {
       }));
     } catch (error) {
       console.error(`Error fetching candles for ${productId} with SDK:`, error);
-      return [];
+      // Instead of returning empty data, throw the error to be consistent with our data integrity policy
+      throw new Error(`Failed to fetch authentic candle data from Coinbase for ${productId}`);
     }
   }
   
@@ -1264,9 +1137,10 @@ class CoinbaseApiClient {
       
       // Convert to our standardized format
       return response.orders.map((order: any) => this.convertAdvancedOrderToStandardOrder(order));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching orders:', error);
-      return [];
+      // Instead of returning empty data, throw the error to be consistent with our data integrity policy
+      throw new Error(`Failed to fetch authentic order data from Coinbase: ${error.message || 'Unknown error'}`);
     }
   }
   
@@ -1496,7 +1370,8 @@ class CoinbaseApiClient {
       }));
     } catch (error) {
       console.error('Error fetching fills:', error);
-      return [];
+      // Instead of returning empty data, throw the error to be consistent with our data integrity policy
+      throw new Error(`Failed to fetch authentic fill data from Coinbase: ${error.message}`);
     }
   }
   
