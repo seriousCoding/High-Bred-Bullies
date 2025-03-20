@@ -31,15 +31,15 @@ export default function Dashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-white mb-2">Connect Your API Keys</h2>
+                <h2 className="text-xl font-semibold text-white mb-2">Connect Your Coinbase Account</h2>
                 <p className="text-gray-400 mb-4">
-                  To use the Coinbase trading dashboard, you need to connect your Coinbase Advanced Trade API keys. These keys allow secure access to your account data.
+                  To use the Coinbase trading dashboard, you need to authorize access to your Coinbase account. This secure OAuth connection allows you to view and manage your trading data.
                 </p>
                 <Button
                   className="bg-[#0052FF] hover:bg-blue-600 text-white"
                   onClick={() => setIsApiKeyModalOpen(true)}
                 >
-                  Connect API Keys
+                  Connect with Coinbase
                 </Button>
               </div>
             </div>
