@@ -62,21 +62,22 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     checkForOAuthResponse();
   }, []);
   
-  // Check if current URL contains OAuth response or if we have a stored code in localStorage
+  // Check if current URL contains OAuth response
   const checkForOAuthResponse = () => {
-    // We'll let the OAuthCallback component handle the actual URL parameters
-    // to avoid conflicting token exchanges
-    
-    // Check if we have a stored code in localStorage that hasn't been processed yet
-    const storedCode = localStorage.getItem("oauth_code");
-    
-    if (storedCode && window.location.pathname !== "/auth/callback") {
-      console.log("Found stored OAuth code in localStorage that needs processing");
-      // Exchange code for token
-      exchangeCodeForToken(storedCode);
+    if (window.location.pathname === "/auth/callback") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+      const savedState = localStorage.getItem(OAUTH_STATE_KEY);
       
-      // Clean up oauth code from localStorage to prevent reuse
-      localStorage.removeItem("oauth_code");
+      // Verify state to prevent CSRF attacks
+      if (code && state && state === savedState) {
+        // Clean up the state
+        localStorage.removeItem(OAUTH_STATE_KEY);
+        
+        // Exchange code for token
+        exchangeCodeForToken(code);
+      }
     }
   };
   
@@ -205,16 +206,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
     setAccessToken(null);
     setRefreshToken(null);
     setExpiresAt(null);
-    
-    // Clear tokens from localStorage
     localStorage.removeItem("trading_access_token");
     localStorage.removeItem("trading_refresh_token");
     localStorage.removeItem("trading_expires_at");
-    
-    // Also clear any OAuth-related data that might be lingering
-    localStorage.removeItem("oauth_code");
-    localStorage.removeItem("auth_state_key");
-    sessionStorage.removeItem("auth_state_key");
   };
   
   // Initiate OAuth login flow
@@ -258,9 +252,7 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
             console.log("Received redirect URL from proxy, redirecting to enhanced redirect page...");
             
             // Store state for CSRF protection
-            // Store state in both localStorage and sessionStorage for redundancy
             localStorage.setItem("auth_state_key", data.state);
-            sessionStorage.setItem("auth_state_key", data.state);
             
             // Use our server-side redirect page instead of trying direct navigation
             const useServerRedirect = true;

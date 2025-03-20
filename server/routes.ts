@@ -29,15 +29,7 @@ const coinbaseAxios = axios.create({
   timeout: 30000, // 30 seconds
   httpsAgent: new https.Agent({ 
     rejectUnauthorized: false  // This is a workaround for certificate validation issues
-  }),
-  headers: {
-    // Make the requests appear more browser-like
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'no-cache',
-    'Pragma': 'no-cache'
-  }
+  })
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -656,10 +648,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log("Initializing OAuth with redirect URI:", redirectUri);
       
-      // Create authorization URL using the proper format
-      // Generate URL for authentication based on Coinbase documentation
+      // Create authorization URL - exactly as specified in the Coinbase docs
+      const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
+      authUrl.searchParams.append("response_type", "code");
+      authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
+      authUrl.searchParams.append("redirect_uri", redirectUri);
+      authUrl.searchParams.append("state", state);
       
-      // Define the scopes needed for the application
+      // Add required scopes - using comma separation as specified in the docs
       const scopes = [
         "wallet:accounts:read",
         "wallet:user:read",
@@ -669,39 +665,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "wallet:payment-methods:read",
         "wallet:addresses:read",
         "wallet:orders:read",
-        "wallet:orders:create", 
+        "wallet:orders:create",
         "wallet:orders:update",
         "wallet:trades:read",
         "offline_access"
       ];
-      
-      // Check the client's user agent to determine optimal strategy
-      const userAgent = req.headers['user-agent'] || '';
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-      
-      // Start with the preferred URL format
-      let authUrlString = '';
-      
-      if (isMobile) {
-        // Mobile devices often have fewer redirect/cookie issues with direct login URL
-        const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
-        authUrl.searchParams.append("response_type", "code");
-        authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
-        authUrl.searchParams.append("redirect_uri", redirectUri);
-        authUrl.searchParams.append("state", state);
-        authUrl.searchParams.append("scope", scopes.join(" "));
-        authUrlString = authUrl.toString();
-      } else {
-        // For desktop browsers, the classic URL sometimes works better with ad-blockers and privacy plugins
-        authUrlString = `https://www.coinbase.com/oauth/authorize?client_id=${encodeURIComponent(COINBASE_OAUTH_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes.join(" "))}&state=${encodeURIComponent(state)}`;
-      }
+      authUrl.searchParams.append("scope", scopes.join(","));
       
       // Return auth URL and state
-      console.log("Generated OAuth URL:", authUrlString.substring(0, 60) + "...");
+      console.log("Generated OAuth URL:", authUrl.toString().substring(0, 60) + "...");
       console.log("---------------------------------------------");
       
       res.json({ 
-        auth_url: authUrlString,
+        auth_url: authUrl.toString(),
         state
       });
     } catch (error) {
@@ -710,274 +686,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // OAuth callback endpoint - This is where Coinbase will redirect after user authorizes
-  app.get('/auth/callback', async (req: Request, res: Response) => {
-    try {
-      console.log('---------------------------------------------');
-      console.log('OAUTH CALLBACK RECEIVED');
-      console.log('Received callback params:', req.query);
-
-      const code = req.query.code as string;
-      const state = req.query.state as string;
-      const error = req.query.error as string;
-      const errorDescription = req.query.error_description as string;
-
-      // Redirect URL for sending the user back to our app
-      const frontendUrl = `${req.protocol}://${req.get('host')}`;
-      const redirectUri = `${frontendUrl}/auth/callback`;
-      
-      // If there was an error from Coinbase, redirect to error page
-      if (error) {
-        console.error('OAuth error from provider:', error);
-        console.error('Error description:', errorDescription);
-        return res.redirect(`${frontendUrl}/?error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`);
-      }
-
-      // Validate we received the required code and state
-      if (!code || !state) {
-        console.error('Missing code or state in callback');
-        return res.redirect(`${frontendUrl}/?error=invalid_callback&error_description=${encodeURIComponent('Missing required parameters')}`);
-      }
-
-      console.log('Received auth code and state. Processing...');
-      
-      // Option 1: Serve an HTML page with embedded code/state that will complete the flow client-side
-      // This is more reliable as it allows us to store state client-side
-      const callbackHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Authentication Complete</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #0D0D0D;
-            color: #FFFFFF;
-            text-align: center;
-            padding: 40px 20px;
-            line-height: 1.6;
-          }
-          .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #1A1A1A;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          h1 {
-            color: #FFFFFF;
-            font-size: 24px;
-            margin-bottom: 20px;
-          }
-          p {
-            color: #CCCCCC;
-            margin-bottom: 25px;
-          }
-          .loader {
-            border: 4px solid #3a3a3a;
-            border-top: 4px solid #0052FF;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1.5s linear infinite;
-            margin: 20px auto;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="loader"></div>
-          <h1>Authentication Successful</h1>
-          <p>Completing your login, please wait...</p>
-        </div>
-        
-        <script>
-          // Store the OAuth code and state temporarily in localStorage 
-          localStorage.setItem('oauth_code', '${code}');
-          
-          // First try to redirect to the callback page in our SPA
-          window.location.href = '/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}';
-          
-          // Backup: If the first redirect doesn't work (due to SPA routing issues),
-          // Try again after a short delay with a different approach
-          setTimeout(() => {
-            if (window.location.pathname !== '/auth/callback') {
-              // If we're still not on the callback page, try a manual token exchange
-              // by redirecting to a different route that's not intercepted by the SPA router
-              window.location.href = '/oauth-complete?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}';
-            }
-          }, 2000);
-        </script>
-      </body>
-      </html>
-      `;
-      
-      // Create a more user-friendly HTML that clearly displays the code
-      const codeDisplayHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Authentication Code</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #0D0D0D;
-            color: #FFFFFF;
-            text-align: center;
-            padding: 40px 20px;
-            line-height: 1.6;
-          }
-          .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #1A1A1A;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          h1 {
-            color: #FFFFFF;
-            font-size: 24px;
-            margin-bottom: 20px;
-          }
-          p {
-            color: #CCCCCC;
-            margin-bottom: 25px;
-          }
-          .code-display {
-            background-color: #0D0D0D;
-            border: 1px solid #3A3A3A;
-            border-radius: 4px;
-            padding: 15px;
-            margin: 20px 0;
-            font-family: monospace;
-            font-size: 18px;
-            word-break: break-all;
-            color: #0052FF;
-            text-align: center;
-          }
-          .button {
-            background-color: #0052FF;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            margin: 10px 5px;
-            transition: background-color 0.2s;
-          }
-          .button:hover {
-            background-color: #0039B3;
-          }
-          .button.secondary {
-            background-color: #3A3A3A;
-          }
-          .button.secondary:hover {
-            background-color: #505050;
-          }
-          .success-icon {
-            color: #0052FF;
-            font-size: 48px;
-            margin-bottom: 20px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="success-icon">✓</div>
-          <h1>Authentication Successful</h1>
-          <p>Please copy the authorization code below and paste it into the app:</p>
-          
-          <div class="code-display" id="authCode">${code}</div>
-          
-          <button class="button" id="copyButton">Copy Code</button>
-          <button class="button secondary" id="returnButton">Return to App</button>
-        </div>
-        
-        <script>
-          // Copy code to clipboard
-          document.getElementById('copyButton').addEventListener('click', function() {
-            const codeEl = document.getElementById('authCode');
-            const code = codeEl.innerText;
-            
-            // Try the modern clipboard API first
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(code)
-                .then(() => {
-                  this.innerText = 'Copied!';
-                  setTimeout(() => { this.innerText = 'Copy Code'; }, 2000);
-                })
-                .catch(err => {
-                  console.error('Could not copy text with Clipboard API:', err);
-                  // Fall back to the older method
-                  fallbackCopy();
-                });
-            } else {
-              // Fall back to the older method for browsers that don't support clipboard API
-              fallbackCopy();
-            }
-            
-            // Fallback copy method
-            function fallbackCopy() {
-              const selection = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(codeEl);
-              selection.removeAllRanges();
-              selection.addRange(range);
-              
-              try {
-                document.execCommand('copy');
-                document.getElementById('copyButton').innerText = 'Copied!';
-                setTimeout(() => { 
-                  document.getElementById('copyButton').innerText = 'Copy Code'; 
-                }, 2000);
-              } catch (err) {
-                console.error('execCommand Error:', err);
-                document.getElementById('copyButton').innerText = 'Failed to copy';
-                alert('Please select and copy the code manually');
-              }
-              
-              selection.removeAllRanges();
-            }
-          });
-          
-          // Return to app
-          document.getElementById('returnButton').addEventListener('click', function() {
-            window.location.href = '${frontendUrl}';
-          });
-        </script>
-      </body>
-      </html>
-      `;
-      
-      // Serve the user-friendly HTML page
-      res.send(codeDisplayHtml);
-    } catch (error) {
-      console.error('OAuth callback error:', error);
-      const frontendUrl = `${req.protocol}://${req.get('host')}`;
-      res.redirect(`${frontendUrl}/?error=server_error&error_description=${encodeURIComponent('Server error processing authentication')}`);
-    }
-  });
-  
-  // Additional route for handling OAuth completion when SPA routing fails
-  app.get('/oauth-complete', (req: Request, res: Response) => {
-    const frontendUrl = `${req.protocol}://${req.get('host')}`;
-    const code = req.query.code as string;
-    const state = req.query.state as string;
-    
-    console.log('Backup OAuth completion route activated');
-    // Redirect to main app with special flag to trigger the token exchange
-    res.redirect(`${frontendUrl}/?oauth=complete&code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
-  });
-
   app.post('/api/oauth/token', async (req: Request, res: Response) => {
     try {
       console.log('---------------------------------------------');
