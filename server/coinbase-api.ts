@@ -6,19 +6,33 @@ import {
   OrderSide, OrderTimeInForce
 } from '@shared/coinbase-api-types';
 import { WebSocket } from 'ws';
+import { Client as CoinbaseClient } from 'coinbase';
 
 // Coinbase API base URLs (updated to the Advanced Trade API)
 const REST_API_URL = 'https://api.coinbase.com/api/v3/brokerage';
+const EXCHANGE_API_URL = 'https://api.exchange.coinbase.com';
 const COINBASE_API_URL = 'https://api.coinbase.com/v2';
 const WEBSOCKET_URL = 'wss://advanced-trade-ws.coinbase.com';
 
 class CoinbaseApiClient {
   private ws: WebSocket | null = null;
   private messageHandlers: Array<(data: any) => void> = [];
+  private coinbaseClient: CoinbaseClient | null = null;
   
   constructor() {
     // Initialize WebSocket connection
     this.setupWebSocket();
+  }
+  
+  // Initialize Coinbase client with API credentials
+  private initCoinbaseClient(apiKey: string, apiSecret: string) {
+    this.coinbaseClient = new CoinbaseClient({ 
+      apiKey, 
+      apiSecret,
+      version: '2021-10-05' // Use a recent API version
+    });
+    console.log('Coinbase client initialized with API credentials');
+    return this.coinbaseClient;
   }
   
   // Set up WebSocket connection for real-time data
