@@ -360,6 +360,7 @@ export class CoinbaseClient {
   
   /**
    * Make a request to the Coinbase Core API (v2)
+   * This uses the simpler Coinbase Core API which has fewer permission requirements
    */
   public async coreRequest<T>(
     method: string,
@@ -374,6 +375,24 @@ export class CoinbaseClient {
       // Add authorization header if access token is provided (OAuth)
       if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
+        console.log(`Using OAuth token for Core API request: ${method} ${path}`);
+      } 
+      // Otherwise use API key auth if available
+      else if (this.hasCredentials()) {
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const message = timestamp + method + path + (data ? JSON.stringify(data) : '');
+        const signature = crypto
+          .createHmac('sha256', this.apiSecret!)
+          .update(message)
+          .digest('hex');
+        
+        headers['CB-ACCESS-KEY'] = this.apiKey!;
+        headers['CB-ACCESS-SIGN'] = signature;
+        headers['CB-ACCESS-TIMESTAMP'] = timestamp;
+        
+        console.log(`Created Core API signature for: ${method} ${path}`);
+      } else {
+        console.log(`Making unauthenticated Core API request: ${method} ${path}`);
       }
       
       const response = await coreApi.request({
@@ -387,6 +406,16 @@ export class CoinbaseClient {
       return response.data as T;
     } catch (error: any) {
       console.error(`Core API request failed: ${method} ${path}`, error.response?.data || error.message);
+      
+      // Handle common error cases with better messages
+      if (error.response?.status === 401) {
+        throw new Error(`Coinbase Core API authentication failed. Please check your API credentials.`);
+      } else if (error.response?.status === 403) {
+        throw new Error(`Coinbase Core API access denied. Your API key may not have the required permissions.`);
+      } else if (error.response?.status === 429) {
+        throw new Error(`Coinbase Core API rate limit exceeded. Please try again later.`);
+      }
+      
       throw new Error(`Coinbase Core API error: ${error.response?.data?.message || error.message}`);
     }
   }
