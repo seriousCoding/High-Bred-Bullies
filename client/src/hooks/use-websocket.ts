@@ -53,8 +53,8 @@ export function useWebSocket() {
 
   // Initialize WebSocket connection
   React.useEffect(() => {
-    if (!isAuthenticated || !apiKey) return;
-
+    // Allow WebSocket connection without authentication for public data channels
+    // This enables getting market data without requiring an API key
     const connectWebSocket = () => {
       setStatus("connecting");
       
@@ -124,9 +124,10 @@ export function useWebSocket() {
         console.log("WebSocket connection closed");
         setStatus("closed");
         
-        // Attempt to reconnect after a delay
+        // Always attempt to reconnect after a delay
+        // Public data channels should work even without authentication
         setTimeout(() => {
-          if (isAuthenticated && apiKey && !socketRef.current) {
+          if (!socketRef.current) {
             connectWebSocket();
           }
         }, 5000);
@@ -146,8 +147,12 @@ export function useWebSocket() {
   
   // Function to send subscription messages with rate limiting
   const subscribe = React.useCallback((message: WebSocketMessage) => {
-    if (!isAuthenticated) {
-      console.warn("Cannot subscribe: Not authenticated with Coinbase");
+    // Allow public data channels (ticker, level2) to work without authentication
+    const isPublicChannel = message.channel === 'ticker' || message.channel === 'level2' || message.channel === 'matches';
+    
+    // Only require authentication for user-specific data
+    if (!isPublicChannel && !isAuthenticated) {
+      console.warn(`Cannot subscribe to ${message.channel}: Not authenticated with Coinbase`);
       return;
     }
 
