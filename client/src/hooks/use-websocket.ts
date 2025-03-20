@@ -5,6 +5,9 @@ type WebSocketStatus = "connecting" | "open" | "closed" | "error";
 
 interface WebSocketMessage {
   type: string;
+  channel?: string;
+  channels?: string[];
+  product_ids?: string[];
   [key: string]: any;
 }
 
@@ -69,12 +72,12 @@ export function useWebSocket() {
         
         // According to Coinbase WebSocket API documentation, we need to send a subscription
         // within 5 seconds of connecting or the connection will be closed with "subscribe required" error
-        // We'll send two initial subscriptions to ensure the connection stays alive
+        // Send a heartbeat subscription immediately
         try {
           // First subscription - heartbeat channel (lightweight)
           const heartbeatSubscription = {
             type: 'subscribe',
-            channel: 'heartbeat',
+            channels: ['heartbeat'],
             product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
           };
           console.log("Sending required heartbeat subscription");
@@ -85,7 +88,7 @@ export function useWebSocket() {
             if (ws.readyState === WebSocket.OPEN) {
               const tickerSubscription = {
                 type: 'subscribe',
-                channel: 'ticker',
+                channels: ['ticker'],
                 product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
               };
               console.log("Sending ticker subscription to maintain connection");
@@ -98,7 +101,7 @@ export function useWebSocket() {
             if (ws.readyState === WebSocket.OPEN) {
               const level2Subscription = {
                 type: 'subscribe',
-                channel: 'level2',
+                channels: ['level2'],
                 product_ids: ['BTC-USD', 'ETH-USD', 'SOL-USD']
               };
               console.log("Sending level2 subscription for market data");
@@ -207,8 +210,24 @@ export function useWebSocket() {
     // We don't need to add authentication details to the client-side messages
     // This prevents sensitive API keys from being exposed in the browser
     
-    // Always queue messages for rate-limited processing
-    messageQueue.current.push(message);
+    // Convert the message to use the channels array format
+    const formattedMessage = {
+      ...message,
+      channels: [message.channel],
+    };
+    
+    // If the original message has a channel property, ensure we keep it for backward compatibility
+    if (!message.channels) {
+      // Remove the original channel property if we're using the channels array
+      const { channel, ...restOfMessage } = formattedMessage;
+      messageQueue.current.push({
+        ...restOfMessage,
+        channels: [channel],
+      });
+    } else {
+      // Message already has channels array
+      messageQueue.current.push(formattedMessage);
+    }
     
     // Start processing if not already doing so and socket is ready
     if (!isProcessingQueue.current && socketRef.current?.readyState === WebSocket.OPEN && processQueueRef.current) {
