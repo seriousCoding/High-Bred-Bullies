@@ -8,6 +8,9 @@ import { WebSocketServer } from 'ws';
 import axios from 'axios';
 import dotenv from 'dotenv';
 
+// Load environment variables
+dotenv.config();
+
 // OAuth configuration
 const COINBASE_OAUTH_CLIENT_ID = process.env.COINBASE_OAUTH_CLIENT_ID;
 const COINBASE_OAUTH_CLIENT_SECRET = process.env.COINBASE_OAUTH_CLIENT_SECRET;
