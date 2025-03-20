@@ -164,11 +164,12 @@ class CoinbaseApiClient {
     console.log(`Creating signature for: ${method} ${fullPath}`);
     console.log(`Signature message: ${timestamp} + ${method} + ${fullPath}`);
     
-    // Create the signature using HMAC-SHA256 and hex encoding
+    // Create the signature using HMAC-SHA256 and base64 encoding
+    // Advanced Trade API requires base64 encoding for the signature
     const signature = crypto
       .createHmac('sha256', apiSecret)
       .update(signatureMessage)
-      .digest('hex');
+      .digest('base64');
     
     // Return the headers required by Advanced Trade API
     return {
