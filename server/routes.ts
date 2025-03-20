@@ -500,67 +500,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       try {
+        console.log('Fetching accounts from Coinbase API...');
         const accounts = await coinbaseApi.getAccounts(apiKey, apiSecret);
-        return res.json(accounts);
+        
+        if (accounts && Array.isArray(accounts) && accounts.length > 0) {
+          console.log(`Successfully retrieved ${accounts.length} accounts from Coinbase`);
+          return res.json(accounts);
+        } else {
+          console.error('No accounts returned from Coinbase API');
+          return res.status(500).json({ 
+            message: 'No accounts found. Please check your API credentials and ensure they have the required permissions.'
+          });
+        }
       } catch (error) {
-        console.log('Authentication failed for accounts endpoint. Using sample data fallback...');
-        
-        // Get product data to build realistic account structure
-        const products = await coinbaseApi.getPublicProducts();
-        const topCurrencies = ['BTC', 'ETH', 'USDT', 'USD', 'XRP', 'SOL', 'ADA', 'DOGE', 'MATIC'];
-        
-        // Create demo accounts based on top currencies
-        const demoAccounts = topCurrencies.map((currency, index) => {
-          // Find matching product to get realistic data
-          const product = products.find(p => p.base_name.toUpperCase() === currency);
-          const price = product ? parseFloat(product.price) : 0;
-          
-          // Generate random realistic balance
-          let balance = '0';
-          switch (currency) {
-            case 'BTC':
-              balance = (0.1 + Math.random() * 0.5).toFixed(8);
-              break;
-            case 'ETH':
-              balance = (1 + Math.random() * 5).toFixed(6);
-              break;
-            case 'USD':
-            case 'USDT':
-              balance = (1000 + Math.random() * 5000).toFixed(2);
-              break;
-            default:
-              balance = (10 + Math.random() * 100).toFixed(4);
-          }
-          
-          return {
-            account_id: `demo-account-${index}`,
-            name: `${currency} Wallet`,
-            uuid: `demo-uuid-${index}`,
-            currency: currency,
-            available_balance: {
-              value: balance,
-              currency: currency
-            },
-            default: index === 0,
-            active: true,
-            created_at: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-            updated_at: new Date().toISOString(),
-            deleted_at: null,
-            type: 'WALLET',
-            ready: true,
-            hold: {
-              value: (parseFloat(balance) * 0.05).toFixed(8),
-              currency: currency
-            }
-          };
+        console.error('Authentication failed for accounts endpoint:', error);
+        return res.status(401).json({ 
+          message: 'Failed to authenticate with Coinbase. Please check your API credentials and ensure they have the required permissions.'
         });
-        
-        return res.json(demoAccounts);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
-      // Return empty array rather than error
-      res.json([]);
+      return res.status(500).json({ message: 'An error occurred while fetching accounts' });
     }
   });
 
@@ -593,6 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       try {
+        console.log('Fetching orders from Coinbase API...');
         const orders = await coinbaseApi.getOrders(
           apiKey, 
           apiSecret, 
@@ -600,15 +561,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           order_status as string, 
           limit as string
         );
-        return res.json(orders);
+        
+        if (orders && Array.isArray(orders)) {
+          console.log(`Successfully retrieved ${orders.length} orders from Coinbase`);
+          return res.json(orders);
+        } else {
+          console.error('No orders returned from Coinbase API');
+          return res.status(404).json({ 
+            message: 'No orders found. You may not have any open orders for this product.'
+          });
+        }
       } catch (error) {
-        console.log('Authentication failed for orders endpoint. Using empty fallback...');
-        // Return empty data to prevent UI errors
-        return res.json([]);
+        console.error('Authentication failed for orders endpoint:', error);
+        return res.status(401).json({ 
+          message: 'Failed to authenticate with Coinbase. Please check your API credentials and ensure they have the required permissions.'
+        });
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
-      res.json([]); // Return empty array rather than error
+      return res.status(500).json({ message: 'An error occurred while fetching orders' });
     }
   });
 
@@ -642,6 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       try {
+        console.log('Fetching fills from Coinbase API...');
         const fills = await coinbaseApi.getFills(
           apiKey, 
           apiSecret, 
@@ -649,48 +621,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           product_id as string, 
           limit as string
         );
-        return res.json(fills);
+        
+        if (fills && Array.isArray(fills)) {
+          console.log(`Successfully retrieved ${fills.length} fills from Coinbase`);
+          return res.json(fills);
+        } else {
+          console.error('No fills returned from Coinbase API');
+          return res.status(404).json({ 
+            message: 'No fills found. You may not have any trading history for this product.'
+          });
+        }
       } catch (authError) {
-        console.log('Authentication failed for fills endpoint. Using sample data fallback...');
-        
-        // Generate sample trade data for the requested product
-        // If no product_id specified, use BTC-USD as default
-        const targetProductId = product_id ? product_id.toString() : 'BTC-USD';
-        
-        // Get products to use realistic price data if possible
-        const products = await coinbaseApi.getPublicProducts();
-        const targetProduct = products.find(p => p.product_id === targetProductId) || 
-                              products.find(p => p.base_name === 'BTC') || 
-                              products[0];
-        
-        const basePrice = targetProduct ? parseFloat(targetProduct.price) : 50000; // Default BTC price if unavailable
-        
-        // Sample trades for the UI to display
-        const sampleFills = Array.from({ length: 10 }, (_, i) => {
-          const tradeTime = new Date(Date.now() - (i * 3600000)); // Each trade 1 hour apart
-          const side = i % 2 === 0 ? 'BUY' : 'SELL';
-          const priceVariation = (Math.random() * 0.05) - 0.025; // +/- 2.5%
-          const price = (basePrice * (1 + priceVariation)).toFixed(2);
-          const size = (0.01 + Math.random() * 0.2).toFixed(6); // Small BTC amount
-          
-          return {
-            trade_id: `sample-trade-${i}`,
-            product_id: targetProductId,
-            price: price,
-            size: size,
-            time: tradeTime.toISOString(),
-            side: side,
-            bid: (parseFloat(price) * 0.995).toFixed(2), // Approximate bid price 
-            ask: (parseFloat(price) * 1.005).toFixed(2)  // Approximate ask price
-          };
+        console.error('Authentication failed for fills endpoint:', authError);
+        return res.status(401).json({ 
+          message: 'Failed to authenticate with Coinbase. Please check your API credentials and ensure they have the required permissions.'
         });
-        
-        return res.json(sampleFills);
       }
     } catch (error) {
       console.error('Error fetching fills:', error);
-      // Return empty array instead of error for better UI handling
-      res.json([]);
+      return res.status(500).json({ message: 'An error occurred while fetching fills' });
     }
   });
 
