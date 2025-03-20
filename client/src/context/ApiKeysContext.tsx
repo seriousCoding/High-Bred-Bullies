@@ -258,61 +258,58 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
             const useRedirectDialog = true; // Enable this for environments where direct redirection is blocked
             
             if (useRedirectDialog) {
-              // Create a modal dialog to show the URL and instructions
-              const dialog = document.createElement('div');
-              dialog.style.position = 'fixed';
-              dialog.style.top = '0';
-              dialog.style.left = '0';
-              dialog.style.width = '100%';
-              dialog.style.height = '100%';
-              dialog.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-              dialog.style.zIndex = '9999';
-              dialog.style.display = 'flex';
-              dialog.style.justifyContent = 'center';
-              dialog.style.alignItems = 'center';
+              // Simply show an alert with the URL for now since dynamic DOM manipulation might be restricted
+              alert(`Direct navigation to Coinbase is blocked in this environment.\n\nPlease copy this URL and paste it into a new browser tab to continue:\n\n${proxyData.redirect_url}`);
               
-              const content = document.createElement('div');
-              content.style.backgroundColor = '#272a30';
-              content.style.borderRadius = '10px';
-              content.style.padding = '30px';
-              content.style.width = '90%';
-              content.style.maxWidth = '600px';
-              content.style.color = '#eaeaea';
-              content.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+              // Also log it to console for easy access
+              console.log("COINBASE LOGIN URL (copy and paste this in a new tab):", proxyData.redirect_url);
               
-              content.innerHTML = `
-                <h2 style="color: #0052FF; margin-top: 0; text-align: center;">Coinbase Login URL</h2>
-                <p style="margin-bottom: 20px; text-align: center;">
-                  Direct navigation to Coinbase is blocked in this environment. Please copy the URL below and paste it into a new browser tab to continue.
-                </p>
-                <div style="background: #1a1b1e; padding: 15px; border-radius: 5px; margin-bottom: 20px; word-break: break-all; font-family: monospace; font-size: 14px;">
-                  ${proxyData.redirect_url}
-                </div>
-                <div style="display: flex; justify-content: center; gap: 10px;">
-                  <button id="copy-url-btn" style="background-color: #0052FF; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Copy URL</button>
-                  <button id="try-redirect-btn" style="background-color: #444; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Try Direct Redirect</button>
-                  <button id="close-dialog-btn" style="background-color: #333; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">Close</button>
-                </div>
+              // Attempt to copy to clipboard
+              try {
+                navigator.clipboard.writeText(proxyData.redirect_url)
+                  .then(() => console.log("URL copied to clipboard!"))
+                  .catch(() => console.log("Could not automatically copy URL - please copy it manually"));
+              } catch (e) {
+                console.log("Could not access clipboard API");
+              }
+              
+              // Create a simple app-level alert
+              const alertDiv = document.createElement('div');
+              alertDiv.id = 'coinbase-url-alert';
+              alertDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: #272a30;
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 10000;
+                width: 90%;
+                max-width: 600px;
+                text-align: center;
               `;
               
-              dialog.appendChild(content);
-              document.body.appendChild(dialog);
+              alertDiv.innerHTML = `
+                <h3 style="color: #0052FF; margin-top: 0;">Coinbase Login URL</h3>
+                <p style="margin-bottom: 15px;">
+                  Direct navigation is blocked. Copy this URL and open in a new tab:
+                </p>
+                <textarea style="width: 100%; height: 60px; padding: 8px; margin-bottom: 15px; background: #1a1b1e; color: white; border: 1px solid #444; border-radius: 4px;">${proxyData.redirect_url}</textarea>
+                <p style="font-size: 12px; margin-top: 15px; color: #999;">This message will auto-close in 60 seconds</p>
+              `;
               
-              // Add event listeners for buttons
-              document.getElementById('copy-url-btn')?.addEventListener('click', () => {
-                navigator.clipboard.writeText(proxyData.redirect_url)
-                  .then(() => alert('Coinbase URL copied to clipboard!'))
-                  .catch(err => console.error('Could not copy URL: ', err));
-              });
+              // Add to DOM
+              document.body.appendChild(alertDiv);
               
-              document.getElementById('try-redirect-btn')?.addEventListener('click', () => {
-                window.open(proxyData.redirect_url, '_blank');
-                // Keep the dialog open in case it doesn't work
-              });
-              
-              document.getElementById('close-dialog-btn')?.addEventListener('click', () => {
-                document.body.removeChild(dialog);
-              });
+              // Auto-remove after 60 seconds
+              setTimeout(() => {
+                if (document.body.contains(alertDiv)) {
+                  document.body.removeChild(alertDiv);
+                }
+              }, 60000);
               
               return;
             }
