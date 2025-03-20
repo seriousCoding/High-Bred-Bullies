@@ -326,6 +326,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OAuth2 Flow Endpoints
   app.post('/api/oauth/token', async (req: Request, res: Response) => {
     try {
+      console.log('---------------------------------------------');
+      console.log('OAUTH TOKEN EXCHANGE - START');
+      console.log('Received request body:', JSON.stringify(req.body, null, 2));
+      
       const { code, redirect_uri } = req.body;
       
       if (!code || !redirect_uri) {
@@ -369,20 +373,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Return token response to client
       res.json(tokenResponse.data);
     } catch (error) {
+      console.error('---------------------------------------------');
+      console.error('OAUTH TOKEN EXCHANGE - ERROR');
       console.error('OAuth token exchange error:', error);
       
       // Get error details from axios error
       let errorMessage = 'Failed to exchange authorization code for token';
       let statusCode = 500;
+      let errorDetails = {};
       
-      if (axios.isAxiosError(error) && error.response) {
-        statusCode = error.response.status;
-        if (error.response.data && error.response.data.error_description) {
-          errorMessage = error.response.data.error_description;
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          headers: error.response?.headers,
+          data: error.response?.data
+        });
+        
+        if (error.response) {
+          statusCode = error.response.status;
+          errorDetails = error.response.data || {};
+          
+          if (error.response.data && error.response.data.error_description) {
+            errorMessage = error.response.data.error_description;
+          } else if (error.response.data && error.response.data.error) {
+            errorMessage = error.response.data.error;
+          }
         }
       }
       
-      res.status(statusCode).json({ message: errorMessage });
+      console.error('Responding with error:', {
+        statusCode,
+        errorMessage,
+        errorDetails
+      });
+      console.error('---------------------------------------------');
+      
+      res.status(statusCode).json({ 
+        message: errorMessage,
+        details: errorDetails
+      });
     }
   });
   
