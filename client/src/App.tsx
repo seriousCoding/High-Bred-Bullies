@@ -33,10 +33,10 @@ const RouterWithAuth = () => {
       {/* Routes that require user login but not API keys */}
       {user ? (
         <>
-          <Route path="/connect-coinbase" component={CoinbaseConnectPage} />
-          <Route path="/unified-auth" component={UnifiedAuthPage} />
-          <Route path="/api-key-auth" component={ApiKeyAuthPage} />
-          <Route path="/add-api-key" component={AddApiKeyPage} />
+          <Route path="/connect-coinbase">{() => <CoinbaseConnectPage />}</Route>
+          <Route path="/unified-auth">{() => <UnifiedAuthPage />}</Route>
+          <Route path="/api-key-auth">{() => <ApiKeyAuthPage />}</Route>
+          <Route path="/add-api-key">{() => <AddApiKeyPage />}</Route>
         </>
       ) : null}
       
@@ -59,22 +59,46 @@ function Router() {
   return (
     <Switch>
       {/* Public Routes - Always accessible */}
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/auth/callback" component={OAuthCallback} />
+      <Route path="/auth">
+        {(params) => <AuthPage {...params} />}
+      </Route>
+      <Route path="/auth/callback">
+        {(params) => <OAuthCallback {...params} />}
+      </Route>
       
       {/* All other routes should be protected and check for login */}
-      <Route path="/connect-coinbase" component={CoinbaseConnectPage} />
-      <Route path="/unified-auth" component={UnifiedAuthPage} />
-      <Route path="/api-key-auth" component={ApiKeyAuthPage} />
-      <Route path="/add-api-key" component={AddApiKeyPage} />
+      <Route path="/connect-coinbase">
+        {(params) => <CoinbaseConnectPage />}
+      </Route>
+      <Route path="/unified-auth">
+        {(params) => <UnifiedAuthPage />}
+      </Route>
+      <Route path="/api-key-auth">
+        {(params) => <ApiKeyAuthPage />}
+      </Route>
+      <Route path="/add-api-key">
+        {(params) => <AddApiKeyPage />}
+      </Route>
       
       {/* Dashboard and other pages */}
-      <Route path="/markets" component={Markets} />
-      <Route path="/portfolio" component={Portfolio} />
-      <Route path="/orders" component={Orders} />
-      <Route path="/history" component={History} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/" component={Dashboard} />
+      <Route path="/markets">
+        {(params) => <Markets {...params} />}
+      </Route>
+      <Route path="/portfolio">
+        {(params) => <Portfolio {...params} />}
+      </Route>
+      <Route path="/orders">
+        {(params) => <Orders {...params} />}
+      </Route>
+      <Route path="/history">
+        {(params) => <History {...params} />}
+      </Route>
+      <Route path="/settings">
+        {(params) => <Settings {...params} />}
+      </Route>
+      <Route path="/">
+        {(params) => <Dashboard {...params} />}
+      </Route>
     </Switch>
   );
 }
