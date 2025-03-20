@@ -29,7 +29,15 @@ const coinbaseAxios = axios.create({
   timeout: 30000, // 30 seconds
   httpsAgent: new https.Agent({ 
     rejectUnauthorized: false  // This is a workaround for certificate validation issues
-  })
+  }),
+  headers: {
+    // Make the requests appear more browser-like
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache'
+  }
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -648,36 +656,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log("Initializing OAuth with redirect URI:", redirectUri);
       
-      // Create authorization URL - exactly as specified in the Coinbase docs
-      const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
-      authUrl.searchParams.append("response_type", "code");
-      authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
-      authUrl.searchParams.append("redirect_uri", redirectUri);
-      authUrl.searchParams.append("state", state);
+      // Create authorization URL using the proper format as recommended
+      // Try using the old format first
+      const useOldFormat = true;
+      let authUrlString = "";
       
-      // Add required scopes - using comma separation as specified in the docs
-      const scopes = [
-        "wallet:accounts:read",
-        "wallet:user:read",
-        "wallet:buys:read",
-        "wallet:sells:read",
-        "wallet:transactions:read",
-        "wallet:payment-methods:read",
-        "wallet:addresses:read",
-        "wallet:orders:read",
-        "wallet:orders:create",
-        "wallet:orders:update",
-        "wallet:trades:read",
-        "offline_access"
-      ];
-      authUrl.searchParams.append("scope", scopes.join(","));
+      if (useOldFormat) {
+        // Try the old format as in the example doc (www.coinbase.com/oauth/authorize)
+        authUrlString = `https://www.coinbase.com/oauth/authorize?client_id=${encodeURIComponent(COINBASE_OAUTH_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+        
+        // Add required scopes 
+        const scopes = [
+          "wallet:accounts:read",
+          "wallet:user:read",
+          "wallet:buys:read",
+          "wallet:sells:read",
+          "wallet:transactions:read",
+          "wallet:payment-methods:read",
+          "wallet:addresses:read",
+          "wallet:orders:read",
+          "wallet:orders:create", 
+          "wallet:orders:update",
+          "wallet:trades:read",
+          "offline_access"
+        ];
+        authUrlString += `&scope=${encodeURIComponent(scopes.join(" "))}`;
+        authUrlString += `&state=${encodeURIComponent(state)}`;
+      } else {
+        // Use the new format with URL object (login.coinbase.com/oauth2/auth)
+        const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
+        authUrl.searchParams.append("response_type", "code");
+        authUrl.searchParams.append("client_id", COINBASE_OAUTH_CLIENT_ID);
+        authUrl.searchParams.append("redirect_uri", redirectUri);
+        authUrl.searchParams.append("state", state);
+        
+        // Add required scopes - try with space separation instead of comma
+        const scopes = [
+          "wallet:accounts:read",
+          "wallet:user:read",
+          "wallet:buys:read",
+          "wallet:sells:read",
+          "wallet:transactions:read",
+          "wallet:payment-methods:read",
+          "wallet:addresses:read",
+          "wallet:orders:read",
+          "wallet:orders:create",
+          "wallet:orders:update",
+          "wallet:trades:read",
+          "offline_access"
+        ];
+        authUrl.searchParams.append("scope", scopes.join(" "));
+        authUrlString = authUrl.toString();
+      }
       
       // Return auth URL and state
-      console.log("Generated OAuth URL:", authUrl.toString().substring(0, 60) + "...");
+      console.log("Generated OAuth URL:", authUrlString.substring(0, 60) + "...");
       console.log("---------------------------------------------");
       
       res.json({ 
-        auth_url: authUrl.toString(),
+        auth_url: authUrlString,
         state
       });
     } catch (error) {
