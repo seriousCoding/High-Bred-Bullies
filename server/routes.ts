@@ -365,7 +365,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "wallet:trades:read",
         "offline_access"
       ];
-      authUrl.searchParams.append("scope", scopes.join(","));
+      // According to docs, scope params should use '+' as separator rather than comma
+      authUrl.searchParams.append("scope", scopes.join("+"));
       
       // Return auth URL and state
       console.log("Generated OAuth URL:", authUrl.toString().substring(0, 60) + "...");
