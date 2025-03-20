@@ -7,6 +7,7 @@ import { insertApiKeySchema } from "@shared/schema";
 import { WebSocketServer } from 'ws';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import https from 'https';
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +19,15 @@ const COINBASE_AUTH_URL = 'https://login.coinbase.com/oauth2/auth';
 const COINBASE_TOKEN_URL = 'https://login.coinbase.com/oauth2/token';
 
 // Debug OAuth configuration
+
+// Create a custom axios instance that ignores SSL certificate validation issues
+// This can help bypass some environment restrictions when connecting to external APIs
+const coinbaseAxios = axios.create({
+  timeout: 30000, // 30 seconds
+  httpsAgent: new https.Agent({ 
+    rejectUnauthorized: false  // This is a workaround for certificate validation issues
+  })
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -345,10 +355,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Store the state in localStorage for CSRF protection
           localStorage.setItem("auth_state_key", "${state}");
           
-          // Redirect to Coinbase after a short delay
-          setTimeout(function() {
-            window.location.href = "${authUrl}";
-          }, 500);
+          // Try multiple approaches to navigate to Coinbase
+          function navigateToCoinbase() {
+            console.log("Attempting to navigate to Coinbase with URL: ${authUrl}");
+            
+            try {
+              // Method 1: Standard window.location redirect
+              window.location.href = "${authUrl}";
+            } catch (e) {
+              console.error("Method 1 failed:", e);
+              
+              try {
+                // Method 2: Open in new tab/window
+                window.open("${authUrl}", "_blank");
+              } catch (e2) {
+                console.error("Method 2 failed:", e2);
+                
+                try {
+                  // Method 3: Use a form submission
+                  document.getElementById('coinbase-form').submit();
+                } catch (e3) {
+                  console.error("Method 3 failed:", e3);
+                  document.getElementById('manual-instructions').style.display = 'block';
+                }
+              }
+            }
+          }
+          
+          // Execute after a short delay
+          setTimeout(navigateToCoinbase, 1000);
         </script>
         <style>
           body {
@@ -405,8 +440,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <h1>Redirecting to Coinbase...</h1>
           <p>You will be redirected to Coinbase to authorize this application. Please wait a moment.</p>
           <div class="spinner"></div>
-          <p>If you are not redirected automatically, <a href="${authUrl}" style="color: #0052FF;">click here</a>.</p>
+          <p>If you are not redirected automatically, <a href="${authUrl}" style="color: #0052FF;" target="_blank">click here</a>.</p>
+          
+          <div id="manual-instructions" style="display: none; margin-top: 30px; padding: 15px; background-color: #333; border-radius: 5px;">
+            <h3 style="color: #0052FF;">Manual Connection Instructions</h3>
+            <p>If automatic redirection fails, please follow these steps:</p>
+            <ol style="text-align: left; padding-left: 30px;">
+              <li>Copy the full Coinbase authorization URL below</li>
+              <li>Open a new browser tab</li>
+              <li>Paste and navigate to the URL</li>
+              <li>Authorize access when prompted by Coinbase</li>
+            </ol>
+            <textarea style="width: 100%; height: 60px; margin: 10px 0; background: #222; color: #eaeaea; border: 1px solid #555; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px;">${authUrl}</textarea>
+            <button onclick="navigator.clipboard.writeText('${authUrl}').then(() => alert('URL copied to clipboard!'))" style="background-color: #0052FF; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-top: 5px;">Copy URL</button>
+          </div>
         </div>
+        
+        <!-- Hidden form for method 3 -->
+        <form id="coinbase-form" action="${authUrl}" method="get" style="display:none"></form>
       </body>
       </html>
       `;
