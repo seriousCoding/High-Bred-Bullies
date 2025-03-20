@@ -13,7 +13,8 @@ export default function OAuthCallback() {
     // The actual token exchange is handled by ApiKeysContext
     
     // Comprehensive logging for debugging OAuth process
-    console.log("OAuth callback process starting");
+    console.log("---------------------------------------------");
+    console.log("OAUTH CALLBACK PROCESSING");
     console.log("Full callback URL:", window.location.href);
     console.log("Callback path:", window.location.pathname);
     console.log("Search params:", window.location.search);
@@ -25,6 +26,15 @@ export default function OAuthCallback() {
     const code = urlParams.get("code");
     const state = urlParams.get("state");
     const savedState = localStorage.getItem("auth_state_key");
+    
+    // Log details about what we found
+    console.log("OAuth callback parameter analysis:");
+    console.log("- error param:", errorParam || "not present");
+    console.log("- error_description:", errorDescription || "not present");
+    console.log("- code:", code ? `present (${code.length} characters)` : "not present");
+    console.log("- state:", state || "not present");
+    console.log("- saved state:", savedState ? `present (${savedState.length} characters)` : "not present");
+    console.log("- state match:", state === savedState ? "YES" : "NO");
     
     console.log("Received parameters:", {
       has_code: !!code,

@@ -84,27 +84,51 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   // Exchange authorization code for access token
   const exchangeCodeForToken = async (authCode: string) => {
     try {
-      console.log("Exchanging code for token with redirect URI:", REDIRECT_URI);
+      console.log("---------------------------------------------");
+      console.log("CLIENT-SIDE TOKEN EXCHANGE - START");
+      console.log("Exchanging code for token with:");
+      console.log("- Code length:", authCode.length);
+      console.log("- Redirect URI:", REDIRECT_URI);
+      console.log("- Client ID available:", !!CLIENT_ID);
       
+      const requestBody = {
+        code: authCode,
+        redirect_uri: REDIRECT_URI
+      };
+      
+      console.log("Request body structure:", JSON.stringify(requestBody, null, 2));
+      
+      console.log("Making fetch request to /api/oauth/token");
       const response = await fetch("/api/oauth/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          code: authCode,
-          redirect_uri: REDIRECT_URI
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log("Response status:", response.status, response.statusText);
+      
+      // Log only important headers to avoid the iteration error
+      console.log("Response content-type:", response.headers.get("content-type"));
+      
       const data = await response.json();
+      console.log("Response body structure:", Object.keys(data));
       
       if (!response.ok) {
-        console.error("Token exchange failed:", data);
+        console.error("TOKEN EXCHANGE FAILED");
+        console.error("Error details:", JSON.stringify(data, null, 2));
         throw new Error(data.message || "Failed to exchange code for token");
       }
       
-      console.log("Token exchange successful, received tokens");
+      console.log("TOKEN EXCHANGE SUCCESSFUL");
+      console.log("Received tokens with properties:", {
+        access_token_length: data.access_token ? data.access_token.length : 0,
+        refresh_token_length: data.refresh_token ? data.refresh_token.length : 0,
+        expires_in: data.expires_in,
+        token_type: data.token_type,
+        scope: data.scope
+      });
       
       saveTokens(
         data.access_token,
@@ -113,10 +137,17 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
         true // Always remember OAuth tokens
       );
       
+      console.log("Tokens saved successfully");
+      console.log("Redirecting to home page");
+      console.log("---------------------------------------------");
+      
       // Redirect to home page after successful login
       window.history.replaceState({}, document.title, "/");
     } catch (error) {
+      console.error("---------------------------------------------");
+      console.error("TOKEN EXCHANGE ERROR");
       console.error("Error exchanging code for token:", error);
+      console.error("---------------------------------------------");
     }
   };
   
@@ -182,12 +213,22 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   
   // Initiate OAuth login flow
   const initiateOAuthFlow = () => {
+    console.log("---------------------------------------------");
+    console.log("STARTING COINBASE OAUTH CONNECTION FLOW");
+    
     // Generate random state for CSRF protection
     const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     localStorage.setItem(OAUTH_STATE_KEY, state);
     
     console.log("Starting OAuth flow with state:", state.substring(0, 5) + "...");
     console.log("Will redirect to:", REDIRECT_URI);
+    
+    if (!CLIENT_ID) {
+      console.error("ERROR: Client ID is missing or empty");
+      console.error("Please ensure VITE_COINBASE_OAUTH_CLIENT_ID environment variable is set");
+      alert("OAuth configuration is incomplete. Please contact support.");
+      return;
+    }
     
     // Build authorization URL
     const authUrl = new URL("https://login.coinbase.com/oauth2/auth");
@@ -212,6 +253,7 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
       "offline_access"
     ];
     
+    console.log("Requesting the following scopes:", scopes.join(", "));
     authUrl.searchParams.append("scope", scopes.join(","));
     
     const finalUrl = authUrl.toString();

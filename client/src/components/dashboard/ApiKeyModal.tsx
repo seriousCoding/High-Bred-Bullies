@@ -33,7 +33,18 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
     setError("");
     
     try {
-      console.log("Starting Coinbase OAuth connection flow");
+      console.log("---------------------------------------------");
+      console.log("INITIATING OAUTH CONNECTION FROM MODAL");
+      
+      // Verify Coinbase client ID is available
+      const clientId = import.meta.env.VITE_COINBASE_OAUTH_CLIENT_ID;
+      if (!clientId) {
+        console.error("ERROR: Missing Coinbase OAuth client ID");
+        throw new Error("OAuth configuration is incomplete (missing client ID)");
+      }
+      
+      console.log("OAuth client configuration is present");
+      console.log("Redirect URI:", window.location.origin + "/auth/callback");
       
       // Start the OAuth flow - this will redirect to Coinbase
       initiateOAuthFlow();
@@ -41,7 +52,9 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
       // Note: The page will navigate away, so any code after initiateOAuthFlow()
       // won't execute unless there's an error that prevents navigation
     } catch (error) {
-      console.error('OAuth initiation error:', error);
+      console.error("---------------------------------------------");
+      console.error("OAUTH INITIATION ERROR");
+      console.error("Error initiating OAuth flow:", error);
       
       // Show detailed error to help with debugging
       let errorMessage = 'Failed to start authentication flow. Please try again.';
@@ -49,6 +62,9 @@ export default function ApiKeyModal({ isOpen, onClose }: ApiKeyModalProps) {
         errorMessage = `${error.name}: ${error.message}`;
         console.error('Error details:', error.stack);
       }
+      
+      console.error("Error message shown to user:", errorMessage);
+      console.error("---------------------------------------------");
       
       setError(errorMessage);
       setIsSubmitting(false);
