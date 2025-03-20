@@ -389,16 +389,16 @@ class CoinbaseApiClient {
   
   // Products API
   
-  // Public method that doesn't require authentication to get product list (no pricing data)
+  // Public method that doesn't require authentication to get product list - uses the Exchange API for public data
   public async getPublicProducts(): Promise<Product[]> {
     try {
-      console.log('Fetching products from Coinbase Advanced API...');
+      console.log('Fetching products from Coinbase Exchange API...');
       
-      // Use the public Coinbase API endpoint for basic product listing without authentication
-      const url = 'https://api.coinbase.com/api/v3/brokerage/products';
-      console.log(`Making request to: ${url}`);
+      // Use the Exchange API for public data instead of the Advanced Trade API which requires auth
+      const exchangeUrl = 'https://api.exchange.coinbase.com/products';
+      console.log(`Making request to public Exchange API: ${exchangeUrl}`);
       
-      const response = await fetch(url, {
+      const response = await fetch(exchangeUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -407,7 +407,7 @@ class CoinbaseApiClient {
       });
       
       // Log response details for debugging
-      console.log(`Product list response status: ${response.status}`);
+      console.log(`Exchange API response status: ${response.status}`);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -416,55 +416,83 @@ class CoinbaseApiClient {
       }
       
       const responseText = await response.text();
-      console.log(`Response body (preview): ${responseText.substring(0, 200)}...`);
+      console.log(`Exchange API response body (preview): ${responseText.substring(0, 200)}...`);
       
-      let responseData;
+      let exchangeProducts;
       try {
-        responseData = JSON.parse(responseText);
+        exchangeProducts = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse product list response:', parseError);
-        throw new Error('Invalid JSON response from Coinbase API');
+        console.error('Failed to parse Exchange API response:', parseError);
+        throw new Error('Invalid JSON response from Coinbase Exchange API');
       }
       
-      // Check the response format
-      if (!responseData || !responseData.products || !Array.isArray(responseData.products)) {
-        console.error('Unexpected response format from Coinbase API, missing products array');
-        throw new Error('Invalid response format from Coinbase API');
+      // Check the response format - Exchange API returns an array directly
+      if (!Array.isArray(exchangeProducts)) {
+        console.error('Unexpected response format from Coinbase Exchange API, expected array');
+        throw new Error('Invalid response format from Coinbase Exchange API');
       }
       
-      console.log(`Coinbase API returned ${responseData.products.length} products`);
+      console.log(`Coinbase Exchange API returned ${exchangeProducts.length} products`);
       
       // Sample for logging
-      if (responseData.products.length > 0) {
-        console.log('Sample product:', JSON.stringify(responseData.products[0]).substring(0, 200) + '...');
+      if (exchangeProducts.length > 0) {
+        console.log('Sample Exchange product:', JSON.stringify(exchangeProducts[0]).substring(0, 200) + '...');
       }
       
-      // Convert to our standardized format
-      const products: Product[] = responseData.products.map((product: any) => ({
-        product_id: product.product_id || '',
-        price: product.price || '0',
-        price_percentage_change_24h: product.price_percentage_change_24h || '0',
-        volume_24h: product.volume_24h || '0',
-        volume_percentage_change_24h: product.volume_percentage_change_24h || '0',
-        base_increment: product.base_increment || '0.00000001',
-        quote_increment: product.quote_increment || '0.01',
-        quote_min_size: product.quote_min_size || '0',
-        quote_max_size: product.quote_max_size || '0',
-        base_min_size: product.base_min_size || '0',
-        base_max_size: product.base_max_size || '0',
-        base_name: product.base_name || product.base_currency_id || '',
-        quote_name: product.quote_name || product.quote_currency_id || '',
-        status: product.status || 'online',
-        cancel_only: product.cancel_only || false,
-        limit_only: product.limit_only || false,
-        post_only: product.post_only || false,
-        trading_disabled: product.status !== 'online'
-      }));
+      // Now enrich with price data from the public price API
+      console.log('Fetching price data to enrich products...');
+      const priceUrl = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
+      
+      const priceResponse = await fetch(priceUrl);
+      let priceData: any = {};
+      
+      if (priceResponse.ok) {
+        const priceJson = await priceResponse.json();
+        if (priceJson && priceJson.data && priceJson.data.rates) {
+          priceData = priceJson.data.rates;
+          console.log(`Fetched prices for ${Object.keys(priceData).length} currencies`);
+        }
+      } else {
+        console.warn('Failed to fetch price data, proceeding with products without prices');
+      }
+      
+      // Convert Exchange products to our standardized format
+      const products: Product[] = exchangeProducts
+        .filter((product: any) => product.status === 'online')
+        .map((product: any) => {
+          // Try to get price from rates if available
+          const baseSymbol = product.base_currency;
+          const basePrice = baseSymbol && priceData['USD'] && priceData[baseSymbol] 
+            ? (1 / parseFloat(priceData[baseSymbol])).toString()
+            : '0';
+            
+          return {
+            product_id: product.id || '',
+            price: basePrice,
+            price_percentage_change_24h: '0', // Exchange API doesn't provide this
+            volume_24h: product.volume || '0',
+            volume_percentage_change_24h: '0', // Exchange API doesn't provide this
+            base_increment: product.base_increment || '0.00000001',
+            quote_increment: product.quote_increment || '0.01',
+            quote_min_size: product.min_market_funds || '0',
+            quote_max_size: product.max_market_funds || '0',
+            base_min_size: product.base_min_size || '0',
+            base_max_size: product.base_max_size || '0',
+            base_name: product.base_currency || '',
+            quote_name: product.quote_currency || '',
+            status: product.status || 'online',
+            cancel_only: product.cancel_only || false,
+            limit_only: product.limit_only || false,
+            post_only: product.post_only || false,
+            trading_disabled: product.status !== 'online'
+          };
+        });
       
       // Filter out any products without a valid product_id
       return products.filter(p => p.product_id);
     } catch (error) {
       console.error('Error fetching public products:', error);
+      console.error('Detailed error:', error instanceof Error ? error.message : String(error));
       // Don't provide any fallback data, throw the error
       throw error;
     }

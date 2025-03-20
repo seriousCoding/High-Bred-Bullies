@@ -129,40 +129,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiSecret = process.env.COINBASE_API_SECRET || req.headers['x-api-secret'] as string;
       
       // Log the API request details
-      console.log(`Products API request with API Key: ${apiKey ? apiKey.substring(0, 4) + '...' : 'Missing'}, Secret: ${apiSecret ? 'Present' : 'Missing'}`);
+      console.log(`Products API request received`);
       
-      if (!apiKey || !apiSecret) {
-        return res.status(401).json({ message: 'API credentials are required' });
-      }
-      
-      try {
-        // If we don't have authentication credentials, try the public endpoint first
-        if (!apiKey || !apiSecret) {
-          console.log('No API credentials provided, falling back to public products endpoint');
-          const publicProducts = await coinbaseApi.getPublicProducts();
-          return res.json(publicProducts);
-        }
-        
-        // Otherwise use authenticated endpoint
+      // Try authenticated endpoint if we have credentials
+      if (apiKey && apiSecret) {
+        console.log(`Using authenticated API with key ${apiKey.substring(0, 4)}...`);
         console.log('Calling Coinbase Advanced API products endpoint with auth credentials');
-        const products = await coinbaseApi.getProducts(apiKey, apiSecret);
-        
-        // Log response details for debugging
-        console.log(`Products endpoint returned ${products.length} items`);
-        if (products.length > 0) {
-          console.log(`Sample product: ${JSON.stringify(products[0]).slice(0, 200)}...`);
+        try {
+          const products = await coinbaseApi.getProducts(apiKey, apiSecret);
+          
+          // Log response details for debugging
+          console.log(`Authenticated products endpoint returned ${products.length} items`);
+          if (products.length > 0) {
+            console.log(`Sample product: ${JSON.stringify(products[0]).slice(0, 150)}...`);
+          }
+          
+          return res.json(products);
+        } catch (authError) {
+          console.error('Authentication error calling products API:', authError);
+          // Let the code fall through to try public API
         }
-        
-        // Return the products
-        return res.json(products);
-      } catch (apiError) {
-        console.error('Detailed API error:', apiError);
-        
-        // Try the public endpoint as a fallback
-        console.log('API request failed, trying public products endpoint as fallback');
-        const publicProducts = await coinbaseApi.getPublicProducts();
-        return res.json(publicProducts);
       }
+      
+      // If no credentials or auth failed, use public API
+      console.log('Using public API for product data');
+      const publicProducts = await coinbaseApi.getPublicProducts();
+      
+      // Log response details
+      console.log(`Public products endpoint returned ${publicProducts.length} items`);
+      if (publicProducts.length > 0) {
+        console.log(`Sample public product: ${JSON.stringify(publicProducts[0]).slice(0, 150)}...`);
+      }
+      
+      return res.json(publicProducts);
     } catch (error) {
       // Log the full error details
       console.error('Error fetching products from Coinbase API:', error);
