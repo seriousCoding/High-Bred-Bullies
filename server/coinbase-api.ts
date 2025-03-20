@@ -1257,6 +1257,68 @@ class CoinbaseApiClient {
     }
   }
   
+  /**
+   * Get recent trades for a specific product using the Coinbase Core API
+   * This uses the public API endpoint which doesn't require authentication
+   */
+  public async getProductTrades(
+    productId: string,
+    limit: number = 100
+  ): Promise<Trade[]> {
+    try {
+      console.log(`Fetching trades for ${productId} with limit ${limit}`);
+      
+      // Convert product format from hyphen to slash (e.g., BTC-USD → BTC/USD) for Coinbase Core API
+      const formattedProductId = productId.replace('-', '/');
+      
+      // Build URL for Core API trades endpoint
+      const url = `${COINBASE_API_URL}/products/${formattedProductId}/trades`;
+      
+      console.log(`Making request to Core API: ${url}`);
+      
+      // Make request to Coinbase Core API (public endpoint, no auth required)
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'CoinbaseTradingApp/1.0'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error(`API error ${response.status}: ${response.statusText}`);
+        throw new Error(`Error fetching trades: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Verify we have a valid response format
+      if (!data || !data.data || !Array.isArray(data.data)) {
+        console.error(`Unexpected Core API response format: ${JSON.stringify(data).substring(0, 200)}...`);
+        return [];
+      }
+      
+      console.log(`Received ${data.data.length} trades from Core API`);
+      
+      // Map the Core API trade format to our standard Trade interface
+      const trades: Trade[] = data.data.map((trade: any) => ({
+        trade_id: trade.trade_id || '',
+        product_id: productId, // Use the original format for consistency
+        price: trade.price || '0',
+        size: trade.size || '0',
+        time: trade.time || new Date().toISOString(),
+        side: (trade.side || '').toUpperCase() === 'BUY' ? OrderSide.BUY : OrderSide.SELL,
+        bid: '',
+        ask: ''
+      }));
+      
+      // Return requested number of trades
+      return trades.slice(0, limit);
+    } catch (error) {
+      console.error(`Error in getProductTrades for ${productId}:`, error);
+      throw error;
+    }
+  }
+  
   // OAuth Methods
   
   public async getUserProfile(accessToken: string): Promise<any> {
