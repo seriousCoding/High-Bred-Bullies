@@ -215,8 +215,9 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
   const initiateOAuthFlow = async () => {
     try {
       console.log("---------------------------------------------");
-      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA HTML REDIRECT PAGE");
-      console.log("Will redirect to:", REDIRECT_URI);
+      console.log("INITIATING OAUTH CONNECTION FROM MODAL");
+      console.log("Using server-side proxy for OAuth initialization");
+      console.log("Redirect URI:", REDIRECT_URI);
       
       // First get the OAuth URL from the server
       const response = await fetch(`/api/oauth/init?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`);
@@ -229,6 +230,41 @@ export function ApiKeysProvider({ children }: ApiKeysProviderProps) {
       
       const data = await response.json();
       console.log("Received OAuth URL and state from server");
+      
+      // We have two options for OAuth flow:
+      
+      // Option 1: Using server-side proxy for the request
+      const useProxy = true; // Toggle this to try different approaches
+      
+      if (useProxy) {
+        try {
+          // Make a proxy request through our server to bypass CORS/connection issues
+          console.log("Attempting to use server-side proxy to connect to Coinbase");
+          const proxyResponse = await fetch(`/api/oauth/proxy?auth_url=${encodeURIComponent(data.auth_url)}`);
+          
+          if (!proxyResponse.ok) {
+            throw new Error(`Proxy request failed with status: ${proxyResponse.status}`);
+          }
+          
+          const proxyData = await proxyResponse.json();
+          
+          if (proxyData.redirect_url) {
+            console.log("Received redirect URL from proxy, redirecting to:", proxyData.redirect_url);
+            // Store state for CSRF protection
+            localStorage.setItem("auth_state_key", data.state);
+            // Redirect to the URL obtained from the proxy
+            window.location.href = proxyData.redirect_url;
+            return;
+          }
+        } catch (proxyError) {
+          console.error("Proxy approach failed:", proxyError);
+          console.log("Falling back to HTML redirect page approach");
+        }
+      }
+      
+      // Option 2: Using our HTML redirect page (fallback)
+      console.log("STARTING COINBASE OAUTH CONNECTION FLOW VIA HTML REDIRECT PAGE");
+      console.log("Will redirect to:", REDIRECT_URI);
       
       // Instead of directly redirecting to Coinbase (which might be blocked),
       // redirect to our server-side HTML page that will handle the Coinbase redirect

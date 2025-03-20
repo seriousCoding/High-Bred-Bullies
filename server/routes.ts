@@ -331,6 +331,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth2 Flow Endpoints
   
+  // Direct proxy to Coinbase OAuth - helps bypass CORS/connection restrictions
+  app.get('/api/oauth/proxy', async (req: Request, res: Response) => {
+    try {
+      console.log("---------------------------------------------");
+      console.log("SERVER-SIDE OAUTH PROXY INITIATED");
+      
+      const authUrl = req.query.auth_url as string;
+      if (!authUrl) {
+        return res.status(400).json({ message: 'Auth URL is required' });
+      }
+      
+      console.log("Making server-side request to Coinbase:", authUrl.substring(0, 60) + "...");
+      
+      // Make a direct server-to-server request to Coinbase
+      const response = await coinbaseAxios.get(authUrl, {
+        maxRedirects: 0, // Don't follow redirects
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+      
+      // Return the response or redirect URL
+      if (response.status >= 300 && response.status < 400 && response.headers.location) {
+        console.log("Received redirect response. Location:", response.headers.location);
+        return res.json({ redirect_url: response.headers.location });
+      }
+      
+      console.log("Proxied request successful with status:", response.status);
+      // If it's not a redirect, return the HTML content
+      res.send(response.data);
+    } catch (error) {
+      console.error("OAuth proxy error:", error);
+      res.status(500).json({ 
+        message: 'Failed to proxy OAuth request',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
   // HTML redirect page for OAuth
   app.get('/auth/redirect', (req: Request, res: Response) => {
     try {
