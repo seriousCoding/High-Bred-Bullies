@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { PasswordInput } from '@/components/PasswordInput';
-import { useSimpleAuth } from '@/hooks/useSimpleAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,7 +15,7 @@ const AuthPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { user, signIn, signUp } = useSimpleAuth();
+  const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
     console.log("AuthPage: user state changed:", user);
@@ -46,22 +46,22 @@ const AuthPage = () => {
       let result;
       if (isLogin) {
         result = await signIn(email, password);
-        if (result.success) {
+        if (result && !result.error) {
           toast({ title: 'Success', description: 'Logged in successfully!' });
           // Force navigation after successful login
           setTimeout(() => navigate('/'), 100);
-        } else {
-          throw new Error(result.error || 'Login failed');
         }
       } else {
         result = await signUp(email, password);
-        if (result.success) {
+        if (result && !result.error) {
           toast({ title: 'Success', description: 'Registration successful!' });
           // Force navigation after successful signup
           setTimeout(() => navigate('/'), 100);
-        } else {
-          throw new Error(result.error || 'Registration failed');
         }
+      }
+      
+      if (result && result.error) {
+        throw result.error;
       }
     } catch (error: any) {
       console.error('Auth error:', error);
