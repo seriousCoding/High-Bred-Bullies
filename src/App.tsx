@@ -6,20 +6,12 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import Index from '@/pages/Index';
 import AuthPage from '@/pages/AuthPage';
-import ProfilePage from '@/pages/ProfilePage';
-import LittersPage from '@/pages/LittersPage';
-import LitterDetailPage from '@/pages/LitterDetailPage';
-import UpcomingLittersPage from '@/pages/UpcomingLittersPage';
-import ContactPage from '@/pages/ContactPage';
-import BlogListPage from '@/pages/BlogListPage';
-import BlogPostPage from '@/pages/BlogPostPage';
-import EditBlogPostPage from '@/pages/EditBlogPostPage';
-import AdminPage from '@/pages/AdminPage';
-import ManageLitterPage from '@/pages/ManageLitterPage';
-import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
-import CheckoutCancelPage from '@/pages/CheckoutCancelPage';
-import SchedulePickupPage from '@/pages/SchedulePickupPage';
-import HighTablePage from '@/pages/HighTablePage';
+import TradingDashboard from '@/pages/TradingDashboard';
+import MarketData from '@/pages/MarketData';
+import Portfolio from '@/pages/Portfolio';
+import Orders from '@/pages/Orders';
+import Settings from '@/pages/Settings';
+import ConnectCoinbase from '@/pages/ConnectCoinbase';
 import NotFound from '@/pages/NotFound';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { usePWA } from '@/hooks/usePWA';
