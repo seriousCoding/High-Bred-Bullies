@@ -97,11 +97,23 @@ app.get('/api/health', (req, res) => {
 
 // Static file serving for development and production
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/assets', express.static(path.join(__dirname, 'src')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
-// Serve the main HTML file for root route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+// Serve React app for all non-API routes (SPA routing)
+app.get('*', (req, res) => {
+  // Skip API routes
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // Check if dist/index.html exists (built React app)
+  const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+  if (require('fs').existsSync(distIndexPath)) {
+    res.sendFile(distIndexPath);
+  } else {
+    // Fallback to development HTML
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 
   // Request logging

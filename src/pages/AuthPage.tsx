@@ -15,7 +15,7 @@ const AuthPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { user, login, register } = useAuth();
+  const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -38,40 +38,23 @@ const AuthPage = () => {
       return;
     }
 
-    const redirectUrl = `${window.location.origin}/`;
+
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await signIn(email, password);
         toast({ title: 'Success', description: 'Logged in successfully!' });
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-          },
-        });
-        if (error) throw error;
-        toast({ title: 'Success', description: 'Registration successful! Please check your email to confirm.' });
+        await signUp(email, password);
+        toast({ title: 'Success', description: 'Registration successful!' });
       }
-      // Navigation is handled by onAuthStateChange
     } catch (error: any) {
       console.error('Auth error:', error);
-      if (error.code === 'email_not_confirmed') {
-        toast({
-          title: 'Email Not Confirmed',
-          description: 'Please check your inbox and confirm your email address to log in.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Authentication Error',
-          description: error.message || 'An unexpected error occurred.',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: 'Authentication Error',
+        description: error.message || 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
