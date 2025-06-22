@@ -96,80 +96,38 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Custom middleware to fix MIME types for JavaScript modules
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/src', express.static(path.join(__dirname, 'src')));
+
+// Request logging (must be before routes)
 app.use((req, res, next) => {
-  if (req.path.endsWith('.js') || req.path.endsWith('.mjs')) {
-    res.type('application/javascript');
-  } else if (req.path.endsWith('.tsx') || req.path.endsWith('.ts')) {
-    res.type('application/javascript');
-  } else if (req.path.endsWith('.css')) {
-    res.type('text/css');
-  } else if (req.path.endsWith('.json')) {
-    res.type('application/json');
-  }
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (req.path.startsWith('/api')) {
+      console.log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
+    }
+  });
+  
   next();
 });
 
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, 'public')));
-
-// In development, serve React source files directly
-if (process.env.NODE_ENV === 'development') {
-  // Serve src files for development with correct MIME types
-  app.use('/src', express.static(path.join(__dirname, 'src')));
-  app.use('/assets', express.static(path.join(__dirname, 'src')));
-  
-  // Serve the main HTML file for root route
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-  });
-} else {
-  // Production: serve built files from dist
-  app.use(express.static(path.join(__dirname, 'dist')));
-}
-
 // SPA fallback for non-API routes (must be last)
-app.use((req, res, next) => {
+app.get('*', (req, res) => {
   // Skip API routes
-  if (req.path.startsWith('/api')) {
-    return next();
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
   }
   
-  // Only handle GET requests
-  if (req.method !== 'GET') {
-    return next();
-  }
-  
-  if (process.env.NODE_ENV === 'development') {
-    res.sendFile(path.join(__dirname, 'index.html'));
-  } else {
-    const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-    if (fs.existsSync(distIndexPath)) {
-      res.sendFile(distIndexPath);
-    } else {
-      res.status(404).send('React app not built. Run: npm run build');
-    }
-  }
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-  // Request logging
-  app.use((req, res, next) => {
-    const start = Date.now();
-    
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      if (req.path.startsWith('/api')) {
-        console.log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
-      }
-    });
-    
-    next();
-  });
-
-  // Error handling
-  app.use((err, req, res, next) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
+// Error handling
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
     console.error('Error:', err);
     res.status(status).json({ message });
   });
