@@ -46,21 +46,7 @@ const UpcomingLittersPage = () => {
   });
 
   useEffect(() => {
-    const channel = supabase
-      .channel('realtime-upcoming-litters')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'litters' },
-        (payload) => {
-          console.log('Litter update received, invalidating upcoming litters list.', payload.new.id);
-          queryClient.invalidateQueries({ queryKey: ['upcomingLitters'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Real-time updates removed for JWT authentication system
   }, [queryClient]);
 
   return (

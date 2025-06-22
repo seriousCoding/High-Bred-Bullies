@@ -197,17 +197,29 @@ const LitterDetailPage = () => {
     setIsPreCheckoutOpen(false);
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-litter-checkout', {
-        body: {
+      const response = await fetch(`${API_BASE_URL}/api/checkout/create-litter-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
           litterId: freshLitterData.id,
           puppyIds: stillAvailablePuppies.map(p => p.id),
           deliveryOption: actualDeliveryOption,
           deliveryZipCode: actualDeliveryOption === 'delivery' ? actualDeliveryZip : undefined,
-        },
+        })
       });
 
-      if (error) { throw new Error(error.message); }
-      if (data.error) { throw new Error(data.error); }
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const data = await response.json();
+      
+      if (data.error) { 
+        throw new Error(data.error); 
+      }
 
       if (data.url) {
         window.location.href = data.url;

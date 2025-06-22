@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import { useUserOnboarding } from '@/hooks/useUserOnboarding';
 import { SocialPost } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

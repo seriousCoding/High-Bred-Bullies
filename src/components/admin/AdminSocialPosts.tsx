@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle, CheckCircle, XCircle, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,14 +40,18 @@ interface SocialPost {
 }
 
 const fetchSocialPosts = async () => {
-  // First get all social posts
-  const { data: posts, error: postsError } = await supabase
-    .from('social_posts')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const response = await fetch(`${API_BASE_URL}/api/admin/social-posts`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+    }
+  });
 
-  if (postsError) throw postsError;
+  if (!response.ok) {
+    throw new Error('Failed to fetch social posts');
+  }
 
+  const posts = await response.json();
+  
   // Filter out posts with null or invalid user_ids and get unique valid user_ids
   const validUserIds = [...new Set(
     posts
@@ -59,19 +63,24 @@ const fetchSocialPosts = async () => {
   
   // Only fetch profiles if we have valid user IDs
   if (validUserIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('user_profiles')
-      .select('id, user_id, first_name, last_name, username')
-      .in('user_id', validUserIds);
+    const profileResponse = await fetch(`${API_BASE_URL}/api/user-profiles/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      },
+      body: JSON.stringify({ userIds: validUserIds })
+    });
 
-    if (profilesError) {
-      console.error('Error fetching user profiles:', profilesError);
-      // Continue without profiles rather than failing completely
-    } else {
+    if (profileResponse.ok) {
+      const profiles = await profileResponse.json();
       // Create a map of user_id to profile
       profiles?.forEach(profile => {
         profileMap.set(profile.user_id, profile);
       });
+    } else {
+      console.error('Error fetching user profiles');
+      // Continue without profiles rather than failing completely
     }
   }
 
@@ -96,12 +105,18 @@ export const AdminSocialPosts = () => {
 
   const moderatePostMutation = useMutation({
     mutationFn: async ({ postId, status }: { postId: string; status: 'approved' | 'rejected' }) => {
-      const { error } = await supabase
-        .from('social_posts')
-        .update({ moderation_status: status })
-        .eq('id', postId);
+      const response = await fetch(`${API_BASE_URL}/api/admin/social-posts/${postId}/moderate`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({ moderation_status: status })
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to update post moderation status');
+      }
     },
     onSuccess: () => {
       toast.success("Post moderation status updated successfully!");
@@ -114,12 +129,16 @@ export const AdminSocialPosts = () => {
 
   const deletePostMutation = useMutation({
     mutationFn: async (postId: string) => {
-      const { error } = await supabase
-        .from('social_posts')
-        .delete()
-        .eq('id', postId);
+      const response = await fetch(`${API_BASE_URL}/api/admin/social-posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to delete post');
+      }
     },
     onSuccess: () => {
       toast.success("Post deleted successfully!");

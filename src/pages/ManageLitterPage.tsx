@@ -174,17 +174,17 @@ const ManageLitterPage = () => {
 
     const handleDeletePuppy = async (puppyId: string) => {
         try {
-            // First, remove puppy from any order items to avoid foreign key violations on puppy deletion.
-            const { error: orderItemError } = await supabase
-                .from('order_items')
-                .delete()
-                .eq('puppy_id', puppyId);
+            const response = await fetch(`${API_BASE_URL}/api/puppies/${puppyId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
 
-            if (orderItemError) throw orderItemError;
-            
-            // Now, delete the puppy itself.
-            const { error } = await supabase.from('puppies').delete().eq('id', puppyId);
-            if (error) throw error;
+            if (!response.ok) {
+                throw new Error('Failed to delete puppy');
+            }
+
             toast({
                 title: "Success",
                 description: "Puppy deleted.",

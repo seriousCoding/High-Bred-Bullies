@@ -2,7 +2,8 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { BlogPostForm, BlogPostFormValues } from '@/components/blog/BlogPostForm';

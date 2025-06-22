@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
