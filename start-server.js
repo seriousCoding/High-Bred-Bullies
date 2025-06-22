@@ -95,23 +95,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Vite middleware for development
-if (process.env.NODE_ENV !== 'production') {
-  const { createServer: createViteServer } = await import('vite');
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa'
-  });
-  app.use(vite.ssrFixStacktrace);
-  app.use(vite.middlewares);
-} else {
-  // Serve static files in production
-  app.use(express.static(path.join(__dirname, 'dist')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-  });
-}
+// Static file serving for development and production
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/assets', express.static(path.join(__dirname, 'src')));
+
+// Serve the main HTML file for root route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
   // Request logging
   app.use((req, res, next) => {
