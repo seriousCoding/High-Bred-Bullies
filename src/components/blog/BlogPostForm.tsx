@@ -8,10 +8,21 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Database } from '@/integrations/supabase/types';
 import { Loader2 } from 'lucide-react';
 
-type BlogPost = Database['public']['Tables']['blog_posts']['Row'];
+// BlogPost interface for JWT authentication system
+interface BlogPost {
+  id: string;
+  title: string;
+  content: string;
+  excerpt: string | null;
+  category: string;
+  image_url: string | null;
+  author_name: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),

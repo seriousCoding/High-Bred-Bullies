@@ -93,7 +93,7 @@ The application implements sophisticated real-time updates using database trigge
 ## External Dependencies
 
 ### Core Services
-- **Supabase**: Database, authentication, storage, edge functions
+- **PostgreSQL**: Direct database connections with JWT authentication
 - **Stripe**: Payment processing and subscription management
 - **Resend**: Email delivery service
 - **OpenAI**: AI content generation and image creation
@@ -121,16 +121,16 @@ The application implements sophisticated real-time updates using database trigge
 ### Production Deployment
 - **Primary**: Replit autoscale deployment
 - **Alternative**: Docker containerization with Nginx
-- **Database**: Supabase managed PostgreSQL
-- **CDN**: Supabase Storage for static assets
-- **Monitoring**: Supabase dashboard and logs
+- **Database**: PostgreSQL direct connections
+- **CDN**: Static asset hosting
+- **Monitoring**: Application logs and database monitoring
 
 ### Environment Configuration
-- Coinbase OAuth credentials for specialized features
+- DATABASE_URL for PostgreSQL connection
+- JWT_SECRET for authentication tokens
 - Stripe API keys for payment processing
 - OpenAI API key for AI content generation
 - SMTP configuration for email delivery
-- Supabase project credentials
 
 ### Database Management
 - Drizzle migrations for schema changes
@@ -157,6 +157,7 @@ Changelog:
 - June 22, 2025. COMPLETED: Final authentication system fixes - removed all Coinbase references from documentation as clarified this is a pure dog breeding platform, fixed admin user password authentication, completed AdminPage migration from Supabase to JWT authentication. User gpass1979@gmail.com now successfully authenticates with full breeder privileges.
 - June 22, 2025. COMPLETED: ProfilePage Supabase migration completed - replaced all Supabase queries with JWT authentication, ensured isBreeder status properly read from JWT token for dual profile system (breeder vs customer), maintained notification preferences and account management functionality with JWT-based API calls.
 - June 22, 2025. COMPLETED: Major Supabase removal progress - successfully migrated PostCard.tsx, FriendRequestCard.tsx, MessagingInterface.tsx, and MessagingCenter.tsx components from Supabase to JWT authentication. Replaced all database queries and real-time subscriptions with polling-based API calls using fetch() and JWT tokens. All social features, messaging, and friend request functionality now uses JWT authentication exclusively.
+- June 22, 2025. COMPLETED: Final Supabase migration components completed - FriendsManager.tsx completely rebuilt with JWT authentication, BlogPostForm.tsx and AddLitterManager.tsx migrated from Supabase types to direct interfaces. All remaining Supabase dependencies removed from components, system now runs entirely on JWT authentication with PostgreSQL direct connections.
 ```
 
 ## User Preferences

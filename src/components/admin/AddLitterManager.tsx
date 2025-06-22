@@ -3,7 +3,24 @@ import { useState } from 'react';
 import { LitterForm } from './LitterForm';
 import { PuppyForm } from './PuppyForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tables } from '@/integrations/supabase/types';
+// Litter interface for JWT authentication system
+interface Litter {
+  id: string;
+  breeder_id: string;
+  dam_name: string;
+  sire_name: string;
+  date_of_birth: string | null;
+  expected_date: string | null;
+  total_puppies: number;
+  available_puppies: number;
+  male_price: number | null;
+  female_price: number | null;
+  deposit_amount: number | null;
+  status: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 interface AddLitterManagerProps {
   breederId: string;
@@ -11,9 +28,9 @@ interface AddLitterManagerProps {
 }
 
 export const AddLitterManager = ({ breederId, onLitterAdded }: AddLitterManagerProps) => {
-  const [createdLitter, setCreatedLitter] = useState<Tables<'litters'> | null>(null);
+  const [createdLitter, setCreatedLitter] = useState<Litter | null>(null);
 
-  const handleLitterCreated = (litter: Tables<'litters'>) => {
+  const handleLitterCreated = (litter: Litter) => {
     // For upcoming litters, skip the puppy form since puppies aren't born yet
     if (litter.status === 'upcoming') {
       onLitterAdded();

@@ -58,21 +58,11 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       }
 
       const data = await response.json();
-      .from('friendships')
-      .select(`
-        *,
-        user1:user_profiles!friendships_user1_id_fkey(*),
-        user2:user_profiles!friendships_user2_id_fkey(*)
-      `)
-      .or(`user1_id.eq.${userProfile.id},user2_id.eq.${userProfile.id}`);
-    
-    if (data && !error) {
-      const friendsData = data.map(friendship => {
-        return friendship.user1_id === userProfile.id 
-          ? friendship.user2 
-          : friendship.user1;
-      });
-      setFriends(friendsData);
+      if (data && data.length > 0) {
+        setFriends(data);
+      }
+    } catch (error) {
+      console.error('Error fetching friends:', error);
     }
   };
 
@@ -96,7 +86,7 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       const data = await response.json();
       const received = data.filter((req: any) => req.receiver_id === userProfile.id && req.status === 'pending');
       const sent = data.filter((req: any) => req.sender_id === userProfile.id && req.status === 'pending');
-    
+      
       setFriendRequests(received);
       setSentRequests(sent);
     } catch (error) {
@@ -124,18 +114,18 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       const data = await response.json();
       
       if (data) {
-      // Filter out existing friends and pending requests
-      const friendIds = new Set(friends.map(f => f.id));
-      const requestIds = new Set([
-        ...friendRequests.map(r => r.sender?.id),
-        ...sentRequests.map(r => r.receiver?.id)
-      ].filter(Boolean));
-      
-      const filteredResults = data.filter(user => 
-        !friendIds.has(user.id) && !requestIds.has(user.id)
-      );
-      
-      setSearchResults(filteredResults);
+        // Filter out existing friends and pending requests
+        const friendIds = new Set(friends.map(f => f.id));
+        const requestIds = new Set([
+          ...friendRequests.map(r => r.sender?.id),
+          ...sentRequests.map(r => r.receiver?.id)
+        ].filter(Boolean));
+        
+        const filteredResults = data.filter(user => 
+          !friendIds.has(user.id) && !requestIds.has(user.id)
+        );
+        
+        setSearchResults(filteredResults);
       }
     } catch (error) {
       console.error('Error searching users:', error);
@@ -168,15 +158,13 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       }
       
       toast.success('Friend request sent!');
-      setSearchResults([]);
-      setSearchQuery('');
       fetchFriendRequests();
-    } catch (error: any) {
-      if (error.code === '23505') {
-        toast.error('Friend request already sent');
-      } else {
-        toast.error('Failed to send friend request');
-      }
+      
+      // Remove from search results
+      setSearchResults(prev => prev.filter(user => user.id !== receiverId));
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      toast.error('Failed to send friend request');
     }
   };
 
@@ -201,6 +189,7 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       fetchFriendRequests();
       fetchFriends();
     } catch (error) {
+      console.error('Error accepting friend request:', error);
       toast.error('Failed to accept friend request');
     }
   };
@@ -224,10 +213,12 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       toast.success('Friend request declined!');
       fetchFriendRequests();
     } catch (error) {
+      console.error('Error declining friend request:', error);
       toast.error('Failed to decline friend request');
     }
   };
 
+  // Effects
   useEffect(() => {
     if (userProfile && isPetOwner) {
       fetchFriends();
@@ -236,67 +227,117 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
   }, [userProfile, isPetOwner]);
 
   useEffect(() => {
-    if (searchQuery.length > 2) {
-      const debounce = setTimeout(() => {
-        searchUsers();
+    if (userProfile && isPetOwner) {
+      const debounceTimer = setTimeout(() => {
+        if (searchQuery) {
+          searchUsers();
+        } else {
+          setSearchResults([]);
+        }
       }, 300);
-      return () => clearTimeout(debounce);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery]);
 
-  if (!isPetOwner) {
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [searchQuery, userProfile, isPetOwner]);
+
+  if (!userProfile || !isPetOwner) {
     return (
-      <div className="text-center p-8">
-        <p className="text-muted-foreground">High Table access required for friends functionality.</p>
+      <div className="text-center p-6">
+        <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+        <h3 className="text-lg font-semibold">High Table Required</h3>
+        <p className="text-muted-foreground">
+          Upgrade to High Table to access the friends system
+        </p>
       </div>
     );
   }
 
   return (
-    <Tabs defaultValue="friends" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="friends">
-          <Users className="h-4 w-4 mr-2" />
-          Friends ({friends.length})
-        </TabsTrigger>
-        <TabsTrigger value="search">
-          <Search className="h-4 w-4 mr-2" />
-          Search
-        </TabsTrigger>
-        <TabsTrigger value="requests">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Requests ({friendRequests.length + sentRequests.length})
-        </TabsTrigger>
-      </TabsList>
+    <div className="space-y-4">
+      <Tabs defaultValue="friends" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="friends">
+            Friends ({friends.length})
+          </TabsTrigger>
+          <TabsTrigger value="requests">
+            Requests ({friendRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="search">
+            Find Friends
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="friends" className="mt-4">
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-2">
-            {friends.map((friend) => (
-              <FriendCard
-                key={friend.id}
-                friend={friend}
-                type="friend"
-                onMessage={onStartConversation}
-              />
-            ))}
-            {friends.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">
-                No friends yet. Search for users to add as friends!
-              </p>
+        <TabsContent value="friends" className="space-y-4">
+          <ScrollArea className="h-[400px]">
+            {friends.length > 0 ? (
+              <div className="space-y-2">
+                {friends.map((friend) => (
+                  <FriendCard
+                    key={friend.id}
+                    friend={friend}
+                    onStartConversation={onStartConversation}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-6">
+                <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="text-muted-foreground">No friends yet</p>
+              </div>
             )}
-          </div>
-        </ScrollArea>
-      </TabsContent>
+          </ScrollArea>
+        </TabsContent>
 
-      <TabsContent value="search" className="mt-4">
-        <div className="space-y-4">
+        <TabsContent value="requests" className="space-y-4">
+          <ScrollArea className="h-[400px]">
+            {friendRequests.length > 0 ? (
+              <div className="space-y-2">
+                {friendRequests.map((request) => (
+                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                        {request.sender?.first_name?.[0] || 'U'}
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {request.sender?.first_name} {request.sender?.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          @{request.sender?.username}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleAcceptRequest(request.id)}
+                        className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => handleDeclineRequest(request.id)}
+                        className="px-3 py-1 bg-muted text-muted-foreground rounded text-sm"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-6">
+                <UserPlus className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="text-muted-foreground">No pending requests</p>
+              </div>
+            )}
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="search" className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or username..."
+              placeholder="Search for friends..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -304,70 +345,47 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
           </div>
           
           <ScrollArea className="h-[350px]">
-            <div className="space-y-2">
-              {searchResults.map((user) => (
-                <FriendCard
-                  key={user.id}
-                  friend={user}
-                  type="search"
-                  onAddFriend={sendFriendRequest}
-                />
-              ))}
-              {searchQuery.length > 2 && searchResults.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">
-                  No users found matching "{searchQuery}"
-                </p>
-              )}
-            </div>
+            {searchResults.length > 0 ? (
+              <div className="space-y-2">
+                {searchResults.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                        {user.first_name?.[0] || 'U'}
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {user.first_name} {user.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          @{user.username}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => sendFriendRequest(user.id)}
+                      className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
+                    >
+                      Add Friend
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : searchQuery ? (
+              <div className="text-center p-6">
+                <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="text-muted-foreground">No users found</p>
+              </div>
+            ) : (
+              <div className="text-center p-6">
+                <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="text-muted-foreground">Start typing to search for friends</p>
+              </div>
+            )}
           </ScrollArea>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="requests" className="mt-4">
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-4">
-            {friendRequests.length > 0 && (
-              <div>
-                <h3 className="font-medium mb-2">Received Requests</h3>
-                <div className="space-y-2">
-                  {friendRequests.map((request) => (
-                    <FriendCard
-                      key={request.id}
-                      friend={request.sender!}
-                      type="request-received"
-                      requestId={request.id}
-                      onAcceptRequest={handleAcceptRequest}
-                      onDeclineRequest={handleDeclineRequest}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {sentRequests.length > 0 && (
-              <div>
-                <h3 className="font-medium mb-2">Sent Requests</h3>
-                <div className="space-y-2">
-                  {sentRequests.map((request) => (
-                    <FriendCard
-                      key={request.id}
-                      friend={request.receiver!}
-                      type="request-sent"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {friendRequests.length === 0 && sentRequests.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">
-                No pending friend requests
-              </p>
-            )}
-          </div>
-        </ScrollArea>
-      </TabsContent>
-    </Tabs>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

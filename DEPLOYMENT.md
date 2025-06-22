@@ -10,10 +10,10 @@
 ### Setup
 1. Clone the repository
 2. Install dependencies: `npm install`
-3. Create `.env.local` file with your Supabase credentials:
+3. Create `.env` file with your database and JWT credentials:
    ```
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   DATABASE_URL=your_postgresql_connection_string
+   JWT_SECRET=your_jwt_secret_key
    ```
 4. Start development server: `npm run dev`
 
@@ -41,8 +41,8 @@ docker run -p 3000:80 high-bred-bullies
 
 ### Environment Variables
 Set these environment variables in your production environment:
-- `VITE_SUPABASE_URL`: Your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `DATABASE_URL`: Your PostgreSQL connection string
+- `JWT_SECRET`: Your JWT secret key for authentication
 
 ### Deployment Options
 
@@ -80,15 +80,15 @@ npm run build
 
 ## Database Setup
 
-This project uses Supabase as the backend. Make sure to:
-1. Create a Supabase project
-2. Run the migrations from the `supabase/migrations/` folder
-3. Set up the required secrets in your Supabase project
-4. Configure Row Level Security (RLS) policies
+This project uses PostgreSQL with JWT authentication. Make sure to:
+1. Set up a PostgreSQL database (connection via DATABASE_URL environment variable)
+2. Run database migrations using `npm run db:push`
+3. Configure JWT_SECRET environment variable for authentication
+4. Ensure database schema is properly initialized
 
 ## Monitoring & Maintenance
 
 - Monitor application logs
-- Set up health checks on port 80 (production) or 5173 (development)
+- Set up health checks on port 5000 (production/development)
 - Regularly update dependencies
-- Monitor Supabase usage and performance
+- Monitor PostgreSQL database performance and connections
