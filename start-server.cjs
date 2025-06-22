@@ -231,6 +231,111 @@ async function startServer() {
           });
         }
 
+        // User Profile GET endpoint
+        if (pathname === '/api/user/profile' && req.method === 'GET') {
+          return authenticateToken(req, res, async () => {
+            try {
+              const result = await pool.query(`
+                SELECT * FROM user_profiles WHERE user_id = $1
+              `, [req.user.userId]);
+              
+              if (result.rows.length === 0) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Profile not found' }));
+                return;
+              }
+              
+              const profile = result.rows[0];
+              res.writeHead(200);
+              res.end(JSON.stringify({
+                id: profile.id,
+                userId: profile.user_id,
+                fullName: profile.full_name,
+                phone: profile.phone,
+                address: profile.address,
+                city: profile.city,
+                state: profile.state,
+                zipCode: profile.zip_code,
+                avatarUrl: profile.avatar_url,
+                bio: profile.bio,
+                isBreeder: profile.is_breeder || false,
+                createdAt: profile.created_at,
+                updatedAt: profile.updated_at
+              }));
+            } catch (error) {
+              console.error('Get profile error:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Internal server error' }));
+            }
+          });
+        }
+
+        // User Profile POST endpoint
+        if (pathname === '/api/user/profile' && req.method === 'POST') {
+          return authenticateToken(req, res, async () => {
+            try {
+              const { username, first_name, last_name } = req.body;
+              
+              // Check if profile already exists
+              const existingProfile = await pool.query(`
+                SELECT * FROM user_profiles WHERE user_id = $1
+              `, [req.user.userId]);
+              
+              if (existingProfile.rows.length > 0) {
+                const profile = existingProfile.rows[0];
+                res.writeHead(200);
+                res.end(JSON.stringify({
+                  id: profile.id,
+                  userId: profile.user_id,
+                  fullName: profile.full_name,
+                  phone: profile.phone,
+                  address: profile.address,
+                  city: profile.city,
+                  state: profile.state,
+                  zipCode: profile.zip_code,
+                  avatarUrl: profile.avatar_url,
+                  bio: profile.bio,
+                  isBreeder: profile.is_breeder || false,
+                  createdAt: profile.created_at,
+                  updatedAt: profile.updated_at
+                }));
+                return;
+              }
+
+              // Create new profile
+              const fullName = `${first_name} ${last_name}`.trim();
+              const result = await pool.query(`
+                INSERT INTO user_profiles 
+                (user_id, full_name, phone, address, city, state, zip_code, avatar_url, bio, is_breeder, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                RETURNING *
+              `, [req.user.userId, fullName, null, null, null, null, null, null, null, false]);
+
+              const newProfile = result.rows[0];
+              res.writeHead(201);
+              res.end(JSON.stringify({
+                id: newProfile.id,
+                userId: newProfile.user_id,
+                fullName: newProfile.full_name,
+                phone: newProfile.phone,
+                address: newProfile.address,
+                city: newProfile.city,
+                state: newProfile.state,
+                zipCode: newProfile.zip_code,
+                avatarUrl: newProfile.avatar_url,
+                bio: newProfile.bio,
+                isBreeder: newProfile.is_breeder || false,
+                createdAt: newProfile.created_at,
+                updatedAt: newProfile.updated_at
+              }));
+            } catch (error) {
+              console.error('Create profile error:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to create profile' }));
+            }
+          });
+        }
+
         // Featured litters endpoint (stub for the breeding app)
         if (pathname === '/api/litters/featured' && req.method === 'GET') {
           res.writeHead(200);

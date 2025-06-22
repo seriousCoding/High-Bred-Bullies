@@ -2,7 +2,7 @@ import {
   User, InsertUser, 
   ApiKey, InsertApiKey,
   FavoriteMarket, InsertFavoriteMarket,
-  UserProfile
+  UserProfile, InsertUserProfile
 } from "../shared/schema";
 
 export interface IStorage {
@@ -12,6 +12,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getUserProfile(userId: number): Promise<UserProfile | undefined>;
+  createUserProfile(profile: InsertUserProfile): Promise<UserProfile>;
   
   // API Key methods
   storeApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
@@ -58,6 +59,14 @@ export class DatabaseStorage implements IStorage {
   async getUserProfile(userId: number): Promise<UserProfile | undefined> {
     const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
     return profile || undefined;
+  }
+
+  async createUserProfile(insertProfile: InsertUserProfile): Promise<UserProfile> {
+    const [profile] = await db
+      .insert(userProfiles)
+      .values(insertProfile)
+      .returning();
+    return profile;
   }
   
   // API Key methods
