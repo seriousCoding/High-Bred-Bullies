@@ -149,6 +149,7 @@ Changelog:
 - June 22, 2025. COMPLETED: Resolved frontend-backend authentication synchronization issues by removing remaining Supabase imports from components (BreederSetup, OrderHistory), replaced with proper JWT-based API calls, enhanced authentication debugging with comprehensive error handling and logging
 - June 22, 2025. COMPLETED: Database schema migration completed - pushed complete High Bred Bullies breeding platform schema to PostgreSQL database with 18 tables including users, breeders, litters, puppies, orders, blog posts, social features, and notifications. All core breeding platform functionality now supported at database level.
 - June 22, 2025. COMPLETED: Fixed authentication login failure - corrected API response structure mismatch between frontend expectations {token, user} and backend output, fixed password field references (password_hash), and verified complete login/logout authentication flow works properly with JWT tokens.
+- June 22, 2025. COMPLETED: Resolved CORS authentication issue - fixed frontend API URL configuration to use relative URLs when running on Replit, preventing cross-origin request blocks that were preventing login/registration from working.
 ```
 
 ## User Preferences

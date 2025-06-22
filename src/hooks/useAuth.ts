@@ -14,7 +14,8 @@ interface AuthState {
   loading: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Use relative URLs when running on Replit, localhost for local development
+const API_BASE_URL = window.location.hostname.includes('replit.dev') ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({

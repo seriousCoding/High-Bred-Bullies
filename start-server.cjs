@@ -154,7 +154,14 @@ async function startServer() {
           }
 
           try {
-            const result = await pool.query('SELECT id, username, password_hash FROM users WHERE username = $1', [username]);
+            const result = await pool.query(`
+              SELECT u.id, u.username, u.password_hash, 
+                     up.is_breeder, up.full_name
+              FROM users u 
+              LEFT JOIN user_profiles up ON u.id = up.user_id 
+              WHERE u.username = $1
+            `, [username]);
+            
             if (result.rows.length === 0) {
               res.writeHead(401);
               res.end(JSON.stringify({ error: 'Invalid credentials' }));
@@ -171,7 +178,16 @@ async function startServer() {
 
             const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
             res.writeHead(200);
-            res.end(JSON.stringify({ token, user: { id: user.id, username: user.username } }));
+            res.end(JSON.stringify({ 
+              token, 
+              user: { 
+                id: user.id, 
+                username: user.username,
+                isBreeder: user.is_breeder || false,
+                fullName: user.full_name || null,
+                hasApiKeys: false // This would need to be queried separately if needed
+              } 
+            }));
           } catch (error) {
             console.error('Login error:', error);
             res.writeHead(500);
@@ -182,12 +198,36 @@ async function startServer() {
 
         // User endpoint (protected)
         if (pathname === '/api/user' && req.method === 'GET') {
-          return authenticateToken(req, res, () => {
-            res.writeHead(200);
-            res.end(JSON.stringify({ 
-              id: req.user.userId, 
-              username: req.user.username 
-            }));
+          return authenticateToken(req, res, async () => {
+            try {
+              const result = await pool.query(`
+                SELECT u.id, u.username, 
+                       up.is_breeder, up.full_name
+                FROM users u 
+                LEFT JOIN user_profiles up ON u.id = up.user_id 
+                WHERE u.id = $1
+              `, [req.user.userId]);
+              
+              if (result.rows.length === 0) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'User not found' }));
+                return;
+              }
+              
+              const user = result.rows[0];
+              res.writeHead(200);
+              res.end(JSON.stringify({ 
+                id: user.id, 
+                username: user.username,
+                isBreeder: user.is_breeder || false,
+                fullName: user.full_name || null,
+                hasApiKeys: false
+              }));
+            } catch (error) {
+              console.error('User endpoint error:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to fetch user data' }));
+            }
           });
         }
 
