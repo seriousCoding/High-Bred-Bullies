@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Send, MapPin, MessageCircle, Users, Stethoscope, Trees, Heart, Calendar, Phone } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.origin;
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 

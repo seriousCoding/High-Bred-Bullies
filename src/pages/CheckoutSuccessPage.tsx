@@ -7,20 +7,26 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.origin;
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { InvoiceViewer } from '@/components/InvoiceViewer';
 
 const finalizeOrder = async ({ session_id, token }: { session_id: string; token: string }) => {
-  const { data, error } = await supabase.functions.invoke('finalize-litter-order', {
-    body: { session_id },
-    headers: { Authorization: `Bearer ${token}` }
+  const response = await fetch(`${API_BASE_URL}/api/orders/finalize`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ session_id }),
   });
 
-  if (error) throw new Error(error.message);
-  if (data.error) throw new Error(data.error);
-  return data;
+  if (!response.ok) {
+    throw new Error('Failed to finalize order');
+  }
+  
+  return await response.json();
 };
 
 const CheckoutSuccessPage = () => {

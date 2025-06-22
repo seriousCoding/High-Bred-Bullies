@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.origin;
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { BlogPostItem, BlogPost } from '@/components/BlogPostItem';
@@ -9,14 +9,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const fetchPublishedBlogPosts = async (): Promise<BlogPost[]> => {
-  const { data, error } = await supabase
-    .from('blog_posts')
-    .select('id, title, excerpt, category, published_at, image_url, author_name, updated_at')
-    .not('published_at', 'is', null) // Only fetch published posts
-    .order('published_at', { ascending: false });
-
-  if (error) throw error;
-  return data as BlogPost[];
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts?published=true`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch blog posts');
+  }
+  
+  return await response.json();
 };
 
 const BlogListPage = () => {

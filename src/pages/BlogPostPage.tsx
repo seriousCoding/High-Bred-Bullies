@@ -2,7 +2,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.origin;
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Navbar from '@/components/Navbar';
