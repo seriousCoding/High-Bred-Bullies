@@ -6,8 +6,6 @@ interface User {
   id: number;
   username: string;
   hasApiKeys?: boolean;
-  isBreeder?: boolean;
-  fullName?: string;
 }
 
 interface AuthState {

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
 import { APP_NAME } from "@/constants/app";
 import { Users } from "lucide-react";
 
@@ -13,11 +14,6 @@ const Navbar = () => {
   // Get admin status directly from JWT user object
   const isAdmin = user?.isBreeder || false;
   const isPetOwner = false; // This would need to be added to the user profile if needed
-  
-  // Debug logging to verify admin status
-  console.log('Navbar Debug - User:', user);
-  console.log('Navbar Debug - isAdmin:', isAdmin);
-  console.log('Navbar Debug - user?.isBreeder:', user?.isBreeder);
 
   const handleLogout = async () => {
     await signOut();
@@ -60,7 +56,7 @@ const Navbar = () => {
               Admin
             </Link>
           )}
-          {user ? (
+          {session ? (
             <>
               <Link to="/profile" className="text-muted-foreground hover:text-foreground">
                 Profile
