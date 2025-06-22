@@ -1,8 +1,8 @@
-# High Bred Bullies - Coinbase Advanced Trading Platform
+# High Bred Bullies - Dog Breeding Platform
 
 ## Overview
 
-High Bred Bullies is a comprehensive Coinbase Advanced Trade API client with robust WebSocket integration for real-time cryptocurrency trading and data synchronization. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for API key management, real-time market data, trading operations, and OAuth integration. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
+High Bred Bullies is a comprehensive dog breeding management platform that helps breeders manage litters, puppies, orders, and customer relationships. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for breeding management, blog content, social features, and customer interactions. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
 
 ## System Architecture
 
