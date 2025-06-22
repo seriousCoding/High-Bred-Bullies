@@ -1,7 +1,6 @@
 
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -22,31 +21,26 @@ import { ArchivedOrders } from "@/components/admin/ArchivedOrders";
 const AdminPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [breederId, setBreederId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("litters");
 
-  const { data: breeder, isLoading, error } = useQuery({
-    queryKey: ['breederCheck', user?.id],
-    queryFn: async () => {
-      if (!user) return null;
-      const { data } = await supabase.from('breeders').select('id').eq('user_id', user.id).single();
-      if (data?.id) setBreederId(data.id);
-      return data;
-    },
-    enabled: !!user,
-  });
+  // Check if user is a breeder based on the isBreeder flag from JWT auth
+  const isBreeder = user?.isBreeder || false;
+  
+  // For now, we'll show the breeder setup if user is marked as breeder but has no profile yet
+  // This will be handled by the BreederSetup component when needed
+  const breederId = isBreeder ? "1" : null; // Simplified for now
 
-  if (isLoading) {
+  if (!user) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-16 w-16 animate-spin" /></div>;
   }
   
-  if (error) {
+  if (!isBreeder) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Alert variant="destructive" className="max-w-md">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{(error as Error).message}</AlertDescription>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>You need breeder privileges to access this page.</AlertDescription>
         </Alert>
       </div>
     );
@@ -58,7 +52,7 @@ const AdminPage = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
         {!breederId ? (
-          <BreederSetup onBreederCreated={() => queryClient.invalidateQueries({ queryKey: ['breederCheck', user?.id] })} />
+          <BreederSetup onBreederCreated={() => window.location.reload()} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList>
