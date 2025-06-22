@@ -5,9 +5,14 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+async function createApp() {
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -90,8 +95,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
+// Vite middleware for development
+if (process.env.NODE_ENV !== 'production') {
+  const { createServer: createViteServer } = await import('vite');
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa'
+  });
+  app.use(vite.ssrFixStacktrace);
+  app.use(vite.middlewares);
+} else {
+  // Serve static files in production
   app.use(express.static(path.join(__dirname, 'dist')));
   
   app.get('*', (req, res) => {
@@ -99,37 +113,43 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Request logging
-app.use((req, res, next) => {
-  const start = Date.now();
-  
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    if (req.path.startsWith('/api')) {
-      console.log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
-    }
+  // Request logging
+  app.use((req, res, next) => {
+    const start = Date.now();
+    
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      if (req.path.startsWith('/api')) {
+        console.log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
+      }
+    });
+    
+    next();
   });
-  
-  next();
-});
 
-// Error handling
-app.use((err, req, res, next) => {
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-  console.error('Error:', err);
-  res.status(status).json({ message });
-});
+  // Error handling
+  app.use((err, req, res, next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || 'Internal Server Error';
+    console.error('Error:', err);
+    res.status(status).json({ message });
+  });
 
-// Start server
-const server = createServer(app);
-const port = 5000;
+  // Start server
+  const server = createServer(app);
+  const port = 5000;
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Express server running on http://0.0.0.0:${port}`);
-  console.log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
-  console.log(`🔐 JWT Authentication: Enabled`);
-  console.log(`✅ Server ready for connections`);
-});
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 Express server running on http://0.0.0.0:${port}`);
+    console.log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
+    console.log(`🔐 JWT Authentication: Enabled`);
+    console.log(`✅ Server ready for connections`);
+  });
 
-module.exports = app;
+  return app;
+}
+
+// Initialize the application
+createApp().catch(console.error);
+
+export default createApp;
