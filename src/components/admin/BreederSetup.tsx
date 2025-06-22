@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ interface BreederSetupProps {
 
 export const BreederSetup = ({ onBreederCreated }: BreederSetupProps) => {
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     businessName: '',
     contactPhone: '',
@@ -28,7 +29,6 @@ export const BreederSetup = ({ onBreederCreated }: BreederSetupProps) => {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
       const deliveryAreasArray = formData.deliveryAreas
@@ -38,17 +38,28 @@ export const BreederSetup = ({ onBreederCreated }: BreederSetupProps) => {
         
       const deliveryFeeInCents = formData.deliveryFee ? Math.round(parseFloat(formData.deliveryFee) * 100) : 0;
 
-      const { error } = await supabase.from('breeders').insert({
-        user_id: user.id,
-        business_name: formData.businessName,
-        contact_phone: formData.contactPhone,
-        contact_email: formData.contactEmail,
-        address: formData.address,
-        delivery_areas: deliveryAreasArray,
-        delivery_fee: deliveryFeeInCents,
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/breeders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          business_name: formData.businessName,
+          contact_phone: formData.contactPhone,
+          contact_email: formData.contactEmail,
+          address: formData.address,
+          delivery_areas: deliveryAreasArray,
+          delivery_fee: deliveryFeeInCents,
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create breeder profile');
+      }
 
       toast.success('Breeder profile created successfully!');
       onBreederCreated();

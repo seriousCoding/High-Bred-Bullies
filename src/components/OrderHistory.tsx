@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,24 +16,19 @@ const OrderHistory = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            puppy_id,
-            puppies (
-              id,
-              name
-            )
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'paid')
-        .order('created_at', { ascending: false });
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/orders?user_id=${user.id}&status=paid`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders');
+      }
+
+      return await response.json();
     },
     enabled: !!user,
   });
