@@ -68,21 +68,19 @@ const MessagingInterface = () => {
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          sender_id,
-          receiver_id,
-          content,
-          created_at,
-          is_read,
-          sender:user_profiles!direct_messages_sender_id_fkey(id, username, first_name, last_name, avatar_url),
-          receiver:user_profiles!direct_messages_receiver_id_fkey(id, username, first_name, last_name, avatar_url)
-        `)
-        .or(`sender_id.eq.${userProfile.id},receiver_id.eq.${userProfile.id}`)
-        .order('created_at', { ascending: false });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/conversations`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversations: ${response.statusText}`);
+      }
+
+      const data = await response.json();
 
       // Group messages by conversation partner
       const conversationMap = new Map<string, Conversation>();
@@ -118,26 +116,30 @@ const MessagingInterface = () => {
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          *,
-          sender:user_profiles!direct_messages_sender_id_fkey(id, username, first_name, last_name, avatar_url)
-        `)
-        .or(`and(sender_id.eq.${userProfile.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${userProfile.id})`)
-        .order('created_at', { ascending: true });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/messages/${partnerId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
-      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch messages: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       setMessages(data || []);
 
       // Mark messages as read
-      await supabase
-        .from('direct_messages')
-        .update({ is_read: true })
-        .eq('sender_id', partnerId)
-        .eq('receiver_id', userProfile.id)
-        .eq('is_read', false);
+      await fetch(`${API_BASE_URL}/api/messages/mark-read`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sender_id: partnerId }),
+      });
 
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -149,25 +151,20 @@ const MessagingInterface = () => {
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('friendships')
-        .select(`
-          user1_id,
-          user2_id,
-          user1:user_profiles!friendships_user1_id_fkey(id, username, first_name, last_name, avatar_url),
-          user2:user_profiles!friendships_user2_id_fkey(id, username, first_name, last_name, avatar_url)
-        `)
-        .or(`user1_id.eq.${userProfile.id},user2_id.eq.${userProfile.id}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friends`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friends: ${response.statusText}`);
+      }
 
-      const friendsList = data?.map((friendship: any) => {
-        return friendship.user1_id === userProfile.id 
-          ? friendship.user2 
-          : friendship.user1;
-      }) || [];
-
-      setFriends(friendsList);
+      const friendsList = await response.json();
+      setFriends(friendsList || []);
     } catch (error) {
       console.error('Error fetching friends:', error);
     }
@@ -178,18 +175,19 @@ const MessagingInterface = () => {
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('friend_requests')
-        .select(`
-          *,
-          sender:user_profiles!friend_requests_sender_id_fkey(id, username, first_name, last_name, avatar_url),
-          receiver:user_profiles!friend_requests_receiver_id_fkey(id, username, first_name, last_name, avatar_url)
-        `)
-        .eq('receiver_id', userProfile.id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friend requests: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       setFriendRequests(data || []);
     } catch (error) {
       console.error('Error fetching friend requests:', error);
@@ -201,12 +199,19 @@ const MessagingInterface = () => {
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, username, first_name, last_name, avatar_url')
-        .neq('id', userProfile.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       setAllUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);

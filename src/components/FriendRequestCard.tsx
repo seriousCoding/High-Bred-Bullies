@@ -87,12 +87,18 @@ const FriendRequestCard: React.FC<FriendRequestCardProps> = ({ request, currentU
 
   const handleCancel = async () => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .delete()
-        .eq('id', request.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${request.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to cancel friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request cancelled');
       onUpdate();
