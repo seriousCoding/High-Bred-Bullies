@@ -96,29 +96,40 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Static file serving for development and production
+// Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname, 'dist')));
 
-// SPA fallback - serve React app for unmatched routes
-app.use((req, res, next) => {
+// In development, serve React source files directly
+if (process.env.NODE_ENV === 'development') {
+  // Serve src files for development
+  app.use('/src', express.static(path.join(__dirname, 'src')));
+  app.use('/assets', express.static(path.join(__dirname, 'src')));
+  
+  // Serve the main HTML file for root route
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  });
+} else {
+  // Production: serve built files from dist
+  app.use(express.static(path.join(__dirname, 'dist')));
+}
+
+// SPA fallback for non-API routes
+app.get('*', (req, res, next) => {
   // Skip API routes
   if (req.path.startsWith('/api')) {
     return next();
   }
   
-  // Only handle GET requests for HTML content
-  if (req.method !== 'GET' || req.path.includes('.')) {
-    return next();
-  }
-  
-  // Check if dist/index.html exists (built React app)
-  const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-  if (fs.existsSync(distIndexPath)) {
-    res.sendFile(distIndexPath);
-  } else {
-    // Fallback to development HTML
+  if (process.env.NODE_ENV === 'development') {
     res.sendFile(path.join(__dirname, 'index.html'));
+  } else {
+    const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+    if (fs.existsSync(distIndexPath)) {
+      res.sendFile(distIndexPath);
+    } else {
+      res.status(404).send('React app not built. Run: npm run build');
+    }
   }
 });
 
@@ -153,6 +164,7 @@ app.use((req, res, next) => {
     console.log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
     console.log(`🔐 JWT Authentication: Enabled`);
     console.log(`✅ Server ready for connections`);
+    console.log(`📁 Serving React app from: ${path.join(__dirname, 'dist')} and ${path.join(__dirname, 'public')}`);
   });
 
   return app;
