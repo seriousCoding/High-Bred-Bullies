@@ -336,10 +336,176 @@ async function startServer() {
           });
         }
 
-        // Featured litters endpoint (stub for the breeding app)
+        // Litters endpoints
         if (pathname === '/api/litters/featured' && req.method === 'GET') {
-          res.writeHead(200);
-          res.end(JSON.stringify([]));
+          try {
+            const result = await pool.query(`
+              SELECT l.*, b.business_name as breeder_name 
+              FROM litters l
+              LEFT JOIN breeders b ON l.breeder_id = b.id
+              WHERE l.is_active = true
+              ORDER BY l.expected_delivery_date ASC
+              LIMIT 10
+            `);
+            
+            const litters = result.rows.map(row => ({
+              id: row.id,
+              breederId: row.breeder_id,
+              damName: row.dam_name,
+              sireName: row.sire_name,
+              expectedDeliveryDate: row.expected_delivery_date,
+              price: row.price,
+              availablePuppies: row.available_puppies,
+              totalPuppies: row.total_puppies,
+              description: row.description,
+              images: row.images || [],
+              breederName: row.breeder_name,
+              isActive: row.is_active,
+              createdAt: row.created_at
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(litters));
+          } catch (error) {
+            console.error('Error fetching featured litters:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch litters' }));
+          }
+          return;
+        }
+
+        if (pathname.startsWith('/api/litters/breeder/') && req.method === 'GET') {
+          try {
+            const breederId = pathname.split('/')[4];
+            const result = await pool.query(`
+              SELECT * FROM litters 
+              WHERE breeder_id = $1 
+              ORDER BY expected_delivery_date DESC
+            `, [breederId]);
+            
+            const litters = result.rows.map(row => ({
+              id: row.id,
+              breederId: row.breeder_id,
+              damName: row.dam_name,
+              sireName: row.sire_name,
+              expectedDeliveryDate: row.expected_delivery_date,
+              price: row.price,
+              availablePuppies: row.available_puppies,
+              totalPuppies: row.total_puppies,
+              description: row.description,
+              images: row.images || [],
+              isActive: row.is_active,
+              createdAt: row.created_at
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(litters));
+          } catch (error) {
+            console.error('Error fetching breeder litters:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch breeder litters' }));
+          }
+          return;
+        }
+
+        // Social posts endpoints
+        if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
+          try {
+            const result = await pool.query(`
+              SELECT sp.*, up.full_name as author_name, up.avatar_url as author_avatar
+              FROM social_posts sp
+              LEFT JOIN user_profiles up ON sp.author_id = up.user_id
+              WHERE sp.is_public = true
+              ORDER BY sp.created_at DESC
+              LIMIT 20
+            `);
+            
+            const posts = result.rows.map(row => ({
+              id: row.id,
+              authorId: row.author_id,
+              authorName: row.author_name,
+              authorAvatar: row.author_avatar,
+              content: row.content,
+              images: row.images || [],
+              isPublic: row.is_public,
+              likesCount: row.likes_count || 0,
+              commentsCount: row.comments_count || 0,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(posts));
+          } catch (error) {
+            console.error('Error fetching social posts:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch social posts' }));
+          }
+          return;
+        }
+
+        // Contact info endpoint
+        if (pathname === '/api/contact' && req.method === 'GET') {
+          try {
+            const result = await pool.query(`
+              SELECT * FROM site_config 
+              WHERE key IN ('contact_email', 'contact_phone', 'business_address')
+            `);
+            
+            const contactInfo = {};
+            result.rows.forEach(row => {
+              contactInfo[row.key] = row.value;
+            });
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(contactInfo));
+          } catch (error) {
+            console.error('Error fetching contact info:', error);
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              contact_email: 'info@highbredbullies.com',
+              contact_phone: '(555) 123-4567',
+              business_address: '123 Breeding Lane, Dog City, DC 12345'
+            }));
+          }
+          return;
+        }
+
+        // Blog posts endpoint
+        if (pathname === '/api/blog/posts' && req.method === 'GET') {
+          try {
+            const result = await pool.query(`
+              SELECT bp.*, up.full_name as author_name
+              FROM blog_posts bp
+              LEFT JOIN user_profiles up ON bp.author_id = up.user_id
+              WHERE bp.published_at IS NOT NULL
+              ORDER BY bp.published_at DESC
+              LIMIT 10
+            `);
+            
+            const posts = result.rows.map(row => ({
+              id: row.id,
+              title: row.title,
+              slug: row.slug,
+              excerpt: row.excerpt,
+              content: row.content,
+              imageUrl: row.image_url,
+              authorId: row.author_id,
+              authorName: row.author_name,
+              category: row.category,
+              tags: row.tags || [],
+              publishedAt: row.published_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(posts));
+          } catch (error) {
+            console.error('Error fetching blog posts:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch blog posts' }));
+          }
           return;
         }
 
