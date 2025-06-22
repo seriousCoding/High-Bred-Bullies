@@ -2,7 +2,7 @@
 
 ## Overview
 
-High Bred Bullies is a comprehensive dog breeding management platform that helps breeders manage litters, puppies, orders, and customer relationships. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for breeding management, blog content, social features, and customer interactions. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
+High Bred Bullies is a comprehensive dog breeding management platform that helps breeders manage litters, puppies, orders, and customer relationships. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for breeding management, blog content, social features, customer interactions, and payment processing. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
 
 ## System Architecture
 
@@ -20,14 +20,13 @@ High Bred Bullies is a comprehensive dog breeding management platform that helps
 - **ORM**: Drizzle ORM for type-safe database operations
 - **Authentication**: JWT token-based authentication with bcryptjs
 - **Server**: Express.js with TypeScript
-- **Real-time**: WebSocket integration for live market data
-- **API Integration**: Coinbase Advanced Trade API and OAuth
+- **Real-time**: WebSocket integration for live updates
 
 ### External Integrations
 - **Payment Processing**: Stripe for handling puppy purchases and checkout
 - **Email Service**: Resend API for transactional emails
 - **AI Services**: OpenAI API for content generation (blog posts, social content)
-- **OAuth**: Coinbase OAuth integration for specialized features
+
 
 ## Key Components
 
@@ -151,6 +150,7 @@ Changelog:
 - June 22, 2025. COMPLETED: Fixed authentication login failure - corrected API response structure mismatch between frontend expectations {token, user} and backend output, fixed password field references (password_hash), and verified complete login/logout authentication flow works properly with JWT tokens.
 - June 22, 2025. COMPLETED: Resolved CORS authentication issue - fixed frontend API URL configuration to use relative URLs when running on Replit, preventing cross-origin request blocks that were preventing login/registration from working.
 - June 22, 2025. COMPLETED: Fixed admin user privileges - created user profile for gpass1979@gmail.com with isBreeder=true, updated authentication endpoints to return admin status, and fixed frontend User interface to include isBreeder field. Admin user now properly recognized with full privileges.
+- June 22, 2025. COMPLETED: Final authentication system fixes - removed all Coinbase references from documentation as clarified this is a pure dog breeding platform, fixed admin user password authentication, completed AdminPage migration from Supabase to JWT authentication. User gpass1979@gmail.com now successfully authenticates with full breeder privileges.
 ```
 
 ## User Preferences
