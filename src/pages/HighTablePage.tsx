@@ -29,22 +29,31 @@ const HighTablePage = () => {
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
-    console.log('Fetching posts from social_feed_posts view...');
+    console.log('Fetching posts from social_feed_posts...');
     
-    const { data: postData, error: postError } = await supabase
-      .from('social_feed_posts')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token');
+      }
 
-    console.log('Posts fetched:', postData);
-    console.log('Error (if any):', postError);
+      const response = await fetch(`${API_BASE_URL}/api/social-posts`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (postError) {
-      console.error('Error fetching posts:', postError);
-      toast({ title: 'Error', description: 'Could not fetch posts.', variant: 'destructive' });
-      setLoading(false);
-      return;
-    }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch posts: ${response.statusText}`);
+      }
+
+      const postData = await response.json();
+      console.log('Posts fetched:', postData);
+
+      if (!postData || !Array.isArray(postData)) {
+        throw new Error('Invalid posts data received');
+      }
 
     const postsWithCorrectedKeys = postData.map(p => ({
       ...p,
@@ -53,7 +62,12 @@ const HighTablePage = () => {
 
     setPosts(postsWithCorrectedKeys as SocialPost[]);
     setLoading(false);
-  }, [toast]);
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    toast({ title: 'Error', description: 'Could not fetch posts.', variant: 'destructive' });
+    setLoading(false);
+  }
+}, [toast]);
 
   useEffect(() => {
     fetchPosts();
@@ -74,23 +88,44 @@ const HighTablePage = () => {
     if (!post) return;
 
     if (post.is_liked_by_user) {
-      const { error } = await supabase
-        .from('social_post_likes')
-        .delete()
-        .match({ post_id: postId, user_id: user.id });
-      if (error) {
-        toast({ title: 'Error', description: 'Could not unlike post.', variant: 'destructive' });
-      } else {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/social-posts/${postId}/unlike`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to unlike post');
+        }
+        
         setPosts(posts.map(p => p.id === postId ? { ...p, is_liked_by_user: false, likes_count: (p.likes_count || 1) - 1 } : p));
+      } catch (error) {
+        console.error('Error unliking post:', error);
+        toast({ title: 'Error', description: 'Could not unlike post.', variant: 'destructive' });
       }
     } else {
-      const { error } = await supabase
-        .from('social_post_likes')
-        .insert({ post_id: postId, user_id: user.id });
-      if (error) {
-        toast({ title: 'Error', description: 'Could not like post.', variant: 'destructive' });
-      } else {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/social-posts/${postId}/like`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to like post');
+        }
+        
         setPosts(posts.map(p => p.id === postId ? { ...p, is_liked_by_user: true, likes_count: (p.likes_count || 0) + 1 } : p));
+      } catch (error) {
+        console.error('Error liking post:', error);
+        toast({ title: 'Error', description: 'Could not like post.', variant: 'destructive' });
       }
     }
   };
@@ -106,19 +141,25 @@ const HighTablePage = () => {
       return;
     }
     
-    const { error } = await supabase
-      .from('user_follows')
-      .insert({ follower_id: userProfile.id, following_id: profileIdToFollow });
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/users/follow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ followingId: profileIdToFollow }),
+      });
 
-    if (error) {
-      if (error.code === '23505') {
-         toast({ title: 'Already following', description: `You are already following this user.` });
-      } else {
-        toast({ title: 'Error', description: 'Could not follow user.', variant: 'destructive' });
-        console.error('Error following user:', error);
+      if (!response.ok) {
+        throw new Error('Failed to follow user');
       }
-    } else {
+      
       toast({ title: 'Success!', description: 'You are now following this user.' });
+    } catch (error) {
+      console.error('Error following user:', error);
+      toast({ title: 'Error', description: 'Could not follow user.', variant: 'destructive' });
     }
   };
 

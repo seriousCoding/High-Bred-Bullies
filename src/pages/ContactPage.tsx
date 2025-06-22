@@ -25,17 +25,31 @@ const formSchema = z.object({
 });
 
 const fetchContactInfo = async () => {
-    const { data, error } = await supabase.from('site_config').select('key, value');
-    if (error) throw new Error(error.message);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/site-config`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    const settings = data.reduce((acc, { key, value }) => {
-        if (key && value) {
-            acc[key] = value;
-        }
-        return acc;
-    }, {} as Record<string, string>);
-    
-    return settings;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch contact info: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      const settings = data.reduce((acc: Record<string, string>, { key, value }: { key: string; value: string }) => {
+          if (key && value) {
+              acc[key] = value;
+          }
+          return acc;
+      }, {} as Record<string, string>);
+      
+      return settings;
+    } catch (error) {
+      console.error('Error fetching contact info:', error);
+      return {};
+    }
 };
 
 const ContactPage = () => {

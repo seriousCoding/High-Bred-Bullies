@@ -10,18 +10,39 @@ import { BlogPostForm, BlogPostFormValues } from '@/components/blog/BlogPostForm
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from "@/hooks/use-toast";
-import { Database } from '@/integrations/supabase/types';
-
-type BlogPost = Database['public']['Tables']['blog_posts']['Row'];
+interface BlogPost {
+  id: number;
+  title: string;
+  content: string;
+  excerpt?: string;
+  slug: string;
+  featuredImage?: string;
+  tags?: string[];
+  isPublished: boolean;
+  publishedAt?: string;
+  authorId: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const fetchBlogPostById = async (id: string): Promise<BlogPost> => {
-  const { data, error } = await supabase
-    .from('blog_posts')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('No authentication token');
+  }
 
-  if (error) throw error;
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts/${id}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch blog post: ${response.statusText}`);
+  }
+
+  const data = await response.json();
   if (!data) throw new Error("Blog post not found.");
   return data;
 };
