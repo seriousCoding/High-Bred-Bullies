@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, Wallet, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import CryptoNavbar from '@/components/CryptoNavbar';
 
 interface Product {
   id: string;
@@ -204,21 +205,23 @@ const CryptoTradingPage: React.FC = () => {
   const selectedProductData = products.find(p => p.id === selectedProduct);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Crypto Trading Platform</h1>
-        <div className="flex items-center space-x-2">
-          <Badge variant={wsConnected ? "default" : "secondary"}>
-            {wsConnected ? "Connected" : "Disconnected"}
-          </Badge>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            API Keys
-          </Button>
+    <div className="min-h-screen bg-background">
+      <CryptoNavbar />
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Crypto Trading Platform</h1>
+          <div className="flex items-center space-x-2">
+            <Badge variant={wsConnected ? "default" : "secondary"}>
+              {wsConnected ? "Connected" : "Disconnected"}
+            </Badge>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              API Keys
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Trading Panel */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -413,6 +416,7 @@ const CryptoTradingPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   );
