@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,28 +54,45 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const getCurrentBreederAndFetchLitters = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const token = localStorage.getItem('token');
+      if (!token) {
         setError('No authenticated user found');
         setLoading(false);
         return;
       }
 
-      console.log('Current user:', user.id);
+      // Get current user from JWT token by calling user API
+      const userResponse = await fetch(`${API_BASE_URL}/api/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      const { data: breederData, error: breederError } = await supabase
-        .from('breeders')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      if (!userResponse.ok) {
+        setError('Failed to get user information');
+        setLoading(false);
+        return;
+      }
 
-      if (breederError) {
-        console.error('Breeder fetch error:', breederError);
+      const userData = await userResponse.json();
+      console.log('Current user:', userData.id);
+
+      // Get breeder profile for current user
+      const breederResponse = await fetch(`${API_BASE_URL}/api/breeders/by-user/${userData.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!breederResponse.ok) {
         setError('No breeder profile found for current user');
         setLoading(false);
         return;
       }
 
+      const breederData = await breederResponse.json();
       console.log('Found breeder:', breederData);
       await fetchLittersForBreeder(breederData.id);
     } catch (error: any) {
@@ -93,21 +111,23 @@ export const LittersList = ({ breederId }: LittersListProps) => {
     try {
       console.log('Fetching litters for breeder:', currentBreederId);
 
-      const { data, error } = await supabase
-        .from('litters')
-        .select('*')
-        .eq('breeder_id', currentBreederId)
-        .order('created_at', { ascending: false });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/litters/by-breeder/${currentBreederId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) {
-        console.error('Litters fetch error:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch litters: ${response.statusText}`);
       }
 
+      const data = await response.json();
       console.log('Fetched litters:', data);
 
       // Type cast the status field to ensure it matches our interface
-      const typedLitters = (data || []).map(litter => ({
+      const typedLitters = (data || []).map((litter: any) => ({
         ...litter,
         status: litter.status as 'active' | 'upcoming' | 'sold_out' | 'archived'
       }));

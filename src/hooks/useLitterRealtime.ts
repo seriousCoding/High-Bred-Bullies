@@ -1,75 +1,47 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Litter } from "@/types";
+
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
 // Fetch a single litter by id and subscribe to real-time updates.
 export function useLitterRealtime(litterId: string, initialLitter?: Litter) {
   const [litter, setLitter] = useState<Litter | undefined>(initialLitter);
 
-  // Initial fetch
+  // Initial fetch with periodic updates
   useEffect(() => {
     let isMounted = true;
+    
     async function fetchLitter() {
-      const { data, error } = await supabase
-        .from("litters")
-        .select(
-          `
-          id,
-          name,
-          breed,
-          birth_date,
-          available_puppies,
-          total_puppies,
-          price_per_male,
-          price_per_female,
-          image_url,
-          dam_image_url,
-          sire_image_url,
-          breeders (
-            business_name
-          )
-        `
-        )
-        .eq("id", litterId)
-        .maybeSingle();
-      if (error) {
-        // Optionally handle the error!
-        return;
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          console.error('Error fetching litter:', response.statusText);
+          return;
+        }
+
+        const data = await response.json();
+        if (isMounted && data) setLitter(data as Litter);
+      } catch (error) {
+        console.error('Error fetching litter:', error);
       }
-      if (isMounted && data) setLitter(data as Litter);
     }
+
     fetchLitter();
+
+    // Poll for updates every 30 seconds (replacing real-time subscription)
+    const interval = setInterval(fetchLitter, 30000);
+
     return () => {
       isMounted = false;
-    };
-  }, [litterId]);
-
-  // Real-time listener
-  useEffect(() => {
-    const channel = supabase
-      .channel(`realtime-littercard-${litterId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "litters",
-          filter: `id=eq.${litterId}`,
-        },
-        (payload) => {
-          // payload.new is the updated litter
-          setLitter((prev) =>
-            prev
-              ? { ...prev, ...payload.new }
-              : ((payload.new as Litter) ?? prev)
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [litterId]);
 

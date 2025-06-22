@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { LitterDetail, QuantityDiscount } from "@/types";
+
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Label } from "../ui/label";
 import { Trash, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
