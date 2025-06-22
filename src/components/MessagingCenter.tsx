@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, MessageCircle } from 'lucide-react';
-const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserOnboarding } from '@/hooks/useUserOnboarding';
 import { toast } from 'sonner';
 import ConversationList from './messaging/ConversationList';
 import MessageBubble from './messaging/MessageBubble';
+
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
 interface Friend {
   id: string;
@@ -154,15 +155,22 @@ const MessagingCenter: React.FC<MessagingCenterProps> = ({ preSelectedConversati
     if (!newMessage.trim() || !selectedConversation || !userProfile) return;
 
     try {
-      const { error } = await supabase
-        .from('direct_messages')
-        .insert({
-          sender_id: userProfile.id,
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           receiver_id: selectedConversation,
-          content: newMessage.trim()
-        });
-
-      if (error) throw error;
+          content: newMessage.trim(),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
+      }
       
       setNewMessage('');
       fetchMessages(selectedConversation);
@@ -173,30 +181,19 @@ const MessagingCenter: React.FC<MessagingCenterProps> = ({ preSelectedConversati
     }
   };
 
-  // Set up real-time subscriptions
+  // Set up real-time updates with polling (replaces Supabase subscriptions)
   useEffect(() => {
     if (!userProfile) return;
 
-    const messagesChannel = supabase
-      .channel('messages_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'direct_messages'
-        },
-        (payload) => {
-          if (selectedConversation) {
-            fetchMessages(selectedConversation);
-          }
-          fetchConversations();
-        }
-      )
-      .subscribe();
+    const pollInterval = setInterval(() => {
+      if (selectedConversation) {
+        fetchMessages(selectedConversation);
+      }
+      fetchConversations();
+    }, 5000);
 
     return () => {
-      supabase.removeChannel(messagesChannel);
+      clearInterval(pollInterval);
     };
   }, [userProfile, selectedConversation]);
 

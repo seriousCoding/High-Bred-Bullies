@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Users, UserPlus } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserOnboarding } from '@/hooks/useUserOnboarding';
 import { toast } from 'sonner';
