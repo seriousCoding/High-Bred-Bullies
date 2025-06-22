@@ -1,0 +1,24 @@
+
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    
+  # Optional: Include if you want to run Supabase locally
+  # supabase:
+  #   image: supabase/supabase:latest
+  #   ports:
+  #     - "54321:54321"
+  #   environment:
+  #     - POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
+  #   volumes:
+  #     - supabase_data:/var/lib/postgresql/data
+
+# volumes:
+#   supabase_data:
