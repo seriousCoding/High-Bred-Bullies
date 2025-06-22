@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { WebSocketServer } from 'ws';
 import { Server as HttpServer } from 'http';
 import { z } from 'zod';
-import { insertApiKeySchema } from '@shared/schema';
+import { insertApiKeySchema } from '../shared/schema';
 import { storage } from './storage';
 import { coinbaseClient } from './coinbase-client';
 import { keyVault } from './key-vault';

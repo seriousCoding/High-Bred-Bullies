@@ -2,7 +2,7 @@ import {
   User, InsertUser, 
   ApiKey, InsertApiKey,
   FavoriteMarket, InsertFavoriteMarket
-} from "@shared/schema";
+} from "../shared/schema";
 
 export interface IStorage {
   // User methods
@@ -24,7 +24,7 @@ export interface IStorage {
   removeFavoriteMarket(id: number): Promise<void>;
 }
 
-import { users, apiKeys, favoriteMarkets } from "@shared/schema";
+import { users, apiKeys, favoriteMarkets } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, isNull } from "drizzle-orm";
 

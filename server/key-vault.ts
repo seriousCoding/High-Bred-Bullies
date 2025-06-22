@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { storage } from './storage';
-import { ApiKey } from '@shared/schema';
+import { ApiKey } from '../shared/schema';
 
 /**
  * Class that manages API keys securely

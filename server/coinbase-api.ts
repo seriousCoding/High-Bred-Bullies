@@ -4,7 +4,7 @@ import {
   Account, CreateOrderRequest, Order,
   Trade, WebSocketMessage, CoinbaseExchangeProduct,
   OrderSide, OrderTimeInForce
-} from '@shared/coinbase-api-types';
+} from '../shared/coinbase-api-types';
 import { WebSocket } from 'ws';
 import { Client as CoinbaseClient } from 'coinbase';
 

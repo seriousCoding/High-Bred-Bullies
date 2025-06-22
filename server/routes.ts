@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { coinbaseApi } from "./coinbase-api";
 import { z } from "zod";
-import { insertApiKeySchema } from "@shared/schema";
+import { insertApiKeySchema } from "../shared/schema";
 import { WebSocketServer } from 'ws';
 import axios from 'axios';
 import dotenv from 'dotenv';
