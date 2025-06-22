@@ -82,17 +82,17 @@ export function setupAuth(app: Express) {
       // Create the user
       const user = await storage.createUser({
         username: userData.username,
-        password: hashedPassword
+        password_hash: hashedPassword
       });
       
       // Generate JWT token
       const token = generateToken(user);
       
-      // Return user info (without password) and token
-      const { password, ...userWithoutPassword } = user;
+      // Return user info (without password) and token in expected format
+      const { password_hash: _, ...userWithoutPassword } = user;
       res.status(201).json({
-        ...userWithoutPassword,
-        token
+        token,
+        user: userWithoutPassword
       });
     } catch (error) {
       console.error('Registration error:', error);
@@ -131,7 +131,7 @@ export function setupAuth(app: Express) {
       }
       
       // Verify password
-      const isPasswordValid = await verifyPassword(password, user.password);
+      const isPasswordValid = await verifyPassword(password, user.password_hash);
       if (!isPasswordValid) {
         return res.status(401).json({
           error: 'Authentication failed',
@@ -142,11 +142,11 @@ export function setupAuth(app: Express) {
       // Generate JWT token
       const token = generateToken(user);
       
-      // Return user info (without password) and token
-      const { password: _, ...userWithoutPassword } = user;
+      // Return user info (without password) and token in expected format
+      const { password_hash: _, ...userWithoutPassword } = user;
       res.status(200).json({
-        ...userWithoutPassword,
-        token
+        token,
+        user: userWithoutPassword
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -185,7 +185,7 @@ export function setupAuth(app: Express) {
       const apiKeys = await keyVault.getUserKeys(user.id);
       
       // Return user info (without password) and API key status
-      const { password, ...userWithoutPassword } = user;
+      const { password_hash: _, ...userWithoutPassword } = user;
       res.status(200).json({
         ...userWithoutPassword,
         hasApiKeys: apiKeys.length > 0
