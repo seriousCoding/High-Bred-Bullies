@@ -1,43 +1,98 @@
 
 import { useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+interface User {
+  id: number;
+  username: string;
+  hasApiKeys?: boolean;
+}
+
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    token: null,
+    loading: true
+  });
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    // Check for existing token on mount
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      // Verify token and get user info
+      fetchCurrentUser(token);
+    } else {
+      setAuthState(prev => ({ ...prev, loading: false }));
+    }
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const fetchCurrentUser = async (token: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch(`${API_BASE_URL}/api/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (error) throw error;
+      if (response.ok) {
+        const user = await response.json();
+        setAuthState({
+          user,
+          token,
+          loading: false
+        });
+      } else {
+        // Invalid token, remove it
+        localStorage.removeItem('auth_token');
+        setAuthState({
+          user: null,
+          token: null,
+          loading: false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch current user:', error);
+      localStorage.removeItem('auth_token');
+      setAuthState({
+        user: null,
+        token: null,
+        loading: false
+      });
+    }
+  };
+
+  const signIn = async (username: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to sign in');
+      }
+
+      // Store token and update state
+      localStorage.setItem('auth_token', data.token);
+      setAuthState({
+        user: data,
+        token: data.token,
+        loading: false
+      });
 
       toast.success('Successfully signed in!');
       return { data, error: null };
@@ -48,18 +103,29 @@ export function useAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, userData?: any) => {
+  const signUp = async (username: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: userData,
+      const response = await fetch(`${API_BASE_URL}/api/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ username, password }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create account');
+      }
+
+      // Store token and update state
+      localStorage.setItem('auth_token', data.token);
+      setAuthState({
+        user: data,
+        token: data.token,
+        loading: false
+      });
 
       toast.success('Account created successfully!');
       return { data, error: null };
@@ -73,17 +139,25 @@ export function useAuth() {
   const signOut = async () => {
     try {
       console.log('Attempting to sign out...');
-      const { error } = await supabase.auth.signOut();
       
-      if (error) {
-        console.error('Sign out error:', error);
-        throw error;
+      // Call logout endpoint (optional, since JWT is stateless)
+      if (authState.token) {
+        await fetch(`${API_BASE_URL}/api/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authState.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
       }
 
-      console.log('Sign out successful');
-      // Clear local state immediately
-      setUser(null);
-      setSession(null);
+      // Clear local storage and state
+      localStorage.removeItem('auth_token');
+      setAuthState({
+        user: null,
+        token: null,
+        loading: false
+      });
       
       toast.success('Successfully signed out!');
       
@@ -99,9 +173,9 @@ export function useAuth() {
   };
 
   return {
-    user,
-    session,
-    loading,
+    user: authState.user,
+    session: authState.token ? { access_token: authState.token } : null,
+    loading: authState.loading,
     signIn,
     signUp,
     signOut,

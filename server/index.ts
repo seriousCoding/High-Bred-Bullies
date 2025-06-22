@@ -14,21 +14,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set up session for both auth systems
-app.use(session({
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
-
-// Set up authentication systems
+// Set up authentication system (JWT-based)
 setupAuth(app);
-setupUnifiedAuth(app);
 
 // Apply auth middleware to all API routes
 app.use('/api', async (req, res, next) => {
