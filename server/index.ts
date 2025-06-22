@@ -1,10 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
-import { registerApiRoutes } from "./api-routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { coinbaseClient } from "./coinbase-client";
-import { oauthService } from "./oauth-service";
-import { setupAuth, authenticateRequest } from "./auth";
+import { setupAuth } from "./auth";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -16,11 +13,6 @@ app.use(express.urlencoded({ extended: false }));
 
 // Set up authentication system (JWT-based)
 setupAuth(app);
-
-// Apply auth middleware to all API routes
-app.use('/api', async (req, res, next) => {
-  await authenticateRequest(req, res, next);
-});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -56,8 +48,14 @@ app.use((req, res, next) => {
   // Create HTTP server
   const server = createServer(app);
   
-  // Register API routes
-  await registerApiRoutes(app, server);
+  // Basic API endpoints
+  app.get('/api/health', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: process.env.DATABASE_URL ? 'connected' : 'not configured'
+    });
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

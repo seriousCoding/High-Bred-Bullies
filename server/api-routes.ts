@@ -11,7 +11,7 @@ import { log } from './vite';
 import path from 'path';
 import fs from 'fs';
 // Removed express-session import - using JWT authentication instead
-import { requireApiKey, requireOAuthToken } from './auth';
+import { requireApiKey, requireOAuthToken, authenticateToken } from './auth';
 import { oauthRouter } from './oauth-routes';
 
 // Using the imported authentication middleware from auth.ts
@@ -169,7 +169,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   }
   
   // API Key Management - with validation before saving
-  app.post('/api/keys', authenticateRequest, async (req: Request, res: Response) => {
+  app.post('/api/keys', authenticateToken, async (req: Request, res: Response) => {
     try {
       // Check if user is authenticated
       const userId = req.user?.id;
@@ -271,7 +271,7 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
   
-  app.get('/api/keys', authenticateRequest, async (req: Request, res: Response) => {
+  app.get('/api/keys', authenticateToken, async (req: Request, res: Response) => {
     try {
       // Get the user ID from JWT token
       const userId = req.user?.id;
@@ -309,10 +309,10 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
   
-  app.delete('/api/keys/:id', async (req: Request, res: Response) => {
+  app.delete('/api/keys/:id', authenticateToken, async (req: Request, res: Response) => {
     try {
       // Check if user is authenticated
-      const userId = req.session?.userId;
+      const userId = req.user?.id;
       
       if (!userId) {
         return res.status(401).json({ message: 'Authentication required' });
