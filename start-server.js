@@ -5,6 +5,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -99,16 +100,21 @@ app.get('/api/health', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Serve React app for all non-API routes (SPA routing)
-app.get('*', (req, res) => {
+// SPA fallback - serve React app for unmatched routes
+app.use((req, res, next) => {
   // Skip API routes
   if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
+    return next();
+  }
+  
+  // Only handle GET requests for HTML content
+  if (req.method !== 'GET' || req.path.includes('.')) {
+    return next();
   }
   
   // Check if dist/index.html exists (built React app)
   const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-  if (require('fs').existsSync(distIndexPath)) {
+  if (fs.existsSync(distIndexPath)) {
     res.sendFile(distIndexPath);
   } else {
     // Fallback to development HTML
@@ -140,7 +146,7 @@ app.get('*', (req, res) => {
 
   // Start server
   const server = createServer(app);
-  const port = process.env.PORT || 80;
+  const port = parseInt(process.env.PORT) || 80;
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Express server running on http://0.0.0.0:${port}`);
