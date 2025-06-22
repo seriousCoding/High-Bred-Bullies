@@ -15,47 +15,57 @@ import { toast } from 'sonner';
 import { InvoiceViewer } from '@/components/InvoiceViewer';
 
 const finalizeOrder = async ({ session_id, token }: { session_id: string, token: string }) => {
-  const { data, error } = await supabase.functions.invoke('finalize-litter-order', {
-    body: { session_id },
-    headers: { Authorization: `Bearer ${token}` }
+  const response = await fetch(`${API_BASE_URL}/api/orders/finalize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ session_id })
   });
 
-  if (error) throw new Error(error.message);
-  if (data.error) throw new Error(data.error);
+  if (!response.ok) {
+    throw new Error('Failed to finalize order');
+  }
 
-  return data;
+  return await response.json();
 };
 
 const updateScheduledDate = async ({ orderId, scheduledDate }: { orderId: string, scheduledDate: Date }) => {
-    const { data, error } = await supabase
-        .from('orders')
-        .update({
+    const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}/schedule`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
             scheduled_date: scheduledDate.toISOString(),
-            scheduling_confirmed_by_user: true, // User confirms when they set the date
+            scheduling_confirmed_by_user: true
         })
-        .eq('id', orderId)
-        .select()
-        .single();
+    });
 
-    if (error) {
-        console.error("Error scheduling date:", error);
-        throw new Error(error.message);
-    }
-    if (!data) {
+    if (!response.ok) {
         throw new Error("Failed to schedule. Order not found or permission denied.");
     }
-    return data;
+    
+    return await response.json();
 }
 
 const sendConfirmationEmail = async ({ order, userEmail, puppies }: { order: any, userEmail: string, puppies: any[] }) => {
-  const { data, error } = await supabase.functions.invoke('send-pickup-confirmation', {
-      body: { order, userEmail, puppies }
+  const response = await fetch(`${API_BASE_URL}/api/email/pickup-confirmation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+    },
+    body: JSON.stringify({ order, userEmail, puppies })
   });
 
-  if (error) throw new Error(error.message);
-  if (data.error) throw new Error(data.error);
+  if (!response.ok) {
+    throw new Error('Failed to send confirmation email');
+  }
 
-  return data;
+  return await response.json();
 }
 
 const SchedulePickupPage = () => {
@@ -102,7 +112,7 @@ const SchedulePickupPage = () => {
           const type = updatedOrder.delivery_type === 'delivery' ? 'Delivery' : 'Pickup';
           toast.success(`${type} scheduled successfully!`);
           
-          if (user?.email && orderInfo) {
+          if (user?.username && orderInfo) {
             toast.info("Sending confirmation email...");
             
             const emailOrderPayload = {
@@ -114,7 +124,7 @@ const SchedulePickupPage = () => {
             
             sendEmail({
               order: emailOrderPayload,
-              userEmail: user.email,
+              userEmail: user.username,
               puppies: orderInfo.puppies,
             });
           }
@@ -248,8 +258,8 @@ const SchedulePickupPage = () => {
               order={orderInfo.order}
               puppies={orderInfo.puppies}
               customerInfo={{
-                name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Customer',
-                email: user?.email || ''
+                name: user?.username || 'Customer',
+                email: user?.username || ''
               }}
             />
           )}

@@ -20,24 +20,20 @@ import { Label } from "@/components/ui/label";
 import PreCheckoutDialog from '@/components/checkout/PreCheckoutDialog';
 
 const fetchLitterDetail = async (litterId: string): Promise<LitterDetail> => {
-  const { data, error } = await supabase
-    .from('litters')
-    .select(`
-      *,
-      breeders ( business_name, delivery_fee, delivery_areas ),
-      puppies ( * )
-    `)
-    .eq('id', litterId)
-    .single();
+  const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+    }
+  });
 
-  if (error) {
-    console.error("Error fetching litter details:", error);
-    throw new Error(error.message);
-  }
-  if (!data) {
-    throw new Error("Litter not found");
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Litter not found");
+    }
+    throw new Error('Failed to fetch litter details');
   }
 
+  const data = await response.json();
   return data as unknown as LitterDetail;
 };
 
@@ -105,39 +101,23 @@ const LitterDetailPage = () => {
   });
 
   useEffect(() => {
-    if (!id) return;
-
-    const channel = supabase
-      .channel(`litter-updates-${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'puppies',
-          filter: `litter_id=eq.${id}`,
-        },
-        (payload) => {
-          console.log('Puppy update received!', payload);
-          toast.info('Puppy availability has been updated.');
-          queryClient.invalidateQueries({ queryKey: ['litterDetail', id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Real-time updates removed for JWT authentication system
   }, [id, queryClient]);
 
   const { data: puppyPrices, isLoading: isLoadingPrices } = useQuery<Record<string, number>>({
     queryKey: ['puppyPrices', id],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('get-puppy-prices', {
-        body: { litterId: id },
+      const response = await fetch(`${API_BASE_URL}/api/litters/${id}/puppy-prices`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
       });
-      if (error) throw new Error(`Failed to fetch puppy prices: ${error.message}`);
-      return data;
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch puppy prices');
+      }
+      
+      return await response.json();
     },
     enabled: !!litter && (litter.price_per_male === 0 && litter.price_per_female === 0),
   });

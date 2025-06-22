@@ -92,17 +92,20 @@ const ManageLitterPage = () => {
     const fetchLitterWithPuppies = async (): Promise<LitterWithPuppies> => {
         if (!litterId) throw new Error('No litter ID provided');
 
-        const { data, error } = await supabase
-            .from('litters')
-            .select('*, puppies(*)')
-            .eq('id', litterId)
-            .single();
+        const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}/manage`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            }
+        });
         
-        if (error) throw new Error(error.message);
-        if (!data) throw new Error('Litter not found');
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Litter not found');
+            }
+            throw new Error('Failed to fetch litter');
+        }
         
-        // Cast the response to our expected type
-        return data as LitterWithPuppies;
+        return await response.json() as LitterWithPuppies;
     };
 
     const { data: litter, isLoading, error } = useQuery({
@@ -113,11 +116,18 @@ const ManageLitterPage = () => {
 
     const updateLitterMutation = useMutation({
         mutationFn: async (updatedData: { stripe_male_price_id: string; stripe_female_price_id: string; }) => {
-            const { error } = await supabase
-                .from('litters')
-                .update(updatedData)
-                .eq('id', litterId!);
-            if (error) throw error;
+            const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify(updatedData)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update litter');
+            }
         },
         onSuccess: () => {
             toast({ title: "Success", description: "Litter updated successfully." });

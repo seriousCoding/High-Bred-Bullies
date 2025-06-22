@@ -11,31 +11,18 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const fetchLitters = async (): Promise<Litter[]> => {
-  const { data, error } = await supabase
-    .from('litters')
-    .select(`
-      id,
-      name,
-      breed,
-      birth_date,
-      available_puppies,
-      total_puppies,
-      price_per_male,
-      price_per_female,
-      image_url,
-      status,
-      breeders (
-        business_name
-      )
-    `)
-    .in('status', ['active', 'upcoming'])
-    .order('birth_date', { ascending: false });
+  const response = await fetch(`${API_BASE_URL}/api/litters`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+    }
+  });
 
-  if (error) {
-    console.error("Error fetching litters:", error);
-    throw error;
+  if (!response.ok) {
+    throw new Error('Failed to fetch litters');
   }
-  return (data as any[] || []) as Litter[];
+
+  const data = await response.json();
+  return (data || []) as Litter[];
 };
 
 const LittersPage = () => {
@@ -46,21 +33,7 @@ const LittersPage = () => {
   });
 
   useEffect(() => {
-    const channel = supabase
-      .channel('realtime-litters-list')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'litters' },
-        (payload) => {
-          console.log('Litter update received, invalidating active litters list.', payload.new.id);
-          queryClient.invalidateQueries({ queryKey: ['activeLitters'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Real-time updates removed for JWT authentication system
   }, [queryClient]);
 
   // Separate active and upcoming litters
