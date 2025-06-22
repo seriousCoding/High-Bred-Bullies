@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { PasswordInput } from '@/components/PasswordInput';
-import { Session } from '@supabase/supabase-js';
+import { useAuth } from '@/hooks/useAuth';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,32 +15,14 @@ const AuthPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const { user, login, register } = useAuth();
 
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        console.log("User authenticated, navigating to /");
-        navigate('/');
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        console.log("Existing session found, navigating to /");
-        navigate('/');
-      }
-    });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, [navigate]);
+    if (user) {
+      console.log("User authenticated, navigating to /");
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();

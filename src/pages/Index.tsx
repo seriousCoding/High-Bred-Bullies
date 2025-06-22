@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import LitterCard from '@/components/LitterCard';
 import { Litter } from '@/types';
 import { Loader2, AlertTriangle } from 'lucide-react';
@@ -12,32 +11,12 @@ import { useEffect } from 'react';
 import { APP_NAME } from '@/constants/app';
 
 const fetchFeaturedLitters = async (): Promise<Litter[]> => {
-  const { data, error } = await supabase
-    .from('litters')
-    .select(`
-      id,
-      name,
-      breed,
-      birth_date,
-      available_puppies,
-      total_puppies,
-      price_per_male,
-      price_per_female,
-      image_url,
-      breeders (
-        business_name
-      )
-    `)
-    .eq('status', 'active')
-    .gt('available_puppies', 0)
-    .order('birth_date', { ascending: false })
-    .limit(3);
-
-  if (error) {
-    console.error("Error fetching featured litters:", error);
-    throw error;
+  const response = await fetch('/api/litters/featured');
+  if (!response.ok) {
+    throw new Error('Failed to fetch featured litters');
   }
-  return (data as any[] || []) as Litter[];
+  const data = await response.json();
+  return data as Litter[];
 };
 
 const Index = () => {
@@ -48,20 +27,14 @@ const Index = () => {
   });
 
   useEffect(() => {
-    const channel = supabase
-      .channel('realtime-litters-index')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'litters' },
-        (payload) => {
-          console.log('Litter update received, invalidating featured litters list.', payload.new.id);
-          queryClient.invalidateQueries({ queryKey: ['featuredLitters'] });
-        }
-      )
-      .subscribe();
+    // Real-time updates will be implemented with WebSocket connection later
+    // For now, we'll refetch data periodically
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['featuredLitters'] });
+    }, 30000); // Refresh every 30 seconds
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [queryClient]);
 

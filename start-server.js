@@ -128,7 +128,7 @@ app.get('/', (req, res) => {
 
   // Start server
   const server = createServer(app);
-  const port = 5000;
+  const port = process.env.PORT || 80;
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Express server running on http://0.0.0.0:${port}`);
