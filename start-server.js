@@ -178,41 +178,70 @@ const server = createServer(async (req, res) => {
     }
 
     // Static file serving
-    let filePath = url === '/' ? '/index.html' : url;
+    let filePath = url;
+    if (url === '/') filePath = '/index.html';
     
-    // Serve from public directory
-    if (filePath.startsWith('/src/')) {
-      filePath = filePath.replace('/src/', '/src/');
-    } else if (!filePath.startsWith('/public/')) {
-      filePath = '/public' + filePath;
-    }
-
-    try {
-      const fullPath = join(__dirname, filePath);
-      const content = readFileSync(fullPath);
-      
-      let contentType = 'text/html';
-      if (filePath.endsWith('.js')) contentType = 'application/javascript';
-      else if (filePath.endsWith('.css')) contentType = 'text/css';
-      else if (filePath.endsWith('.json')) contentType = 'application/json';
-      else if (filePath.endsWith('.png')) contentType = 'image/png';
-      else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) contentType = 'image/jpeg';
-      else if (filePath.endsWith('.svg')) contentType = 'image/svg+xml';
-      
-      setHeaders(res, contentType);
-      res.writeHead(200);
-      res.end(content);
-    } catch {
-      // Fallback to index.html for SPA routing
+    // Try different locations for static files
+    const possiblePaths = [
+      join(__dirname, filePath), // Direct path
+      join(__dirname, 'public', filePath), // Public directory
+      join(__dirname, 'src', filePath.replace('/src/', '')), // Source directory
+      join(__dirname, 'dist', filePath) // Built files
+    ];
+    
+    let fileFound = false;
+    for (const fullPath of possiblePaths) {
       try {
-        const indexPath = join(__dirname, 'index.html');
-        const indexContent = readFileSync(indexPath);
-        setHeaders(res, 'text/html');
+        const content = readFileSync(fullPath);
+        
+        // Determine content type
+        let contentType = 'text/html';
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs') || filePath.endsWith('.jsx')) {
+          contentType = 'application/javascript';
+        } else if (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) {
+          contentType = 'application/javascript';
+        } else if (filePath.endsWith('.css')) {
+          contentType = 'text/css';
+        } else if (filePath.endsWith('.json')) {
+          contentType = 'application/json';
+        } else if (filePath.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (filePath.endsWith('.svg')) {
+          contentType = 'image/svg+xml';
+        } else if (filePath.endsWith('.ico')) {
+          contentType = 'image/x-icon';
+        }
+        
+        setHeaders(res, contentType);
         res.writeHead(200);
-        res.end(indexContent);
+        res.end(content);
+        fileFound = true;
+        break;
       } catch {
+        continue;
+      }
+    }
+    
+    // If no file found, serve index.html for SPA routing (only for non-static requests)
+    if (!fileFound) {
+      if (filePath.includes('.')) {
+        // This looks like a file request that failed
         res.writeHead(404);
-        res.end('File not found');
+        res.end('File not found: ' + filePath);
+      } else {
+        // This is likely a SPA route, serve index.html
+        try {
+          const indexPath = join(__dirname, 'index.html');
+          const indexContent = readFileSync(indexPath);
+          setHeaders(res, 'text/html');
+          res.writeHead(200);
+          res.end(indexContent);
+        } catch {
+          res.writeHead(404);
+          res.end('Index file not found');
+        }
       }
     }
   } catch (error) {

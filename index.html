@@ -1,18 +1,346 @@
-
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>High Bred Bullies - Premium Bulldog Breeding</title>
+    <title>High Bred Bullies - Coinbase Trading Platform</title>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#1f2937" />
-    <meta name="description" content="Premium bulldog breeding community and marketplace" />
-    <link rel="apple-touch-icon" href="/lovable-uploads/ef228263-d2fc-4f20-9e5e-2f2ec7a0a7b1.png" />
+    <meta name="description" content="Coinbase Advanced Trade API client with real-time cryptocurrency trading" />
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #111827;
+        color: #f9fafb;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+      .card {
+        background: #1f2937;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid #374151;
+      }
+      .btn {
+        background: #3b82f6;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .btn-secondary {
+        background: #6b7280;
+      }
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+      .input {
+        background: #374151;
+        border: 1px solid #4b5563;
+        color: #f9fafb;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        width: 100%;
+        margin: 0.5rem 0;
+      }
+      .status-connected {
+        color: #10b981;
+      }
+      .status-error {
+        color: #ef4444;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+
+      // API utility functions
+      const api = {
+        async request(endpoint, options = {}) {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api${endpoint}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token && { Authorization: `Bearer ${token}` }),
+              ...options.headers,
+            },
+            ...options,
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          return response.json();
+        },
+
+        async register(username, password) {
+          return this.request('/register', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+          });
+        },
+
+        async login(username, password) {
+          return this.request('/login', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+          });
+        },
+
+        async getUser() {
+          return this.request('/user');
+        },
+
+        async getHealth() {
+          return this.request('/health');
+        },
+      };
+
+      // Auth Hook
+      function useAuth() {
+        const [user, setUser] = useState(null);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+          const token = localStorage.getItem('token');
+          if (token) {
+            api.getUser()
+              .then(setUser)
+              .catch(() => localStorage.removeItem('token'))
+              .finally(() => setLoading(false));
+          } else {
+            setLoading(false);
+          }
+        }, []);
+
+        const login = async (username, password) => {
+          const response = await api.login(username, password);
+          localStorage.setItem('token', response.token);
+          setUser(response.user);
+          return response;
+        };
+
+        const register = async (username, password) => {
+          const response = await api.register(username, password);
+          localStorage.setItem('token', response.token);
+          setUser(response.user);
+          return response;
+        };
+
+        const logout = () => {
+          localStorage.removeItem('token');
+          setUser(null);
+        };
+
+        return { user, loading, login, register, logout };
+      }
+
+      // Components
+      function LoginForm({ onLogin, onRegister }) {
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+        const [isLogin, setIsLogin] = useState(true);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
+
+        const handleSubmit = async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          setError('');
+
+          try {
+            if (isLogin) {
+              await onLogin(username, password);
+            } else {
+              await onRegister(username, password);
+            }
+          } catch (err) {
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <div className="card">
+            <h2 className="text-2xl font-bold mb-4">
+              {isLogin ? 'Login' : 'Register'}
+            </h2>
+            
+            <form onSubmit={handleSubmit}>
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input"
+                required
+              />
+              
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                required
+              />
+              
+              {error && (
+                <div className="status-error mb-4">{error}</div>
+              )}
+              
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn w-full mb-4"
+              >
+                {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
+              </button>
+            </form>
+            
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="btn-secondary btn w-full"
+            >
+              {isLogin ? 'Need an account? Register' : 'Have an account? Login'}
+            </button>
+          </div>
+        );
+      }
+
+      function Dashboard({ user, onLogout }) {
+        const [health, setHealth] = useState(null);
+
+        useEffect(() => {
+          api.getHealth().then(setHealth).catch(console.error);
+        }, []);
+
+        return (
+          <div className="container">
+            <div className="card">
+              <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold">Coinbase Trading Platform</h1>
+                <button onClick={onLogout} className="btn-secondary btn">
+                  Logout
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="card">
+                  <h3 className="text-xl font-semibold mb-2">Welcome</h3>
+                  <p>Hello, <strong>{user.username}</strong>!</p>
+                  <p className="text-sm text-gray-400">User ID: {user.id}</p>
+                </div>
+                
+                <div className="card">
+                  <h3 className="text-xl font-semibold mb-2">System Status</h3>
+                  {health ? (
+                    <div>
+                      <p className="status-connected">
+                        ✓ Server: {health.server}
+                      </p>
+                      <p className="status-connected">
+                        ✓ Database: {health.database}
+                      </p>
+                      <p className="status-connected">
+                        ✓ Authentication: {health.authentication}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Last updated: {new Date(health.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p>Loading status...</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="card">
+                <h3 className="text-xl font-semibold mb-4">Coinbase Trading Features</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="card">
+                    <h4 className="font-semibold">Market Data</h4>
+                    <p className="text-sm text-gray-400">
+                      Real-time cryptocurrency prices and market information
+                    </p>
+                  </div>
+                  
+                  <div className="card">
+                    <h4 className="font-semibold">Trading</h4>
+                    <p className="text-sm text-gray-400">
+                      Advanced trading features with API key management
+                    </p>
+                  </div>
+                  
+                  <div className="card">
+                    <h4 className="font-semibold">Portfolio</h4>
+                    <p className="text-sm text-gray-400">
+                      Track your cryptocurrency holdings and performance
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function App() {
+        const { user, loading, login, register, logout } = useAuth();
+
+        if (loading) {
+          return (
+            <div className="container">
+              <div className="card text-center">
+                <h2 className="text-2xl">Loading...</h2>
+              </div>
+            </div>
+          );
+        }
+
+        if (!user) {
+          return (
+            <div className="container">
+              <div className="text-center mb-8">
+                <h1 className="text-4xl font-bold mb-2">High Bred Bullies</h1>
+                <p className="text-xl text-gray-400">Coinbase Advanced Trading Platform</p>
+              </div>
+              <div className="max-w-md mx-auto">
+                <LoginForm onLogin={login} onRegister={register} />
+              </div>
+            </div>
+          );
+        }
+
+        return <Dashboard user={user} onLogout={logout} />;
+      }
+
+      // Render the app
+      ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
   </body>
 </html>
