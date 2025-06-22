@@ -14,7 +14,7 @@ interface AuthState {
   loading: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -72,6 +72,7 @@ export function useAuth() {
 
   const signIn = async (username: string, password: string) => {
     try {
+      console.log('Attempting login to:', `${API_BASE_URL}/api/login`);
       const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
@@ -80,7 +81,9 @@ export function useAuth() {
         body: JSON.stringify({ username, password }),
       });
 
+      console.log('Login response status:', response.status);
       const data = await response.json();
+      console.log('Login response data:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to sign in');
@@ -99,7 +102,8 @@ export function useAuth() {
       return { data, error: null };
     } catch (error: any) {
       console.error('Sign in error:', error);
-      toast.error(error.message || 'Failed to sign in');
+      const errorMessage = error.message || error.toString() || 'Failed to sign in';
+      toast.error(`Login failed: ${errorMessage}`);
       return { data: null, error };
     }
   };
