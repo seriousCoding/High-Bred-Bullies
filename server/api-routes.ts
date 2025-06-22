@@ -25,6 +25,61 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     });
   });
 
+  // User Profile endpoints
+  app.get('/api/user/profile', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const profile = await storage.getUserProfile(req.user.id);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      res.json(profile);
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/user/profile', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { username, first_name, last_name } = req.body;
+      
+      // Check if profile already exists
+      const existingProfile = await storage.getUserProfile(req.user.id);
+      if (existingProfile) {
+        return res.json(existingProfile);
+      }
+
+      // Create new profile
+      const profileData = {
+        userId: req.user.id,
+        fullName: `${first_name} ${last_name}`.trim(),
+        phone: null,
+        address: null,
+        city: null,
+        state: null,
+        zipCode: null,
+        avatarUrl: null,
+        bio: null,
+        isBreeder: false
+      };
+
+      const newProfile = await storage.createUserProfile(profileData);
+      res.status(201).json(newProfile);
+    } catch (error) {
+      console.error('Create profile error:', error);
+      res.status(500).json({ error: 'Failed to create profile' });
+    }
+  });
+
   // Dog breeding API endpoints would go here
   // These would include:
   // - Litter management

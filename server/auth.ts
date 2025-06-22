@@ -1,39 +1,31 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
-// Removed coinbase import - system now uses JWT authentication only
-// Removed key vault import - system now uses JWT authentication only
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { insertUserSchema } from '../shared/schema';
 import { z } from 'zod';
-import { db } from './db';
-import { userProfiles } from '../shared/schema';
-import { eq } from 'drizzle-orm';
 
-// Extended Request interface for authenticated routes
+// Extend Express Request interface for JWT authentication
 declare global {
   namespace Express {
     interface Request {
       user?: { id: number; username: string };
-      keyId?: number;
     }
   }
 }
-
-// JWT helper functions
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
-const JWT_EXPIRES_IN = '24h';
 
 interface JwtPayload {
   userId: number;
   username: string;
 }
 
+const JWT_SECRET = process.env.JWT_SECRET || 'high-bred-bullies-secret-key';
+
 function generateToken(user: { id: number; username: string }): string {
   return jwt.sign(
-    { userId: user.id, username: user.username } as JwtPayload,
+    { userId: user.id, username: user.username },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: '7d' }
   );
 }
 
@@ -45,187 +37,145 @@ function verifyToken(token: string): JwtPayload | null {
   }
 }
 
-// Hash a password using bcryptjs
 async function hashPassword(password: string): Promise<string> {
-  const saltRounds = 12;
-  return bcrypt.hash(password, saltRounds);
+  return bcrypt.hash(password, 10);
 }
 
-// Compare a password with a hashed password
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   return bcrypt.compare(password, hashedPassword);
 }
 
-// Setup authentication routes
 export function setupAuth(app: Express) {
+  console.log('🔐 Setting up JWT authentication system...');
 
-  // User registration endpoint
+  // Register endpoint
   app.post('/api/register', async (req: Request, res: Response): Promise<void> => {
     try {
-      // Validate request body with zod
-      const loginSchema = z.object({
-        username: z.string().min(1, "Username is required"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
-      });
+      const validatedData = insertUserSchema.parse(req.body);
       
-      const userData = loginSchema.parse(req.body);
-      
-      // Check if username already exists
-      const existingUser = await storage.getUserByUsername(userData.username);
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
-        return res.status(400).json({
-          error: 'Username taken',
-          message: 'This username is already taken. Please choose another one.'
-        });
+        res.status(400).json({ message: 'Username already exists' });
+        return;
       }
+
+      // Hash password
+      const hashedPassword = await hashPassword(validatedData.password_hash);
       
-      // Hash the password
-      const hashedPassword = await hashPassword(userData.password);
-      
-      // Create the user
+      // Create user
       const user = await storage.createUser({
-        username: userData.username,
+        ...validatedData,
         password_hash: hashedPassword
       });
-      
-      // Generate JWT token
-      const token = generateToken(user);
-      
-      // Return user info (without password) and token in expected format
-      const { password_hash: _, ...userWithoutPassword } = user;
+
+      // Generate token
+      const token = generateToken({ id: user.id, username: user.username });
+
       res.status(201).json({
-        token,
-        user: userWithoutPassword
+        message: 'User created successfully',
+        user: { id: user.id, username: user.username },
+        token
       });
     } catch (error) {
       console.error('Registration error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          error: 'Validation error',
-          message: error.errors[0].message
-        });
+        res.status(400).json({ message: 'Invalid input data', errors: error.errors });
+        return;
       }
-      res.status(500).json({
-        error: 'Registration failed',
-        message: 'Failed to register user. Please try again.'
-      });
+      res.status(500).json({ message: 'Internal server error' });
     }
   });
 
-  // User login endpoint
+  // Login endpoint
   app.post('/api/login', async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body;
-      
+
       if (!username || !password) {
-        return res.status(400).json({
-          error: 'Missing credentials',
-          message: 'Username and password are required'
-        });
+        return res.status(400).json({ message: 'Username and password are required' });
       }
-      
-      // Get user by username
+
+      // Find user
       const user = await storage.getUserByUsername(username);
       if (!user) {
-        return res.status(401).json({
-          error: 'Authentication failed',
-          message: 'Invalid username or password'
-        });
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
-      
+
       // Verify password
-      const isPasswordValid = await verifyPassword(password, user.password_hash);
-      if (!isPasswordValid) {
-        return res.status(401).json({
-          error: 'Authentication failed',
-          message: 'Invalid username or password'
-        });
+      const isValidPassword = await verifyPassword(password, user.password_hash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
-      
-      // Generate JWT token
-      const token = generateToken(user);
-      
-      // Return user info (without password) and token in expected format
-      const { password_hash: _, ...userWithoutPassword } = user;
-      res.status(200).json({
+
+      // Get user profile to check if they're a breeder
+      const userProfile = await storage.getUserProfile(user.id);
+      const isBreeder = userProfile?.isBreeder || false;
+
+      // Generate token
+      const token = generateToken({ id: user.id, username: user.username });
+
+      res.json({
+        message: 'Login successful',
         token,
-        user: userWithoutPassword
+        user: { 
+          id: user.id, 
+          username: user.username,
+          isBreeder 
+        }
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({
-        error: 'Login failed',
-        message: 'Failed to login. Please try again.'
-      });
+      res.status(500).json({ message: 'Internal server error' });
     }
   });
 
-  // User logout endpoint (JWT tokens are stateless, so just confirm logout)
+  // Logout endpoint (client-side token removal)
   app.post('/api/logout', (req: Request, res: Response) => {
-    // With JWT tokens, logout is handled client-side by removing the token
-    res.status(200).json({ message: 'Logged out successfully' });
+    res.json({ message: 'Logout successful' });
   });
 
   // Get current user endpoint
   app.get('/api/user', authenticateToken, async (req: Request, res: Response) => {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          error: 'Not authenticated',
-          message: 'You must be logged in to access this resource'
-        });
+        return res.status(401).json({ message: 'Not authenticated' });
       }
-      
-      const user = await storage.getUser(req.user.id);
+
+      const user = await storage.getUserById(req.user.id);
       if (!user) {
-        return res.status(401).json({
-          error: 'User not found',
-          message: 'Your user account could not be found'
-        });
+        return res.status(404).json({ message: 'User not found' });
       }
-      
-      // Get user profile to check breeder status
-      const [userProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.id));
-      
-      // Check if user has API keys
-      const apiKeys = await keyVault.getUserKeys(user.id);
-      
-      // Return user info (without password) and API key status
-      const { password_hash: _, ...userWithoutPassword } = user;
-      res.status(200).json({
-        ...userWithoutPassword,
-        isBreeder: userProfile?.isBreeder || false,
-        hasApiKeys: apiKeys.length > 0
+
+      const userProfile = await storage.getUserProfile(user.id);
+      const isBreeder = userProfile?.isBreeder || false;
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        isBreeder
       });
     } catch (error) {
       console.error('Get user error:', error);
-      res.status(500).json({
-        error: 'User fetch failed',
-        message: 'Failed to get user information'
-      });
+      res.status(500).json({ message: 'Internal server error' });
     }
   });
+
+  console.log('✅ JWT authentication routes registered');
 }
 
-// JWT authentication middleware
 export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    res.status(401).json({
-      error: 'Access token required',
-      message: 'You must provide an access token'
-    });
+    res.status(401).json({ message: 'Access token required' });
     return;
   }
 
   const payload = verifyToken(token);
   if (!payload) {
-    res.status(403).json({
-      error: 'Invalid token',
-      message: 'Your access token is invalid or expired'
-    });
+    res.status(403).json({ message: 'Invalid or expired token' });
     return;
   }
 
@@ -233,143 +183,35 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-// Universal authentication middleware that adds authentication headers
 export async function authenticateRequest(req: Request, res: Response, next: NextFunction) {
   try {
-    // Extract JWT token from Authorization header
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    // If no token, allow public routes
-    if (!token) {
-      return next();
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization header required' });
     }
-    
-    // Verify JWT token
+
+    const token = authHeader.substring(7);
     const payload = verifyToken(token);
+    
     if (!payload) {
-      // Invalid token, but allow public routes
-      return next();
+      return res.status(401).json({ error: 'Invalid token' });
     }
-    
-    // Set user info in request
+
     req.user = { id: payload.userId, username: payload.username };
-    const userId = payload.userId;
-    
-    // Set the user ID in headers for downstream middlewares
-    req.headers['x-user-id'] = userId.toString();
-    
-    // Set API key headers if they exist in the request
-    const apiKey = req.headers['x-api-key'] as string;
-    const apiSecret = req.headers['x-api-secret'] as string;
-    
-    if (apiKey && apiSecret) {
-      // Set credentials in the client for this request
-      coinbaseClient.setCredentials(apiKey, apiSecret);
-    } else if (userId > 0) {
-      // Try to get API key from vault using key rotation if user is authenticated
-      try {
-        const credentials = await keyVault.getNextKey(userId);
-        if (credentials) {
-          // Set the credentials in the client
-          coinbaseClient.setCredentials(credentials.apiKey, credentials.apiSecret);
-          
-          // Store the key ID in request for later updating its status
-          req.keyId = credentials.keyId;
-        }
-      } catch (err) {
-        console.log('Failed to get API key from vault:', err);
-        // Continue even if key retrieval fails
-      }
-    }
-    
-    // Continue to the next middleware
     next();
   } catch (error) {
-    console.error('Authentication middleware error:', error);
-    return res.status(500).json({ 
-      error: 'Authentication error',
-      message: 'An error occurred while processing your request'
-    });
+    console.error('Authentication error:', error);
+    res.status(401).json({ error: 'Authentication failed' });
   }
 }
 
-// API key authentication middleware - enforces API key requirements
 export async function requireApiKey(req: Request, res: Response, next: NextFunction) {
-  try {
-    // Check authentication first
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        error: 'Authentication required',
-        message: 'You must be logged in to access this resource',
-        needsLogin: true
-      });
-    }
-    
-    const userId = req.user.id;
-    
-    // Direct API key in headers
-    const apiKey = req.headers['x-api-key'] as string;
-    const apiSecret = req.headers['x-api-secret'] as string;
-    
-    if (apiKey && apiSecret) {
-      // Credentials are already set in authenticateRequest middleware
-      return next();
-    }
-    
-    // Try to get API key from vault using key rotation
-    const credentials = await keyVault.getNextKey(userId);
-    
-    if (credentials) {
-      // Set the credentials in the client
-      coinbaseClient.setCredentials(credentials.apiKey, credentials.apiSecret);
-      
-      // Store the key ID in request for later updating its status
-      req.keyId = credentials.keyId;
-      
-      return next();
-    }
-    
-    // Check if user has any API keys (active or inactive)
-    const allKeys = await keyVault.getUserKeys(userId);
-    
-    if (allKeys.length === 0) {
-      // User has no API keys at all - first time setup required
-      return res.status(403).json({
-        error: 'API key required',
-        message: 'This endpoint requires a Coinbase API key. Please add your API credentials.',
-        needsApiKey: true
-      });
-    } else {
-      // User has keys but none are active/valid
-      return res.status(403).json({
-        error: 'Valid API key required',
-        message: 'None of your API keys are valid. Please add a valid Coinbase API key.',
-        needsApiKey: true
-      });
-    }
-  } catch (error) {
-    console.error('API key authentication error:', error);
-    return res.status(500).json({ error: 'Authentication error' });
-  }
+  // For now, this is a stub - JWT authentication handles most cases
+  // This can be expanded if API key functionality is needed for dog breeding platform
+  authenticateToken(req, res, next);
 }
 
-// OAuth token validation middleware
 export function requireOAuthToken(req: Request, res: Response, next: NextFunction) {
-  try {
-    const accessToken = req.headers.authorization?.split(' ')[1];
-    
-    if (!accessToken) {
-      return res.status(401).json({
-        error: 'OAuth token required',
-        message: 'This endpoint requires OAuth authentication. Please connect your Coinbase account.'
-      });
-    }
-    
-    // Token exists, continue
-    next();
-  } catch (error) {
-    console.error('OAuth authentication error:', error);
-    return res.status(500).json({ error: 'OAuth authentication error' });
-  }
+  // OAuth functionality removed - using JWT authentication only
+  authenticateToken(req, res, next);
 }
