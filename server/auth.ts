@@ -57,7 +57,7 @@ async function verifyPassword(password: string, hashedPassword: string): Promise
 export function setupAuth(app: Express) {
 
   // User registration endpoint
-  app.post('/api/register', async (req: Request, res: Response) => {
+  app.post('/api/register', async (req: Request, res: Response): Promise<void> => {
     try {
       // Validate request body with zod
       const loginSchema = z.object({
@@ -201,23 +201,25 @@ export function setupAuth(app: Express) {
 }
 
 // JWT authentication middleware
-export function authenticateToken(req: Request, res: Response, next: NextFunction) {
+export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Access token required',
       message: 'You must provide an access token'
     });
+    return;
   }
 
   const payload = verifyToken(token);
   if (!payload) {
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Invalid token',
       message: 'Your access token is invalid or expired'
     });
+    return;
   }
 
   req.user = { id: payload.userId, username: payload.username };
