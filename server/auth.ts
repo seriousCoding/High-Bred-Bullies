@@ -2,18 +2,18 @@ import { Express, Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
 import { coinbaseClient } from './coinbase-client';
 import { keyVault } from './key-vault';
-import session from 'express-session';
-import createMemoryStore from 'memorystore';
-import * as crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { insertUserSchema } from '@shared/schema';
 import { z } from 'zod';
 
-// Define custom session data
-declare module 'express-session' {
-  interface SessionData {
-    userId?: number;
-    oauth_state?: string;
-    authenticated?: boolean;
+// Extended Request interface for authenticated routes
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { id: number; username: string };
+      keyId?: number;
+    }
   }
 }
 
