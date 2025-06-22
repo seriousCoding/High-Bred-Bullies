@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Users, UserPlus } from 'lucide-react';
-const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserOnboarding } from '@/hooks/useUserOnboarding';
 import { toast } from 'sonner';
@@ -32,6 +31,7 @@ interface FriendsManagerProps {
 }
 
 const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) => {
+  const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
   const { user } = useAuth();
   const { userProfile, isPetOwner } = useUserOnboarding();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -44,7 +44,20 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
   const fetchFriends = async () => {
     if (!userProfile) return;
     
-    const { data, error } = await supabase
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friends`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friends: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       .from('friendships')
       .select(`
         *,
@@ -67,30 +80,27 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
   const fetchFriendRequests = async () => {
     if (!userProfile) return;
     
-    const { data: received, error: receivedError } = await supabase
-      .from('friend_requests')
-      .select(`
-        *,
-        sender:user_profiles!friend_requests_sender_id_fkey(*)
-      `)
-      .eq('receiver_id', userProfile.id)
-      .eq('status', 'pending');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    const { data: sent, error: sentError } = await supabase
-      .from('friend_requests')
-      .select(`
-        *,
-        receiver:user_profiles!friend_requests_receiver_id_fkey(*)
-      `)
-      .eq('sender_id', userProfile.id)
-      .eq('status', 'pending');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friend requests: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const received = data.filter((req: any) => req.receiver_id === userProfile.id && req.status === 'pending');
+      const sent = data.filter((req: any) => req.sender_id === userProfile.id && req.status === 'pending');
     
-    if (received && !receivedError) {
       setFriendRequests(received);
-    }
-    
-    if (sent && !sentError) {
       setSentRequests(sent);
+    } catch (error) {
+      console.error('Error fetching friend requests:', error);
     }
   };
 
@@ -98,14 +108,22 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
   const searchUsers = async () => {
     if (!searchQuery.trim() || !userProfile) return;
     
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .or(`username.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
-      .neq('id', userProfile.id)
-      .limit(10);
-    
-    if (data && !error) {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to search users: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data) {
       // Filter out existing friends and pending requests
       const friendIds = new Set(friends.map(f => f.id));
       const requestIds = new Set([
@@ -118,6 +136,9 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       );
       
       setSearchResults(filteredResults);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
     }
   };
 
@@ -129,14 +150,22 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
     }
 
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .insert({
-          sender_id: userProfile.id,
-          receiver_id: receiverId
-        });
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          receiver_id: receiverId,
+          status: 'pending'
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to send friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request sent!');
       setSearchResults([]);
@@ -154,12 +183,19 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
   // Handle friend request
   const handleAcceptRequest = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .update({ status: 'accepted' })
-        .eq('id', requestId);
-      
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'accepted' }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to accept friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request accepted!');
       fetchFriendRequests();
@@ -171,12 +207,19 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
 
   const handleDeclineRequest = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .update({ status: 'declined' })
-        .eq('id', requestId);
-      
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'declined' }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to decline friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request declined!');
       fetchFriendRequests();
