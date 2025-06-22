@@ -62,9 +62,19 @@ const EditBlogPostPage = () => {
   const { mutate: updatePost, isPending: isSubmitting } = useMutation({
     mutationFn: async (values: BlogPostFormValues) => {
       if (!id) throw new Error("No post ID provided");
-      const { data, error: updateError } = await supabase
-        .from('blog_posts')
-        .update({
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/blog-posts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           title: values.title,
           content: values.content,
           excerpt: values.excerpt,
@@ -72,12 +82,14 @@ const EditBlogPostPage = () => {
           image_url: values.image_url,
           author_name: values.author_name,
           published_at: values.is_published ? new Date().toISOString() : null,
-        })
-        .eq('id', id)
-        .select();
-      
-      if (updateError) throw updateError;
-      return data;
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update blog post: ${response.statusText}`);
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       toast({

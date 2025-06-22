@@ -70,43 +70,25 @@ const ContactPage = () => {
 
   const submitInquiry = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      // Insert inquiry into database
-      const { data: inquiryData, error: inquiryError } = await supabase
-        .from('inquiries')
-        .insert({
+      const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: values.name,
           email: values.email,
           subject: values.subject,
           message: values.message,
           status: 'pending'
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (inquiryError) throw inquiryError;
-
-      // Send notification email
-      try {
-        const { error: notificationError } = await supabase.functions.invoke('send-inquiry-notification', {
-          body: {
-            inquiry_id: inquiryData.id,
-            name: values.name,
-            email: values.email,
-            subject: values.subject,
-            message: values.message
-          }
-        });
-
-        if (notificationError) {
-          console.error('Failed to send notification email:', notificationError);
-          // Don't throw here as the inquiry was saved successfully
-        }
-      } catch (emailError) {
-        console.error('Email notification error:', emailError);
-        // Don't throw here as the inquiry was saved successfully
+      if (!response.ok) {
+        throw new Error(`Failed to submit inquiry: ${response.statusText}`);
       }
 
-      return inquiryData;
+      return response.json();
     },
     onSuccess: () => {
       toast.success("Message sent!", {

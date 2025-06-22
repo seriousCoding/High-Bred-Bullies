@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bell, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+const API_BASE_URL = window.location.origin;
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -29,13 +29,22 @@ export default function NotificationList() {
     queryKey: ["user-notifications", user?.id],
     queryFn: async (): Promise<Notification[]> => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("user_notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      
+      const token = localStorage.getItem('token');
+      if (!token) return [];
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notifications: ${response.statusText}`);
+      }
+
+      return response.json();
     },
     enabled: !!user,
   });
@@ -43,11 +52,24 @@ export default function NotificationList() {
   // Mark notification as read
   const readMutation = useMutation({
     mutationFn: async (notifId: string) => {
-      const { error } = await supabase
-        .from("user_notifications")
-        .update({ is_read: true })
-        .eq("id", notifId);
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notifId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to mark notification as read: ${response.statusText}`);
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-notifications", user?.id] });
@@ -57,11 +79,24 @@ export default function NotificationList() {
   // Delete notification
   const deleteMutation = useMutation({
     mutationFn: async (notifId: string) => {
-      const { error } = await supabase
-        .from("user_notifications")
-        .delete()
-        .eq("id", notifId);
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notifId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete notification: ${response.statusText}`);
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-notifications", user?.id] });
