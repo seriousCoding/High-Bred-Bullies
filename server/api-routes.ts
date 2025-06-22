@@ -10,7 +10,7 @@ import { oauthService } from './oauth-service';
 import { log } from './vite';
 import path from 'path';
 import fs from 'fs';
-import session from 'express-session';
+// Removed express-session import - using JWT authentication instead
 import { requireApiKey, requireOAuthToken } from './auth';
 import { oauthRouter } from './oauth-routes';
 
@@ -169,10 +169,10 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
   }
   
   // API Key Management - with validation before saving
-  app.post('/api/keys', async (req: Request, res: Response) => {
+  app.post('/api/keys', authenticateRequest, async (req: Request, res: Response) => {
     try {
       // Check if user is authenticated
-      const userId = req.session?.userId;
+      const userId = req.user?.id;
       
       if (!userId) {
         return res.status(401).json({ message: 'Authentication required' });
@@ -271,10 +271,10 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
   
-  app.get('/api/keys', async (req: Request, res: Response) => {
+  app.get('/api/keys', authenticateRequest, async (req: Request, res: Response) => {
     try {
-      // Get the user ID from the session
-      const userId = req.session?.userId;
+      // Get the user ID from JWT token
+      const userId = req.user?.id;
       
       if (!userId) {
         return res.status(401).json({ message: 'Authentication required' });

@@ -60,7 +60,8 @@ export function setupAuth(app: Express) {
   app.post('/api/register', async (req: Request, res: Response) => {
     try {
       // Validate request body with zod
-      const loginSchema = insertUserSchema.extend({
+      const loginSchema = z.object({
+        username: z.string().min(1, "Username is required"),
         password: z.string().min(8, "Password must be at least 8 characters"),
       });
       
@@ -80,7 +81,7 @@ export function setupAuth(app: Express) {
       
       // Create the user
       const user = await storage.createUser({
-        ...userData,
+        username: userData.username,
         password: hashedPassword
       });
       

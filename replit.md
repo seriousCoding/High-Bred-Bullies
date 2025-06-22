@@ -16,12 +16,12 @@ High Bred Bullies is a comprehensive Coinbase Advanced Trade API client with rob
 - **Theme**: Dark/light mode support via next-themes
 
 ### Backend Architecture
-- **Database**: PostgreSQL with Supabase
+- **Database**: PostgreSQL with direct connections (database: high_bred)
 - **ORM**: Drizzle ORM for type-safe database operations
-- **Authentication**: Supabase Auth with row-level security (RLS)
-- **Real-time**: Supabase Realtime for live updates
-- **Storage**: Supabase Storage for image and media files
-- **Edge Functions**: Supabase Edge Functions for serverless operations
+- **Authentication**: JWT token-based authentication with bcryptjs
+- **Server**: Express.js with TypeScript
+- **Real-time**: WebSocket integration for live market data
+- **API Integration**: Coinbase Advanced Trade API and OAuth
 
 ### External Integrations
 - **Payment Processing**: Stripe for handling puppy purchases and checkout
@@ -140,6 +140,7 @@ The application implements sophisticated real-time updates using database trigge
 ```
 Changelog:
 - June 22, 2025. Initial setup
+- June 22, 2025. Major refactoring: Removed Supabase dependencies, implemented JWT authentication with PostgreSQL direct connections (database: high_bred), updated authentication system to use bcryptjs and JWT tokens, migrated from session-based to token-based authentication
 ```
 
 ## User Preferences
