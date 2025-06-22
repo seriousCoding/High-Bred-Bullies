@@ -1,10 +1,10 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { createServer } from "http";
-import { setupVite, serveStatic, log } from "./vite";
-import dotenv from "dotenv";
-import cors from "cors";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import express from 'express';
+import { createServer } from 'http';
+import { setupVite, serveStatic, log } from './vite';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 // Load environment variables
 dotenv.config();
@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: false }));
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Auth middleware
-function authenticateToken(req: any, res: Response, next: NextFunction): void {
+function authenticateToken(req: any, res: express.Response, next: express.NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -40,7 +40,7 @@ function authenticateToken(req: any, res: Response, next: NextFunction): void {
 }
 
 // Auth routes
-app.post('/api/register', (req: Request, res: Response) => {
+app.post('/api/register', (req: express.Request, res: express.Response) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
@@ -48,6 +48,7 @@ app.post('/api/register', (req: Request, res: Response) => {
     return;
   }
 
+  // For demo - hash password and return success
   bcrypt.hash(password, 10).then(hashedPassword => {
     res.status(201).json({ 
       message: 'User registered successfully',
@@ -58,7 +59,7 @@ app.post('/api/register', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/login', (req: Request, res: Response) => {
+app.post('/api/login', (req: express.Request, res: express.Response) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
@@ -66,6 +67,7 @@ app.post('/api/login', (req: Request, res: Response) => {
     return;
   }
 
+  // For demo purposes - generate token for any login
   const token = jwt.sign(
     { userId: 1, username },
     JWT_SECRET,
@@ -78,14 +80,14 @@ app.post('/api/login', (req: Request, res: Response) => {
   });
 });
 
-app.get('/api/user', authenticateToken, (req: any, res: Response) => {
+app.get('/api/user', authenticateToken, (req: any, res: express.Response) => {
   res.json({
     id: req.user.userId,
     username: req.user.username
   });
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', (req: express.Request, res: express.Response) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
@@ -94,6 +96,7 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -124,33 +127,35 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  // Create HTTP server
-  const server = createServer(app);
-  
-  // Error handling middleware
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    res.status(status).json({ message });
-  });
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  res.status(status).json({ message });
+});
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+async function startServer() {
+  try {
+    const server = createServer(app);
+    
+    // Setup Vite middleware for development
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    // Start server on port 5000
+    const port = 5000;
+    server.listen(port, "0.0.0.0", () => {
+      log(`🚀 Server running on http://0.0.0.0:${port}`);
+      log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
+      log(`🔐 JWT Authentication: Enabled`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
   }
+}
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen(port, "0.0.0.0", () => {
-    log(`🚀 Server running on http://0.0.0.0:${port}`);
-    log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
-    log(`🔐 JWT Authentication: Enabled`);
-  });
-})();
+startServer();
