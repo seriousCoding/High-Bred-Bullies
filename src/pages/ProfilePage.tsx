@@ -145,29 +145,16 @@ const ProfilePage = () => {
     }
   };
 
-  if (isOnboarding || isLoadingProfile || isLoadingSubscription) {
+  if (isLoadingProfile || isLoadingSubscription) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <Loader2 className="h-16 w-16 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            {isOnboarding ? 'Setting up your profile...' : 'Loading profile...'}
-          </p>
+          <p className="text-muted-foreground">Loading profile...</p>
         </div>
       </div>
     );
   }
-
-  // Use userProfile from onboarding hook or fallback to profile query
-  const currentProfile = userProfile || profile;
-
-  console.log('ProfilePage Debug:', {
-    user: !!user,
-    currentProfile: !!currentProfile,
-    isPetOwner,
-    isReady,
-    userProfileId: currentProfile?.id
-  });
 
   return (
     <div className="flex flex-col min-h-screen">
