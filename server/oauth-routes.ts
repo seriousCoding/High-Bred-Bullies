@@ -145,9 +145,9 @@ oauthRouter.get('/callback', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error in OAuth callback:', error);
     
-    // Handle error response from Coinbase
+    // Handle error response
     if (axios.isAxiosError(error) && error.response) {
-      console.error('Coinbase OAuth error:', error.response.data);
+      console.error('OAuth error:', error.response.data);
       return res.status(error.response.status).json({
         error: 'OAuth authentication failed',
         details: error.response.data
@@ -155,7 +155,7 @@ oauthRouter.get('/callback', async (req: Request, res: Response) => {
     }
     
     res.status(500).json({
-      error: 'Failed to authenticate with Coinbase',
+      error: 'Failed to authenticate',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }

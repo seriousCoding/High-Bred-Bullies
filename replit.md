@@ -37,7 +37,7 @@ The platform supports two distinct user profile types:
 ### Database Schema
 The application uses a comprehensive PostgreSQL schema with the following core tables:
 
-- **Authentication**: `auth.users` (Supabase managed)
+- **Authentication**: `users` (JWT managed)
 - **User Management**: `user_profiles`, `breeders`, `pet_owners`
 - **Breeding Operations**: `litters`, `puppies`, `orders`, `order_items`
 - **Content Management**: `blog_posts`, `social_posts`, `inquiries`
@@ -46,16 +46,16 @@ The application uses a comprehensive PostgreSQL schema with the following core t
 - **Configuration**: `site_config`, `api_keys`
 
 ### Real-time Synchronization
-The application implements sophisticated real-time updates using database triggers and Supabase Realtime:
-- Puppy availability counts update automatically across all pages
-- Database function `update_litter_puppy_count` maintains data consistency
+The application implements data updates using polling and cache invalidation:
+- Puppy availability counts update through API polling
+- Database functions maintain data consistency
 - Frontend uses React Query cache invalidation for instant UI updates
 
 ### Authentication & Authorization
-- Row Level Security (RLS) policies control data access
+- JWT token-based authentication controls data access
 - User roles: anonymous users, authenticated users, breeders, pet owners
-- Security definer functions for complex authorization logic
-- OAuth integration with Coinbase for specialized features
+- Server-side authorization middleware for protected routes
+- Secure password hashing with bcryptjs
 
 ### Payment Processing
 - Stripe integration for secure payment processing
@@ -66,10 +66,10 @@ The application implements sophisticated real-time updates using database trigge
 ## Data Flow
 
 ### User Registration & Authentication
-1. User registers through Supabase Auth
-2. Trigger function creates user profile automatically
+1. User registers through JWT authentication API
+2. Server creates user profile with hashed password
 3. Optional breeder registration for business accounts
-4. RLS policies enforce data access controls
+4. JWT tokens control data access and permissions
 
 ### Litter Management
 1. Breeders create litters with dam/sire information
@@ -134,9 +134,9 @@ The application implements sophisticated real-time updates using database trigge
 
 ### Database Management
 - Drizzle migrations for schema changes
-- Automated backups via Supabase
-- Row Level Security for data protection
-- Real-time subscriptions for live updates
+- Direct PostgreSQL connection management
+- JWT-based authorization for data protection
+- API polling for data updates
 
 ## Changelog
 
@@ -158,6 +158,7 @@ Changelog:
 - June 22, 2025. COMPLETED: ProfilePage Supabase migration completed - replaced all Supabase queries with JWT authentication, ensured isBreeder status properly read from JWT token for dual profile system (breeder vs customer), maintained notification preferences and account management functionality with JWT-based API calls.
 - June 22, 2025. COMPLETED: Major Supabase removal progress - successfully migrated PostCard.tsx, FriendRequestCard.tsx, MessagingInterface.tsx, and MessagingCenter.tsx components from Supabase to JWT authentication. Replaced all database queries and real-time subscriptions with polling-based API calls using fetch() and JWT tokens. All social features, messaging, and friend request functionality now uses JWT authentication exclusively.
 - June 22, 2025. COMPLETED: Final Supabase migration components completed - FriendsManager.tsx completely rebuilt with JWT authentication, BlogPostForm.tsx and AddLitterManager.tsx migrated from Supabase types to direct interfaces. All remaining Supabase dependencies removed from components, system now runs entirely on JWT authentication with PostgreSQL direct connections.
+- June 22, 2025. COMPLETED: Complete Supabase migration finalized - updated all project documentation (replit.md, DEPLOYMENT.md) to reflect JWT authentication system, removed all Supabase references from data flow and architecture descriptions, verified system operates entirely on PostgreSQL direct connections with JWT token-based authentication. Migration from Supabase to native authentication fully complete.
 ```
 
 ## User Preferences

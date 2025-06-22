@@ -29,14 +29,16 @@ npm install
 if [ ! -f .env.local ]; then
     echo "📝 Creating .env.local template..."
     cat > .env.local << EOL
-# Supabase Configuration
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+# JWT Authentication
+JWT_SECRET=your_jwt_secret_key
+
+# Database Configuration
+DATABASE_URL=your_postgresql_connection_string
 
 # Optional: For development
 VITE_ENVIRONMENT=development
 EOL
-    echo "⚠️  Please update .env.local with your actual Supabase credentials"
+    echo "⚠️  Please update .env.local with your actual database credentials"
 fi
 
 echo "✅ Development environment setup complete!"
