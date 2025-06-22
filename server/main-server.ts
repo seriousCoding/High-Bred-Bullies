@@ -112,7 +112,7 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 // Start server
-(async () => {
+async function startServer() {
   try {
     const server = createServer(app);
     
@@ -133,4 +133,6 @@ app.use((err: any, req: any, res: any, next: any) => {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
-})();
+}
+
+startServer();
