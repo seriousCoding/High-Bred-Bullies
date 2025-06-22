@@ -226,15 +226,22 @@ const MessagingInterface = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .insert({
-          sender_id: userProfile.id,
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           receiver_id: receiverId,
           status: 'pending'
-        });
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to send friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request sent!');
       fetchAllUsers(); // Refresh to update button states
@@ -247,12 +254,21 @@ const MessagingInterface = () => {
   // Handle friend request
   const handleFriendRequest = async (requestId: string, action: 'accept' | 'reject') => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .update({ status: action === 'accept' ? 'accepted' : 'rejected' })
-        .eq('id', requestId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          status: action === 'accept' ? 'accepted' : 'rejected' 
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to ${action} friend request: ${response.statusText}`);
+      }
       
       toast.success(`Friend request ${action}ed`);
       fetchFriendRequests();
@@ -270,15 +286,22 @@ const MessagingInterface = () => {
     if (!newMessage.trim() || !selectedConversation || !userProfile) return;
 
     try {
-      const { error } = await supabase
-        .from('direct_messages')
-        .insert({
-          sender_id: userProfile.id,
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           receiver_id: selectedConversation,
-          content: newMessage.trim()
-        });
+          content: newMessage.trim(),
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
+      }
       
       setNewMessage('');
       fetchMessages(selectedConversation);

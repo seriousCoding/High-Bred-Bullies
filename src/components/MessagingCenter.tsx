@@ -72,21 +72,19 @@ const MessagingCenter: React.FC<MessagingCenterProps> = ({ preSelectedConversati
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          sender_id,
-          receiver_id,
-          content,
-          created_at,
-          is_read,
-          sender:user_profiles!direct_messages_sender_id_fkey(id, username, first_name, last_name, avatar_url),
-          receiver:user_profiles!direct_messages_receiver_id_fkey(id, username, first_name, last_name, avatar_url)
-        `)
-        .or(`sender_id.eq.${userProfile.id},receiver_id.eq.${userProfile.id}`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/conversations`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversations: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
 
       // Group messages by conversation partner
       const conversationMap = new Map<string, Conversation>();
@@ -121,26 +119,31 @@ const MessagingCenter: React.FC<MessagingCenterProps> = ({ preSelectedConversati
     if (!userProfile) return;
 
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          *,
-          sender:user_profiles!direct_messages_sender_id_fkey(first_name, last_name)
-        `)
-        .or(`and(sender_id.eq.${userProfile.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userProfile.id})`)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/messages/${friendId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch messages: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       setMessages(data || []);
 
       // Mark messages as read
-      await supabase
-        .from('direct_messages')
-        .update({ is_read: true })
-        .eq('sender_id', friendId)
-        .eq('receiver_id', userProfile.id)
-        .eq('is_read', false);
+      await fetch(`${API_BASE_URL}/api/messages/mark-read`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sender_id: friendId }),
+      });
 
     } catch (error) {
       console.error('Error fetching messages:', error);
