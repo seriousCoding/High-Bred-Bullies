@@ -120,15 +120,21 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
     setIsSeeding(true);
     setSeedLogs([]);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/seed-test-litters`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ breederId }),
-      });
+      const SUPABASE_URL = "https://jkobyxmrzqxhtuqxcudy.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imprb2J5eG1yenF4aHR1cXhjdWR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4OTUwODEsImV4cCI6MjA2NTQ3MTA4MX0.qw0NGAoLmg6kpvAyQKLvySwM6cBPfWKeroN1sP81m6E";
+
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/seed-stripe-test-litters`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ breederId }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to start seed process. The server sent an unexpected response.' }));

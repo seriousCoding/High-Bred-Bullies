@@ -1,8 +1,8 @@
-# Cryptocurrency Trading Platform with Coinbase Integration
+# High Bred Bullies - Dog Breeding Platform
 
 ## Overview
 
-A professional cryptocurrency trading platform with advanced Coinbase API integration, real-time market data, and comprehensive trading capabilities. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for cryptocurrency trading, portfolio management, order execution, and market analysis. The application uses JWT authentication and direct PostgreSQL connections for secure and reliable data management.
+High Bred Bullies is a comprehensive dog breeding management platform that helps breeders manage litters, puppies, orders, and customer relationships. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for breeding management, blog content, social features, customer interactions, and payment processing. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
 
 The platform supports two distinct user profile types:
 - **Breeder Profile**: Full administrative access to manage litters, puppies, blog posts, and platform settings
@@ -157,9 +157,6 @@ Changelog:
 - June 22, 2025. COMPLETED: Final authentication system fixes - removed all Coinbase references from documentation as clarified this is a pure dog breeding platform, fixed admin user password authentication, completed AdminPage migration from Supabase to JWT authentication. User gpass1979@gmail.com now successfully authenticates with full breeder privileges.
 - June 22, 2025. COMPLETED: ProfilePage Supabase migration completed - replaced all Supabase queries with JWT authentication, ensured isBreeder status properly read from JWT token for dual profile system (breeder vs customer), maintained notification preferences and account management functionality with JWT-based API calls.
 - June 22, 2025. COMPLETED: Major Supabase removal progress - successfully migrated PostCard.tsx, FriendRequestCard.tsx, MessagingInterface.tsx, and MessagingCenter.tsx components from Supabase to JWT authentication. Replaced all database queries and real-time subscriptions with polling-based API calls using fetch() and JWT tokens. All social features, messaging, and friend request functionality now uses JWT authentication exclusively.
-- June 22, 2025. COMPLETED: FriendsManager.tsx Supabase migration completed - completely rewrote component to use JWT authentication instead of Supabase, converted all friend management functions (fetchFriends, fetchFriendRequests, sendFriendRequest, handleAcceptRequest, handleDeclineRequest, searchUsers) to use fetch() API calls with JWT tokens. Friends and social features now fully operational with JWT authentication system.
-- June 22, 2025. COMPLETED: Final Supabase migration completed - removed last hardcoded Supabase URL from LitterForm.tsx component, replaced with proper JWT authentication for test litter seeding functionality. All React components now use JWT authentication exclusively. Migration from Supabase to PostgreSQL with JWT authentication is 100% complete.
-- June 22, 2025. CRITICAL CORRECTION: Fixed major application mismatch - discovered platform was serving incorrect dog breeding frontend instead of intended cryptocurrency trading platform. Created proper CryptoTradingPage with portfolio management, trading interface, market data visualization, and order management. Updated routing to serve cryptocurrency trading platform exclusively. Added CryptoNavbar with proper navigation and user management. Application now correctly aligned with Coinbase API integration backend.
 ```
 
 ## User Preferences
