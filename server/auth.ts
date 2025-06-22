@@ -1,5 +1,7 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
+import { coinbaseClient } from './coinbase-client';
+import { keyVault } from './key-vault';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { insertUserSchema } from '../shared/schema';

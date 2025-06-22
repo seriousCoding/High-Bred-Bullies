@@ -191,20 +191,8 @@ async function startServer() {
           });
         }
 
-        // High Bred Bullies API endpoints
+        // Featured litters endpoint (stub for the breeding app)
         if (pathname === '/api/litters/featured' && req.method === 'GET') {
-          res.writeHead(200);
-          res.end(JSON.stringify([]));
-          return;
-        }
-
-        if (pathname === '/api/litters' && req.method === 'GET') {
-          res.writeHead(200);
-          res.end(JSON.stringify([]));
-          return;
-        }
-
-        if (pathname === '/api/blog/posts' && req.method === 'GET') {
           res.writeHead(200);
           res.end(JSON.stringify([]));
           return;

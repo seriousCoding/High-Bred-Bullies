@@ -1,8 +1,7 @@
 import { 
-  User, InsertUser,
-  Litter, InsertLitter,
-  BlogPost, InsertBlogPost,
-  UserProfile, InsertUserProfile
+  User, InsertUser, 
+  ApiKey, InsertApiKey,
+  FavoriteMarket, InsertFavoriteMarket
 } from "../shared/schema";
 
 export interface IStorage {
@@ -11,30 +10,23 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Profile methods
-  getUserProfile(userId: number): Promise<UserProfile | undefined>;
-  createUserProfile(profile: InsertUserProfile): Promise<UserProfile>;
-  updateUserProfile(userId: number, profile: Partial<UserProfile>): Promise<UserProfile | undefined>;
+  // API Key methods
+  storeApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  getApiKeys(userId: number): Promise<ApiKey[]>;
+  getActiveApiKeys(userId: number): Promise<ApiKey[]>;
+  getApiKeyById(id: number): Promise<ApiKey | undefined>;
+  updateApiKeyStatus(id: number, success: boolean): Promise<ApiKey | undefined>;
+  deleteApiKey(id: number): Promise<void>;
   
-  // Litter methods
-  getLitters(): Promise<Litter[]>;
-  getFeaturedLitters(): Promise<Litter[]>;
-  getLitter(id: number): Promise<Litter | undefined>;
-  createLitter(litter: InsertLitter, userId: number): Promise<Litter>;
-  updateLitter(id: number, litter: Partial<Litter>): Promise<Litter | undefined>;
-  deleteLitter(id: number): Promise<void>;
-  
-  // Blog methods
-  getBlogPosts(): Promise<BlogPost[]>;
-  getBlogPost(slug: string): Promise<BlogPost | undefined>;
-  createBlogPost(post: InsertBlogPost, userId: number): Promise<BlogPost>;
-  updateBlogPost(id: number, post: Partial<BlogPost>): Promise<BlogPost | undefined>;
-  deleteBlogPost(id: number): Promise<void>;
+  // Favorite markets methods
+  addFavoriteMarket(favorite: InsertFavoriteMarket): Promise<FavoriteMarket>;
+  getFavoriteMarkets(userId: number): Promise<FavoriteMarket[]>;
+  removeFavoriteMarket(id: number): Promise<void>;
 }
 
-import { users, litters, blogPosts, userProfiles } from "../shared/schema";
+import { users, apiKeys, favoriteMarkets } from "../shared/schema";
 import { db } from "./db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and, isNull } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   // User methods
@@ -55,94 +47,141 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return user;
   }
-
-  // Profile methods
-  async getUserProfile(userId: number): Promise<UserProfile | undefined> {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    return profile || undefined;
-  }
-
-  async createUserProfile(insertProfile: InsertUserProfile): Promise<UserProfile> {
-    const [profile] = await db
-      .insert(userProfiles)
-      .values(insertProfile)
+  
+  // API Key methods
+  async storeApiKey(insertApiKey: InsertApiKey): Promise<ApiKey> {
+    const [apiKey] = await db
+      .insert(apiKeys)
+      .values({
+        ...insertApiKey,
+        isActive: true,
+        failCount: 0
+      })
       .returning();
-    return profile;
+    return apiKey;
   }
-
-  async updateUserProfile(userId: number, profileUpdate: Partial<UserProfile>): Promise<UserProfile | undefined> {
-    const [profile] = await db
-      .update(userProfiles)
-      .set(profileUpdate)
-      .where(eq(userProfiles.userId, userId))
+  
+  async updateApiKeyStatus(id: number, success: boolean): Promise<ApiKey | undefined> {
+    const now = new Date();
+    
+    // Prepare update values based on success
+    const updateValues: any = {
+      lastAttempt: now
+    };
+    
+    if (success) {
+      // If successful, reset fail count and update last success
+      updateValues.failCount = 0;
+      updateValues.lastSuccess = now;
+    } else {
+      // If failed, increment fail count
+      const [key] = await db.select({ failCount: apiKeys.failCount })
+        .from(apiKeys)
+        .where(eq(apiKeys.id, id));
+        
+      updateValues.failCount = ((key?.failCount || 0) + 1);
+    }
+    
+    // Update the key in the database
+    const [updatedKey] = await db
+      .update(apiKeys)
+      .set(updateValues)
+      .where(eq(apiKeys.id, id))
       .returning();
-    return profile || undefined;
+      
+    return updatedKey || undefined;
   }
-
-  // Litter methods
-  async getLitters(): Promise<Litter[]> {
-    return await db.select().from(litters).orderBy(desc(litters.createdAt));
+  
+  async getActiveApiKeys(userId: number): Promise<ApiKey[]> {
+    // Get active API keys and sort by multiple fields for proper key rotation:
+    // 1. priority (higher first)
+    // 2. fail count (less failures first)
+    // 3. last success (more recent first)
+    // 4. creation date (newer first)
+    // Get active API keys with proper sorting for rotation
+    const keys = await db
+      .select()
+      .from(apiKeys)
+      .where(and(
+        eq(apiKeys.userId, userId),
+        eq(apiKeys.isActive, true)
+      ));
+      
+    // Manual sorting to handle null values correctly
+    return keys.sort((a, b) => {
+      // First by priority (higher first)
+      if ((a.priority || 0) !== (b.priority || 0)) {
+        return (b.priority || 0) - (a.priority || 0);
+      }
+      
+      // Then by fail count (less failures first)
+      if ((a.failCount || 0) !== (b.failCount || 0)) {
+        return (a.failCount || 0) - (b.failCount || 0);
+      }
+      
+      // Then by last success (more recent first)
+      if (a.lastSuccess && b.lastSuccess) {
+        return b.lastSuccess.getTime() - a.lastSuccess.getTime();
+      } else if (a.lastSuccess) {
+        return -1;
+      } else if (b.lastSuccess) {
+        return 1;
+      }
+      
+      // Finally by creation date (newer first)
+      if (a.createdAt && b.createdAt) {
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      } else if (a.createdAt) {
+        return -1;
+      } else if (b.createdAt) {
+        return 1;
+      }
+      
+      return 0;
+    });
   }
-
-  async getFeaturedLitters(): Promise<Litter[]> {
-    return await db.select().from(litters).where(eq(litters.featured, true)).orderBy(desc(litters.createdAt));
+  
+  async getApiKeys(userId: number): Promise<ApiKey[]> {
+    return await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, userId));
   }
-
-  async getLitter(id: number): Promise<Litter | undefined> {
-    const [litter] = await db.select().from(litters).where(eq(litters.id, id));
-    return litter || undefined;
+  
+  async getApiKeyById(id: number): Promise<ApiKey | undefined> {
+    const [apiKey] = await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.id, id));
+    return apiKey || undefined;
   }
-
-  async createLitter(insertLitter: InsertLitter, userId: number): Promise<Litter> {
-    const [litter] = await db
-      .insert(litters)
-      .values({ ...insertLitter, breederId: userId })
+  
+  async deleteApiKey(id: number): Promise<void> {
+    await db
+      .delete(apiKeys)
+      .where(eq(apiKeys.id, id));
+  }
+  
+  // Favorite markets methods
+  async addFavoriteMarket(insertFavorite: InsertFavoriteMarket): Promise<FavoriteMarket> {
+    const [favorite] = await db
+      .insert(favoriteMarkets)
+      .values(insertFavorite)
       .returning();
-    return litter;
+    return favorite;
   }
-
-  async updateLitter(id: number, litterUpdate: Partial<Litter>): Promise<Litter | undefined> {
-    const [litter] = await db
-      .update(litters)
-      .set(litterUpdate)
-      .where(eq(litters.id, id))
-      .returning();
-    return litter || undefined;
+  
+  async getFavoriteMarkets(userId: number): Promise<FavoriteMarket[]> {
+    return await db
+      .select()
+      .from(favoriteMarkets)
+      .where(eq(favoriteMarkets.userId, userId));
   }
-
-  async deleteLitter(id: number): Promise<void> {
-    await db.delete(litters).where(eq(litters.id, id));
-  }
-
-  // Blog methods
-  async getBlogPosts(): Promise<BlogPost[]> {
-    return await db.select().from(blogPosts).orderBy(desc(blogPosts.createdAt));
-  }
-
-  async getBlogPost(slug: string): Promise<BlogPost | undefined> {
-    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.slug, slug));
-    return post || undefined;
-  }
-
-  async createBlogPost(insertPost: InsertBlogPost, userId: number): Promise<BlogPost> {
-    const [post] = await db
-      .insert(blogPosts)
-      .values({ ...insertPost, authorId: userId })
-      .returning();
-    return post;
-  }
-
-  async updateBlogPost(id: number, postUpdate: Partial<BlogPost>): Promise<BlogPost | undefined> {
-    const [post] = await db
-      .update(blogPosts)
-      .set(postUpdate)
-      .where(eq(blogPosts.id, id))
-      .returning();
-    return post || undefined;
-  }
-
-  async deleteBlogPost(id: number): Promise<void> {
-    await db.delete(blogPosts).where(eq(blogPosts.id, id));
+  
+  async removeFavoriteMarket(id: number): Promise<void> {
+    await db
+      .delete(favoriteMarkets)
+      .where(eq(favoriteMarkets.id, id));
   }
 }
 

@@ -4,8 +4,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
-import TradingDashboard from '@/pages/TradingDashboard';
+import Index from '@/pages/Index';
 import AuthPage from '@/pages/AuthPage';
+import ProfilePage from '@/pages/ProfilePage';
+import LittersPage from '@/pages/LittersPage';
+import LitterDetailPage from '@/pages/LitterDetailPage';
+import UpcomingLittersPage from '@/pages/UpcomingLittersPage';
+import ContactPage from '@/pages/ContactPage';
+import BlogListPage from '@/pages/BlogListPage';
+import BlogPostPage from '@/pages/BlogPostPage';
+import EditBlogPostPage from '@/pages/EditBlogPostPage';
+import AdminPage from '@/pages/AdminPage';
+import ManageLitterPage from '@/pages/ManageLitterPage';
+import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
+import CheckoutCancelPage from '@/pages/CheckoutCancelPage';
+import SchedulePickupPage from '@/pages/SchedulePickupPage';
+import HighTablePage from '@/pages/HighTablePage';
 import NotFound from '@/pages/NotFound';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { usePWA } from '@/hooks/usePWA';
@@ -33,8 +47,22 @@ function App() {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<TradingDashboard />} />
+            <Route path="/" element={<Index />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/litters" element={<LittersPage />} />
+            <Route path="/litters/:id" element={<LitterDetailPage />} />
+            <Route path="/upcoming-litters" element={<UpcomingLittersPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/blog" element={<BlogListPage />} />
+            <Route path="/blog/:slug" element={<BlogPostPage />} />
+            <Route path="/blog/edit/:id" element={<EditBlogPostPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/litters/:id" element={<ManageLitterPage />} />
+            <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+            <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
+            <Route path="/schedule-pickup/:orderId" element={<SchedulePickupPage />} />
+            <Route path="/high-table" element={<HighTablePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {showInstallPrompt && !isInstalled && (
