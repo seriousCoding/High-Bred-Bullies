@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Test</title>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    <div id="results"></div>
+
+    <script>
+        async function testAuth() {
+            const results = document.getElementById('results');
+            
+            try {
+                // Test health endpoint
+                const healthResponse = await fetch('http://localhost:5000/api/health');
+                const healthData = await healthResponse.json();
+                results.innerHTML += '<p>Health Check: ' + JSON.stringify(healthData) + '</p>';
+                
+                // Test login endpoint
+                const loginResponse = await fetch('http://localhost:5000/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'gpass1979@gmail.com',
+                        password: 'gpass1979'
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                results.innerHTML += '<p>Login Test: ' + JSON.stringify(loginData) + '</p>';
+                
+            } catch (error) {
+                results.innerHTML += '<p>Error: ' + error.message + '</p>';
+            }
+        }
+        
+        testAuth();
+    </script>
+</body>
+</html>
