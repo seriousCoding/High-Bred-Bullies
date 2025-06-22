@@ -89,7 +89,7 @@ export function useAuth() {
       // Store token and update state
       localStorage.setItem('auth_token', data.token);
       setAuthState({
-        user: data,
+        user: data.user,
         token: data.token,
         loading: false
       });
@@ -122,7 +122,7 @@ export function useAuth() {
       // Store token and update state
       localStorage.setItem('auth_token', data.token);
       setAuthState({
-        user: data,
+        user: data.user,
         token: data.token,
         loading: false
       });
