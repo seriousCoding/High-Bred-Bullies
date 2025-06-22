@@ -191,11 +191,170 @@ async function startServer() {
           });
         }
 
-        // Featured litters endpoint (stub for the breeding app)
-        if (pathname === '/api/litters/featured' && req.method === 'GET') {
-          res.writeHead(200);
-          res.end(JSON.stringify([]));
+        // Coinbase Trading API endpoints
+        if (pathname === '/api/products' && req.method === 'GET') {
+          try {
+            // Sample cryptocurrency products data for the trading interface
+            const products = [
+              {
+                product_id: 'BTC-USD',
+                display_name: 'Bitcoin',
+                base_currency: 'BTC',
+                quote_currency: 'USD',
+                price: '43250.00',
+                price_percentage_change_24h: '2.45',
+                volume_24h: '1234567890.12',
+                status: 'online'
+              },
+              {
+                product_id: 'ETH-USD',
+                display_name: 'Ethereum',
+                base_currency: 'ETH',
+                quote_currency: 'USD',
+                price: '2680.50',
+                price_percentage_change_24h: '-1.23',
+                volume_24h: '987654321.45',
+                status: 'online'
+              },
+              {
+                product_id: 'ADA-USD',
+                display_name: 'Cardano',
+                base_currency: 'ADA',
+                quote_currency: 'USD',
+                price: '0.485',
+                price_percentage_change_24h: '3.67',
+                volume_24h: '456789123.78',
+                status: 'online'
+              },
+              {
+                product_id: 'SOL-USD',
+                display_name: 'Solana',
+                base_currency: 'SOL',
+                quote_currency: 'USD',
+                price: '98.72',
+                price_percentage_change_24h: '5.12',
+                volume_24h: '234567890.23',
+                status: 'online'
+              }
+            ];
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(products));
+          } catch (error) {
+            console.error('Error fetching products:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch products' }));
+          }
           return;
+        }
+
+        if (pathname === '/api/accounts' && req.method === 'GET') {
+          return authenticateToken(req, res, () => {
+            try {
+              // Sample account data for authenticated users
+              const accounts = [
+                {
+                  uuid: 'acc-001',
+                  name: 'USD Wallet',
+                  currency: 'USD',
+                  available_balance: { value: '5000.00', currency: 'USD' },
+                  hold: { value: '0.00', currency: 'USD' }
+                },
+                {
+                  uuid: 'acc-002',
+                  name: 'Bitcoin Wallet',
+                  currency: 'BTC',
+                  available_balance: { value: '0.12345678', currency: 'BTC' },
+                  hold: { value: '0.00000000', currency: 'BTC' }
+                },
+                {
+                  uuid: 'acc-003',
+                  name: 'Ethereum Wallet',
+                  currency: 'ETH',
+                  available_balance: { value: '2.5678', currency: 'ETH' },
+                  hold: { value: '0.0000', currency: 'ETH' }
+                }
+              ];
+              
+              res.writeHead(200);
+              res.end(JSON.stringify(accounts));
+            } catch (error) {
+              console.error('Error fetching accounts:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to fetch accounts' }));
+            }
+          });
+        }
+
+        if (pathname === '/api/orders' && req.method === 'GET') {
+          return authenticateToken(req, res, () => {
+            try {
+              // Sample order data
+              const orders = [
+                {
+                  order_id: 'ord-001',
+                  product_id: 'BTC-USD',
+                  side: 'BUY',
+                  size: '0.001',
+                  price: '43000.00',
+                  status: 'FILLED',
+                  created_time: new Date().toISOString(),
+                  filled_size: '0.001'
+                },
+                {
+                  order_id: 'ord-002',
+                  product_id: 'ETH-USD',
+                  side: 'SELL',
+                  size: '0.1',
+                  price: '2700.00',
+                  status: 'PENDING',
+                  created_time: new Date(Date.now() - 3600000).toISOString(),
+                  filled_size: '0.0'
+                }
+              ];
+              
+              res.writeHead(200);
+              res.end(JSON.stringify(orders));
+            } catch (error) {
+              console.error('Error fetching orders:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
+            }
+          });
+        }
+
+        if (pathname === '/api/orders' && req.method === 'POST') {
+          return authenticateToken(req, res, () => {
+            try {
+              const { product_id, side, size, type, price } = req.body;
+              
+              if (!product_id || !side || !size || !type) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Missing required order parameters' }));
+                return;
+              }
+
+              // Simulate order creation
+              const order = {
+                order_id: 'ord-' + Date.now(),
+                product_id,
+                side,
+                size,
+                type,
+                price: price || 'market',
+                status: 'PENDING',
+                created_time: new Date().toISOString(),
+                filled_size: '0'
+              };
+              
+              res.writeHead(201);
+              res.end(JSON.stringify(order));
+            } catch (error) {
+              console.error('Error creating order:', error);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to create order' }));
+            }
+          });
         }
 
         // Default API response
