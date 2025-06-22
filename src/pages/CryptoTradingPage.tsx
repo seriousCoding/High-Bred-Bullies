@@ -416,7 +416,7 @@ const CryptoTradingPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+        </div>
       </div>
     </div>
   );
