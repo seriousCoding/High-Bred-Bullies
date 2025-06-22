@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -15,11 +15,11 @@ export function useUserOnboarding() {
     
     try {
       // Check if profile exists
-      const { data: existingProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const existingProfile = response.ok ? await response.json() : null;
       
       if (existingProfile) {
         console.log('Found existing profile:', existingProfile);
@@ -27,19 +27,25 @@ export function useUserOnboarding() {
       }
       
       // Create profile if it doesn't exist
-      const username = user.email?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6);
-      const { data: newProfile, error } = await supabase
-        .from('user_profiles')
-        .insert({
-          user_id: user.id,
+      const username = user.username?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6);
+      const token = localStorage.getItem('token');
+      const createResponse = await fetch(`${API_BASE_URL}/api/user/profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           username,
-          first_name: user.user_metadata?.first_name || 'User',
-          last_name: user.user_metadata?.last_name || '',
-        })
-        .select()
-        .single();
+          first_name: user.firstName || 'User',
+          last_name: user.lastName || '',
+        }),
+      });
       
-      if (error) throw error;
+      if (!createResponse.ok) throw new Error('Failed to create profile');
+      const newProfile = await createResponse.json();
+      
+
       console.log('Created new profile:', newProfile);
       return newProfile;
     } catch (error) {
@@ -55,13 +61,13 @@ export function useUserOnboarding() {
       console.log('Checking pet owner status for user:', user.id);
       
       // First check if user already has a pet owner profile
-      const { data: existingPetOwner, error: petOwnerError } = await supabase
-        .from('pet_owners')
-        .select('id, created_at')
-        .eq('user_id', user.id)
-        .single();
+      const token = localStorage.getItem('token');
+      const petOwnerResponse = await fetch(`${API_BASE_URL}/api/user/pet-owner-status`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const existingPetOwner = petOwnerResponse.ok ? await petOwnerResponse.json() : null;
       
-      console.log('Existing pet owner check:', { existingPetOwner, petOwnerError });
+      console.log('Existing pet owner check:', { existingPetOwner });
       
       if (existingPetOwner) {
         console.log('User is already a pet owner');
@@ -69,31 +75,32 @@ export function useUserOnboarding() {
       }
       
       // Check if user has any paid orders (the correct status from finalize-litter-order)
-      const { data: paidOrders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id, status, created_at')
-        .eq('user_id', user.id)
-        .eq('status', 'paid'); // Changed from 'completed' to 'paid'
+      const ordersResponse = await fetch(`${API_BASE_URL}/api/user/orders?status=paid`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const paidOrders = ordersResponse.ok ? await ordersResponse.json() : []; // Changed from 'completed' to 'paid'
       
-      console.log('Paid orders check:', { paidOrders, ordersError });
+      console.log('Paid orders check:', { paidOrders });
       
       if (paidOrders && paidOrders.length > 0) {
         console.log('User has paid orders, creating pet owner profile');
         
         // Create pet owner profile since they have paid orders
-        const { data: newPetOwner, error: createError } = await supabase
-          .from('pet_owners')
-          .insert({
-            user_id: user.id,
+        const createPetOwnerResponse = await fetch(`${API_BASE_URL}/api/user/pet-owner`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             adoption_date: new Date().toISOString().split('T')[0]
-          })
-          .select()
-          .single();
+          }),
+        });
         
-        if (createError) {
-          console.error('Error creating pet owner profile:', createError);
-          return false;
-        }
+        if (!createPetOwnerResponse.ok) throw new Error('Failed to create pet owner profile');
+        const newPetOwner = await createPetOwnerResponse.json();
+        
+
         
         console.log('Created pet owner profile:', newPetOwner);
         toast.success('Welcome to High Table! Your exclusive community access has been unlocked.');
@@ -114,7 +121,7 @@ export function useUserOnboarding() {
       return;
     }
     
-    console.log('Starting user initialization for:', user.email);
+    console.log('Starting user initialization for:', user.username);
     setIsOnboarding(true);
     
     try {
