@@ -27,6 +27,7 @@ const AuthPage = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted:', { email, password, isLogin });
     setLoading(true);
 
     if (!isLogin && password !== confirmPassword) {
@@ -137,7 +138,10 @@ const AuthPage = () => {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-center space-y-2">
-          <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="text-sm">
+          <Button variant="link" onClick={() => {
+            console.log('Toggle button clicked, current isLogin:', isLogin);
+            setIsLogin(!isLogin);
+          }} className="text-sm">
             {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
           </Button>
         </CardFooter>
