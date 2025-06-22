@@ -73,31 +73,39 @@ const publishBlogPost = async (postId: string) => {
 };
 
 const deleteBlogPost = async (postId: string) => {
-  // First, check if there's an image to delete from storage
-  const { data: postData } = await supabase.from('blog_posts').select('image_url').eq('id', postId).single();
-  if (postData?.image_url) {
-    const imageUrl = new URL(postData.image_url);
-    const imagePath = imageUrl.pathname.split('/blog-images/')[1];
-    if (imagePath) {
-      await supabase.storage.from('blog-images').remove([imagePath]);
-    }
-  }
-
-  // Then delete the post from the database
-  const { error } = await supabase.from('blog_posts').delete().eq('id', postId);
-  if (error) throw error;
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts/${postId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to delete blog post');
+  return await response.json();
 };
 
 const generateBlogPost = async () => {
-  const { data, error } = await supabase.functions.invoke('generate-blog-post');
-  if (error) throw error;
-  return data;
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/generate-blog-post`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to generate blog post');
+  return await response.json();
 };
 
 const generateSocialPosts = async () => {
-  const { data, error } = await supabase.functions.invoke('generate-social-posts');
-  if (error) throw error;
-  return data;
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/generate-social-posts`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to generate social posts');
+  return await response.json();
 };
 
 export const AdminBlogManager = () => {
