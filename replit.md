@@ -1,8 +1,8 @@
-# High Bred Bullies - Coinbase Advanced Trading Platform
+# High Bred Bullies - Dog Breeding Management Platform
 
 ## Overview
 
-High Bred Bullies is a comprehensive Coinbase Advanced Trade API client with robust WebSocket integration for real-time cryptocurrency trading and data synchronization. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for API key management, real-time market data, trading operations, and OAuth integration. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
+High Bred Bullies is a comprehensive dog breeding management platform specializing in American Bully breed operations. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for litter management, breeding records, customer relations, and content management. The application has been successfully migrated from Supabase to use direct PostgreSQL connections with JWT authentication.
 
 ## System Architecture
 
@@ -145,6 +145,7 @@ Changelog:
 - June 22, 2025. COMPLETED: Full Supabase removal and frontend migration completed. Created stub Supabase client, updated React components to use JWT authentication via useAuth hook, configured Express server with SPA routing for React frontend, fixed ES module imports and routing patterns
 - June 22, 2025. COMPLETED: Resolved React frontend loading issues by implementing in-browser transpilation with Babel, created fully functional authentication system with responsive UI, integrated JWT token persistence, added system status dashboard
 - June 22, 2025. COMPLETED: Created admin user account (gpass1979@gmail.com) with full access to the system
+- June 22, 2025. COMPLETED: Fixed authentication system bugs - corrected database schema (password_hash column), fixed API response handling in frontend, login functionality now working properly with JWT tokens, clarified project identity as High Bred Bullies dog breeding platform
 ```
 
 ## User Preferences
