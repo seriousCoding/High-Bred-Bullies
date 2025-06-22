@@ -179,12 +179,19 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const handleActivateLitter = async (litterId: string) => {
     try {
-      const { error } = await supabase
-        .from('litters')
-        .update({ status: 'active' })
-        .eq('id', litterId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'active' }),
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to activate litter: ${response.statusText}`);
+      }
       
       toast({
         title: 'Litter Activated',
@@ -208,11 +215,18 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const handleDeleteLitter = async (litterId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('delete-litter', {
-        body: { litterId }
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to delete litter: ${response.statusText}`);
+      }
 
       toast({
         title: 'Litter Deleted',

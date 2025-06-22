@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Trash, Plus } from 'lucide-react';
 
 const puppySchema = z.object({
@@ -147,33 +147,44 @@ export const PuppyForm: React.FC<PuppyFormProps> = ({
         // Handle image upload
         const imageFile = imageFiles[0];
         if (imageFile) {
-          const fileExt = imageFile.name.split('.').pop();
-          const fileName = `${puppyToEdit.id}-${Date.now()}.${fileExt}`;
-          const { data, error } = await supabase.storage
-            .from('puppy-images')
-            .upload(fileName, imageFile);
+          const formData = new FormData();
+          formData.append('image', imageFile);
+          
+          const token = localStorage.getItem('token');
+          const uploadResponse = await fetch(`${API_BASE_URL}/api/puppies/${puppyToEdit.id}/upload-image`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+          });
 
-          if (error) {
-            console.error('Error uploading image:', error);
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
             toast({
               title: "Error uploading image",
-              description: error.message,
+              description: errorData.message || 'Failed to upload image',
               variant: "destructive",
             });
           } else {
-            const { data: { publicUrl } } = supabase.storage
-              .from('puppy-images')
-              .getPublicUrl(data.path);
-            updateData.image_url = publicUrl;
+            const uploadData = await uploadResponse.json();
+            updateData.image_url = uploadData.imageUrl;
           }
         }
 
-        const { error } = await supabase
-          .from('puppies')
-          .update(updateData)
-          .eq('id', puppyToEdit.id);
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/puppies/${puppyToEdit.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(`Failed to update puppy: ${response.statusText}`);
+        }
 
         toast({
           title: "Success",
@@ -181,30 +192,34 @@ export const PuppyForm: React.FC<PuppyFormProps> = ({
         });
       } else {
         // Insert new puppies
+        const token = localStorage.getItem('token');
         const puppyData = await Promise.all(puppies.map(async (puppy, index) => {
           let image_url = null;
           
           // Handle image upload
           const imageFile = imageFiles[index];
           if (imageFile) {
-            const fileExt = imageFile.name.split('.').pop();
-            const fileName = `${litterId}-puppy-${index}-${Date.now()}.${fileExt}`;
-            const { data, error } = await supabase.storage
-              .from('puppy-images')
-              .upload(fileName, imageFile);
+            const formData = new FormData();
+            formData.append('image', imageFile);
+            
+            const uploadResponse = await fetch(`${API_BASE_URL}/api/upload/puppy-image`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              body: formData,
+            });
 
-            if (error) {
-              console.error('Error uploading image:', error);
+            if (!uploadResponse.ok) {
+              const errorData = await uploadResponse.json();
               toast({
                 title: "Error uploading image",
-                description: error.message,
+                description: errorData.message || 'Failed to upload image',
                 variant: "destructive",
               });
             } else {
-              const { data: { publicUrl } } = supabase.storage
-                .from('puppy-images')
-                .getPublicUrl(data.path);
-              image_url = publicUrl;
+              const uploadData = await uploadResponse.json();
+              image_url = uploadData.imageUrl;
             }
           }
 
