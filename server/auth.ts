@@ -17,49 +17,44 @@ declare global {
   }
 }
 
-// Create a session store for authentication
-const createSessionStore = () => {
-  const MemoryStore = createMemoryStore(session);
-  return new MemoryStore({
-    checkPeriod: 86400000 // prune expired entries every 24h
-  });
-};
+// JWT helper functions
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
+const JWT_EXPIRES_IN = '24h';
 
-// Hash a password
+interface JwtPayload {
+  userId: number;
+  username: string;
+}
+
+function generateToken(user: { id: number; username: string }): string {
+  return jwt.sign(
+    { userId: user.id, username: user.username } as JwtPayload,
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+}
+
+function verifyToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Hash a password using bcryptjs
 async function hashPassword(password: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const salt = crypto.randomBytes(16).toString('hex');
-    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) reject(err);
-      resolve(`${derivedKey.toString('hex')}.${salt}`);
-    });
-  });
+  const saltRounds = 12;
+  return bcrypt.hash(password, saltRounds);
 }
 
 // Compare a password with a hashed password
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const [hash, salt] = hashedPassword.split('.');
-    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) reject(err);
-      resolve(hash === derivedKey.toString('hex'));
-    });
-  });
+  return bcrypt.compare(password, hashedPassword);
 }
 
-// Setup authentication middleware and session management
+// Setup authentication routes
 export function setupAuth(app: Express) {
-  // Initialize session middleware
-  app.use(session({
-    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
-    resave: false,
-    saveUninitialized: false,
-    store: createSessionStore(),
-    cookie: { 
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
-  }));
 
   // User registration endpoint
   app.post('/api/register', async (req: Request, res: Response) => {
@@ -89,13 +84,15 @@ export function setupAuth(app: Express) {
         password: hashedPassword
       });
       
-      // Set user in session
-      req.session.userId = user.id;
-      req.session.authenticated = true;
+      // Generate JWT token
+      const token = generateToken(user);
       
-      // Return user info (without password)
+      // Return user info (without password) and token
       const { password, ...userWithoutPassword } = user;
-      res.status(201).json(userWithoutPassword);
+      res.status(201).json({
+        ...userWithoutPassword,
+        token
+      });
     } catch (error) {
       console.error('Registration error:', error);
       if (error instanceof z.ZodError) {
@@ -141,13 +138,15 @@ export function setupAuth(app: Express) {
         });
       }
       
-      // Set user in session
-      req.session.userId = user.id;
-      req.session.authenticated = true;
+      // Generate JWT token
+      const token = generateToken(user);
       
-      // Return user info (without password)
+      // Return user info (without password) and token
       const { password: _, ...userWithoutPassword } = user;
-      res.status(200).json(userWithoutPassword);
+      res.status(200).json({
+        ...userWithoutPassword,
+        token
+      });
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({
@@ -157,33 +156,24 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // User logout endpoint
+  // User logout endpoint (JWT tokens are stateless, so just confirm logout)
   app.post('/api/logout', (req: Request, res: Response) => {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return res.status(500).json({
-          error: 'Logout failed',
-          message: 'Failed to logout. Please try again.'
-        });
-      }
-      res.status(200).json({ message: 'Logged out successfully' });
-    });
+    // With JWT tokens, logout is handled client-side by removing the token
+    res.status(200).json({ message: 'Logged out successfully' });
   });
 
   // Get current user endpoint
-  app.get('/api/user', async (req: Request, res: Response) => {
+  app.get('/api/user', authenticateToken, async (req: Request, res: Response) => {
     try {
-      if (!req.session.userId || !req.session.authenticated) {
+      if (!req.user) {
         return res.status(401).json({
           error: 'Not authenticated',
           message: 'You must be logged in to access this resource'
         });
       }
       
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.user.id);
       if (!user) {
-        req.session.destroy(() => {});
         return res.status(401).json({
           error: 'User not found',
           message: 'Your user account could not be found'
@@ -209,16 +199,52 @@ export function setupAuth(app: Express) {
   });
 }
 
+// JWT authentication middleware
+export function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({
+      error: 'Access token required',
+      message: 'You must provide an access token'
+    });
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    return res.status(403).json({
+      error: 'Invalid token',
+      message: 'Your access token is invalid or expired'
+    });
+  }
+
+  req.user = { id: payload.userId, username: payload.username };
+  next();
+}
+
 // Universal authentication middleware that adds authentication headers
 export async function authenticateRequest(req: Request, res: Response, next: NextFunction) {
   try {
-    // Check if the user is authenticated via session
-    if (!req.session.authenticated || !req.session.userId) {
-      // Skip authenticated routes, allow public routes
+    // Extract JWT token from Authorization header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    // If no token, allow public routes
+    if (!token) {
       return next();
     }
     
-    const userId = req.session.userId;
+    // Verify JWT token
+    const payload = verifyToken(token);
+    if (!payload) {
+      // Invalid token, but allow public routes
+      return next();
+    }
+    
+    // Set user info in request
+    req.user = { id: payload.userId, username: payload.username };
+    const userId = payload.userId;
     
     // Set the user ID in headers for downstream middlewares
     req.headers['x-user-id'] = userId.toString();
@@ -239,7 +265,7 @@ export async function authenticateRequest(req: Request, res: Response, next: Nex
           coinbaseClient.setCredentials(credentials.apiKey, credentials.apiSecret);
           
           // Store the key ID in request for later updating its status
-          (req as any).keyId = credentials.keyId;
+          req.keyId = credentials.keyId;
         }
       } catch (err) {
         console.log('Failed to get API key from vault:', err);
@@ -262,7 +288,7 @@ export async function authenticateRequest(req: Request, res: Response, next: Nex
 export async function requireApiKey(req: Request, res: Response, next: NextFunction) {
   try {
     // Check authentication first
-    if (!req.session.authenticated || !req.session.userId) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({
         error: 'Authentication required',
         message: 'You must be logged in to access this resource',
@@ -270,7 +296,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       });
     }
     
-    const userId = req.session.userId;
+    const userId = req.user.id;
     
     // Direct API key in headers
     const apiKey = req.headers['x-api-key'] as string;
@@ -289,7 +315,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       coinbaseClient.setCredentials(credentials.apiKey, credentials.apiSecret);
       
       // Store the key ID in request for later updating its status
-      (req as any).keyId = credentials.keyId;
+      req.keyId = credentials.keyId;
       
       return next();
     }

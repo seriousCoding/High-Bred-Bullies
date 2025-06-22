@@ -5,9 +5,10 @@ import { setupVite, serveStatic, log } from "./vite";
 import { coinbaseClient } from "./coinbase-client";
 import { oauthService } from "./oauth-service";
 import { setupAuth, authenticateRequest } from "./auth";
-import { setupUnifiedAuth } from "./unified-auth";
-import session from "express-session";
-import crypto from "crypto";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 app.use(express.json());
