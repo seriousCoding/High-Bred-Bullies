@@ -4,7 +4,7 @@ import { coinbaseClient } from './coinbase-client';
 import { keyVault } from './key-vault';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { insertUserSchema } from '@shared/schema';
+import { insertUserSchema } from '../shared/schema';
 import { z } from 'zod';
 
 // Extended Request interface for authenticated routes
