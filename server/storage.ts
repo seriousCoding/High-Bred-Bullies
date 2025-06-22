@@ -1,7 +1,8 @@
 import { 
   User, InsertUser, 
   ApiKey, InsertApiKey,
-  FavoriteMarket, InsertFavoriteMarket
+  FavoriteMarket, InsertFavoriteMarket,
+  UserProfile
 } from "../shared/schema";
 
 export interface IStorage {
@@ -9,6 +10,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getUserProfile(userId: number): Promise<UserProfile | undefined>;
   
   // API Key methods
   storeApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
@@ -24,7 +26,7 @@ export interface IStorage {
   removeFavoriteMarket(id: number): Promise<void>;
 }
 
-import { users, apiKeys, favoriteMarkets } from "../shared/schema";
+import { users, apiKeys, favoriteMarkets, userProfiles } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, isNull } from "drizzle-orm";
 
@@ -46,6 +48,11 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async getUserProfile(userId: number): Promise<UserProfile | undefined> {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    return profile || undefined;
   }
   
   // API Key methods

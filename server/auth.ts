@@ -6,6 +6,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { insertUserSchema } from '../shared/schema';
 import { z } from 'zod';
+import { db } from './db';
+import { userProfiles } from '../shared/schema';
+import { eq } from 'drizzle-orm';
 
 // Extended Request interface for authenticated routes
 declare global {
@@ -181,6 +184,9 @@ export function setupAuth(app: Express) {
         });
       }
       
+      // Get user profile to check breeder status
+      const [userProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.id));
+      
       // Check if user has API keys
       const apiKeys = await keyVault.getUserKeys(user.id);
       
@@ -188,6 +194,7 @@ export function setupAuth(app: Express) {
       const { password_hash: _, ...userWithoutPassword } = user;
       res.status(200).json({
         ...userWithoutPassword,
+        isBreeder: userProfile?.isBreeder || false,
         hasApiKeys: apiKeys.length > 0
       });
     } catch (error) {
