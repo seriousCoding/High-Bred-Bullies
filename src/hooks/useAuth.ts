@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 interface User {
   id: number;
   username: string;
+  isBreeder?: boolean;
+  fullName?: string;
   hasApiKeys?: boolean;
 }
 
