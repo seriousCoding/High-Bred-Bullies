@@ -1,8 +1,9 @@
 
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import Footer from '@/components/Footer';
 import LitterCard from '@/components/LitterCard';
 import { Litter } from '@/types';

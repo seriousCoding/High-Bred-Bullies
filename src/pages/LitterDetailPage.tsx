@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import Footer from '@/components/Footer';
 import { Loader2, AlertTriangle, Dog, Calendar, Users, Building, Tag, Heart, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

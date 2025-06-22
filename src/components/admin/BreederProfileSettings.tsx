@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,13 +34,13 @@ export const BreederProfileSettings = ({ breederId, onProfileUpdated }: BreederP
     queryKey: ['breederProfile', breederId],
     queryFn: async () => {
       if (!breederId) return null;
-      const { data, error } = await supabase
-        .from('breeders')
-        .select('*')
-        .eq('id', breederId)
-        .single();
-      if (error) throw error;
-      return data;
+      const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch breeder profile');
+      return response.json();
     },
     enabled: !!breederId,
   });
@@ -72,16 +73,26 @@ export const BreederProfileSettings = ({ breederId, onProfileUpdated }: BreederP
       
       const deliveryFeeInCents = formData.deliveryFee ? Math.round(parseFloat(formData.deliveryFee) * 100) : 0;
 
-      const { error } = await supabase.from('breeders').update({
-        business_name: formData.businessName,
-        contact_phone: formData.contactPhone,
-        contact_email: formData.contactEmail,
-        address: formData.address,
-        delivery_areas: deliveryAreasArray,
-        delivery_fee: deliveryFeeInCents,
-      }).eq('id', breederId);
+      const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          business_name: formData.businessName,
+          contact_phone: formData.contactPhone,
+          contact_email: formData.contactEmail,
+          address: formData.address,
+          delivery_areas: deliveryAreasArray,
+          delivery_fee: deliveryFeeInCents,
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update breeder profile');
+      }
 
       toast.success('Breeder profile updated successfully!');
       onProfileUpdated();

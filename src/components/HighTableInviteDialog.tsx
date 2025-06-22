@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,45 +24,29 @@ const HighTableInviteDialog: React.FC<HighTableInviteDialogProps> = ({ currentPr
 
     setIsLoading(true);
     try {
-      // First check if invitation already exists
-      const { data: existingInvite } = await supabase
-        .from('high_table_invitations')
-        .select('id')
-        .eq('invited_email', email.trim().toLowerCase())
-        .single();
+      // Send invitation via API
+      const response = await fetch(`${API_BASE_URL}/api/high-table-invitations`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inviter_id: currentProfileId,
+          invited_email: email.trim().toLowerCase()
+        })
+      });
 
-      if (existingInvite) {
-        // Update existing invitation (resend)
-        const { error } = await supabase
-          .from('high_table_invitations')
-          .update({ 
-            inviter_id: currentProfileId,
-            created_at: new Date().toISOString()
-          })
-          .eq('invited_email', email.trim().toLowerCase());
+      const result = await response.json();
 
-        if (error) throw error;
-
-        toast({
-          title: 'Invitation resent!',
-          description: `Invitation resent to ${email}`
-        });
-      } else {
-        // Create new invitation
-        const { error } = await supabase
-          .from('high_table_invitations')
-          .insert({
-            inviter_id: currentProfileId,
-            invited_email: email.trim().toLowerCase()
-          });
-
-        if (error) throw error;
-
-        toast({
-          title: 'Invitation sent!',
-          description: `Invitation sent to ${email}`
-        });
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to send invitation');
       }
+
+      toast({
+        title: result.isResend ? 'Invitation resent!' : 'Invitation sent!',
+        description: `Invitation ${result.isResend ? 'resent to' : 'sent to'} ${email}`
+      });
 
       setEmail('');
       setOpen(false);

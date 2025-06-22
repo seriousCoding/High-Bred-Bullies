@@ -1,8 +1,9 @@
 
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import Footer from '@/components/Footer';
 import LitterCard from '@/components/LitterCard';
 import { Litter } from '@/types';
@@ -12,34 +13,20 @@ import { Loader2, AlertTriangle, Clock } from 'lucide-react';
 const fetchUpcomingLitters = async (): Promise<Litter[]> => {
   console.log('Fetching upcoming litters...');
   
-  const { data, error } = await supabase
-    .from('litters')
-    .select(`
-      id,
-      name,
-      breed,
-      birth_date,
-      available_puppies,
-      total_puppies,
-      price_per_male,
-      price_per_female,
-      image_url,
-      status,
-      breeders (
-        business_name
-      )
-    `)
-    .eq('status', 'upcoming')
-    .order('birth_date', { ascending: true });
+  const response = await fetch(`${API_BASE_URL}/api/litters/upcoming`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+    }
+  });
 
-  console.log('Upcoming litters query result:', { data, error });
-
-  if (error) {
-    console.error("Error fetching upcoming litters:", error);
-    throw error;
+  if (!response.ok) {
+    throw new Error('Failed to fetch upcoming litters');
   }
+
+  const data = await response.json();
+  console.log('Upcoming litters query result:', data);
   
-  const processedData = (data as any[] || []) as Litter[];
+  const processedData = (data || []) as Litter[];
   console.log('Processed upcoming litters:', processedData);
   
   return processedData;

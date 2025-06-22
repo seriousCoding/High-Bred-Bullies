@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Loader2, CheckCircle, AlertTriangle, Calendar as CalendarIcon, Truck } from 'lucide-react';
