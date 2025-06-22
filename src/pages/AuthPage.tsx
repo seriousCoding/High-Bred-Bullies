@@ -132,7 +132,17 @@ const AuthPage = () => {
                 />
               </div>
             )}
-            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="w-full" 
+              disabled={loading}
+              onClick={(e) => {
+                console.log('Button clicked directly');
+                e.preventDefault();
+                handleAuth(e);
+              }}
+            >
               {loading ? 'Processing...' : (isLogin ? 'Login' : 'Register')}
             </Button>
           </form>

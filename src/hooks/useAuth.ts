@@ -72,8 +72,11 @@ export function useAuth() {
 
   const signIn = async (username: string, password: string) => {
     try {
-      console.log('Attempting login to:', `${API_BASE_URL}/api/login`);
-      const response = await fetch(`${API_BASE_URL}/api/login`, {
+      const loginUrl = `${API_BASE_URL}/api/login`;
+      console.log('Attempting login to:', loginUrl);
+      console.log('Login payload:', { username, password: '***' });
+      
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,16 +85,35 @@ export function useAuth() {
       });
 
       console.log('Login response status:', response.status);
-      const data = await response.json();
-      console.log('Login response data:', data);
+      console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error('Invalid response from server');
+      }
+      
+      console.log('Parsed login response data:', data);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to sign in');
+        throw new Error(data.message || data.error || 'Failed to sign in');
+      }
+
+      // Validate response structure
+      if (!data.token || !data.user) {
+        console.error('Invalid login response structure:', data);
+        throw new Error('Invalid login response from server');
       }
 
       // Store token and update state
       localStorage.setItem('auth_token', data.token);
-      console.log('Login successful, updating auth state:', data.user);
+      console.log('Login successful, updating auth state with user:', data.user);
+      
       setAuthState({
         user: data.user,
         token: data.token,
@@ -110,7 +132,11 @@ export function useAuth() {
 
   const signUp = async (username: string, password: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/register`, {
+      const registerUrl = `${API_BASE_URL}/api/register`;
+      console.log('Attempting registration to:', registerUrl);
+      console.log('Registration payload:', { username, password: '***' });
+      
+      const response = await fetch(registerUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,14 +144,36 @@ export function useAuth() {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      console.log('Registration response status:', response.status);
+      console.log('Registration response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const responseText = await response.text();
+      console.log('Raw registration response text:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse registration response as JSON:', parseError);
+        throw new Error('Invalid response from server');
+      }
+      
+      console.log('Parsed registration response data:', data);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to create account');
+        throw new Error(data.message || data.error || 'Failed to create account');
+      }
+
+      // Validate response structure
+      if (!data.token || !data.user) {
+        console.error('Invalid registration response structure:', data);
+        throw new Error('Invalid registration response from server');
       }
 
       // Store token and update state
       localStorage.setItem('auth_token', data.token);
+      console.log('Registration successful, updating auth state with user:', data.user);
+      
       setAuthState({
         user: data.user,
         token: data.token,
@@ -136,7 +184,8 @@ export function useAuth() {
       return { data, error: null };
     } catch (error: any) {
       console.error('Sign up error:', error);
-      toast.error(error.message || 'Failed to create account');
+      const errorMessage = error.message || error.toString() || 'Failed to create account';
+      toast.error(`Registration failed: ${errorMessage}`);
       return { data: null, error };
     }
   };
