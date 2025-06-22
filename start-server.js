@@ -96,12 +96,26 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Custom middleware to fix MIME types for JavaScript modules
+app.use((req, res, next) => {
+  if (req.path.endsWith('.js') || req.path.endsWith('.mjs')) {
+    res.type('application/javascript');
+  } else if (req.path.endsWith('.tsx') || req.path.endsWith('.ts')) {
+    res.type('application/javascript');
+  } else if (req.path.endsWith('.css')) {
+    res.type('text/css');
+  } else if (req.path.endsWith('.json')) {
+    res.type('application/json');
+  }
+  next();
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 // In development, serve React source files directly
 if (process.env.NODE_ENV === 'development') {
-  // Serve src files for development
+  // Serve src files for development with correct MIME types
   app.use('/src', express.static(path.join(__dirname, 'src')));
   app.use('/assets', express.static(path.join(__dirname, 'src')));
   
@@ -114,10 +128,15 @@ if (process.env.NODE_ENV === 'development') {
   app.use(express.static(path.join(__dirname, 'dist')));
 }
 
-// SPA fallback for non-API routes
-app.get('*', (req, res, next) => {
+// SPA fallback for non-API routes (must be last)
+app.use((req, res, next) => {
   // Skip API routes
   if (req.path.startsWith('/api')) {
+    return next();
+  }
+  
+  // Only handle GET requests
+  if (req.method !== 'GET') {
     return next();
   }
   
