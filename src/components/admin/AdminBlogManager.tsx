@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.origin;
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,30 +36,40 @@ interface BlogPost {
 }
 
 const fetchBlogPosts = async () => {
-  const { data, error } = await supabase
-    .from('blog_posts')
-    .select('id, title, category, published_at, created_at')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as BlogPost[];
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to fetch blog posts');
+  return await response.json();
 };
 
 const addBlogPost = async (newPost: Omit<BlogPost, 'id' | 'created_at' | 'published_at' | 'content' | 'excerpt'> & { content: string, excerpt?: string, image_url?: string, author_name?: string }) => {
-  // Note: RLS for insert on blog_posts is not yet defined for non-superusers.
-  // This operation will likely fail unless run by a service_role key or after appropriate RLS policies are added.
-  const { data, error } = await supabase.from('blog_posts').insert(newPost).select();
-  if (error) throw error;
-  return data;
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(newPost),
+  });
+  if (!response.ok) throw new Error('Failed to create blog post');
+  return await response.json();
 };
 
 const publishBlogPost = async (postId: string) => {
-  const { data, error } = await supabase
-    .from('blog_posts')
-    .update({ published_at: new Date().toISOString() })
-    .eq('id', postId)
-    .select();
-  if (error) throw error;
-  return data;
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts/${postId}/publish`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to publish blog post');
+  return await response.json();
 };
 
 const deleteBlogPost = async (postId: string) => {

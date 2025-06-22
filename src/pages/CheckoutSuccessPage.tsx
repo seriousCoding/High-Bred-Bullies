@@ -97,7 +97,7 @@ const CheckoutSuccessPage = () => {
               order={orderData.order}
               puppies={orderData.puppies}
               customerInfo={{
-                name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Customer',
+                name: user?.email?.split('@')[0] || 'Customer',
                 email: user?.email || ''
               }}
             />

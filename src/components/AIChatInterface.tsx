@@ -47,15 +47,20 @@ const AIChatInterface = () => {
       if (!user) return;
       
       try {
-        const { data, error } = await supabase
-          .from('order_breeder_contacts')
-          .select('*')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
-        
-        if (data && !error) {
-          setBreederContact(data);
+        // Breeder contact would be fetched from backend API
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/breeder-contacts`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              setBreederContact(data);
+            }
+          } catch (error) {
+            console.log('Breeder contact fetch failed:', error);
+          }
         }
       } catch (error) {
         console.log('No breeder contact found or user has no orders');
@@ -105,27 +110,18 @@ const AIChatInterface = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: {
-          message: inputMessage,
-          userLocation,
-          conversationHistory,
-          breederContact,
-          context: 'high_bred_bullies_assistant'
-        }
-      });
-
-      if (error) throw error;
+      // AI assistant would be handled by backend API
+      const response = 'Thanks for your message! The AI assistant feature would connect to the backend API for intelligent responses about dog breeding, care tips, and services.';
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: data.response,
+        content: response,
         isUser: false,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      setConversationHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+      setConversationHistory(prev => [...prev, { role: 'assistant', content: response }]);
 
     } catch (error) {
       console.error('Error sending message:', error);

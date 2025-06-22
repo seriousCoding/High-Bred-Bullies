@@ -14,16 +14,13 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const fetchBlogPostById = async (id: string) => {
-  const { data, error } = await supabase
-    .from('blog_posts')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    throw error;
+  const response = await fetch(`${API_BASE_URL}/api/blog-posts/${id}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch blog post');
   }
-  return data;
+  
+  return await response.json();
 };
 
 const BlogPostPage = () => {
