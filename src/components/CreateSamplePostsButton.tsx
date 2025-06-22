@@ -2,8 +2,9 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const CreateSamplePostsButton = () => {
   const { toast } = useToast();
@@ -38,12 +39,17 @@ const CreateSamplePostsButton = () => {
         }
       ];
 
-      const { error } = await supabase
-        .from('social_posts')
-        .insert(samplePosts);
+      const response = await fetch(`${API_BASE_URL}/api/social-posts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ posts: samplePosts })
+      });
 
-      if (error) {
-        console.error('Error creating sample posts:', error);
+      if (!response.ok) {
+        console.error('Error creating sample posts:', response.statusText);
         toast({
           title: 'Error',
           description: 'Could not create sample posts.',

@@ -155,6 +155,7 @@ Changelog:
 - June 22, 2025. COMPLETED: Resolved CORS authentication issue - fixed frontend API URL configuration to use relative URLs when running on Replit, preventing cross-origin request blocks that were preventing login/registration from working.
 - June 22, 2025. COMPLETED: Fixed admin user privileges - created user profile for gpass1979@gmail.com with isBreeder=true, updated authentication endpoints to return admin status, and fixed frontend User interface to include isBreeder field. Admin user now properly recognized with full privileges.
 - June 22, 2025. COMPLETED: Final authentication system fixes - removed all Coinbase references from documentation as clarified this is a pure dog breeding platform, fixed admin user password authentication, completed AdminPage migration from Supabase to JWT authentication. User gpass1979@gmail.com now successfully authenticates with full breeder privileges.
+- June 22, 2025. COMPLETED: ProfilePage Supabase migration completed - replaced all Supabase queries with JWT authentication, ensured isBreeder status properly read from JWT token for dual profile system (breeder vs customer), maintained notification preferences and account management functionality with JWT-based API calls.
 ```
 
 ## User Preferences

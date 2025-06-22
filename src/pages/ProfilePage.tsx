@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Loader2, MessageSquare, User, Crown } from "lucide-react";
+import { Loader2, MessageSquare, User, Crown, Users } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 
@@ -161,117 +161,126 @@ const ProfilePage = () => {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-12">
-          <NotificationList />
           
-          <h1 className="text-3xl font-bold">My Profile</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">My Profile</h1>
+            {user?.isBreeder && (
+              <div className="flex items-center gap-2 text-amber-600">
+                <Crown className="h-5 w-5" />
+                <span className="font-medium">Breeder Account</span>
+              </div>
+            )}
+          </div>
           
-          {/* High Table Navigation */}
-          <HighTableNavCard isPetOwner={isPetOwner || false} />
-          
-          {/* Registration Email Display */}
+          {/* Account Information */}
           <Card>
             <CardHeader>
-              <CardTitle>Account Information</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Account Information
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <Label className="text-sm font-medium text-gray-700">Registration Email</Label>
-                <p className="text-sm text-gray-900 mt-1">{user?.email}</p>
-                <p className="text-xs text-gray-500 mt-1">Registered on {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <Label className="text-sm font-medium text-gray-700">Username</Label>
+                  <p className="text-sm text-gray-900 mt-1">{user?.username}</p>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <Label className="text-sm font-medium text-gray-700">Account Type</Label>
+                  <p className="text-sm text-gray-900 mt-1">
+                    {user?.isBreeder ? 'Breeder' : 'Customer'}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Create Post Section - Available to all users with profiles */}
-          {currentProfile && isReady && (
-            <CreatePostCard 
-              userProfileId={currentProfile.id} 
-              onPostCreated={() => {
-                // Optionally refresh any post-related queries
-              }}
-            />
-          )}
-
-          {/* Messaging Section - Show for all authenticated users with profiles */}
-          {user && currentProfile && (
+          {/* Breeder-specific sections */}
+          {user?.isBreeder && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Messages & Friends
-                  {isPetOwner && <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">High Table Member</span>}
+                  <Crown className="h-5 w-5" />
+                  Breeder Dashboard
                 </CardTitle>
                 <CardDescription>
-                  {isPetOwner 
-                    ? "Connect with other pet owners in the High Table community"
-                    : "Messaging available to all users - connect with friends and other pet enthusiasts"
-                  }
+                  Manage your breeding operations and customer relationships
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-8">
-                <div className="flex gap-2">
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Button asChild variant="outline">
-                    <Link to="/high-table" className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Open Full Messaging
+                    <Link to="/admin">
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Admin Panel
                     </Link>
                   </Button>
-                </div>
-                <div className="border-t pt-8">
-                  <div className="max-h-[600px] overflow-hidden">
-                    <MessagingCenter />
-                  </div>
+                  <Button asChild variant="outline">
+                    <Link to="/blog">
+                      Manage Blog Posts
+                    </Link>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           )}
-          
-          {/* Order History Section */}
-          <OrderHistory />
-          
-          {/* Enhanced Profile Form */}
-          <EnhancedProfileForm 
-            profile={currentProfile}
-            onSubmit={(data) => profileMutation.mutate(data)}
-            isLoading={profileMutation.isPending}
-          />
-          
+
+          {/* User sections available to all authenticated users */}
+          {user && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Button asChild variant="outline" className="w-full">
+                    <Link to="/high-table">
+                      <Users className="h-4 w-4 mr-2" />
+                      Access High Table
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Notification Preferences */}
           <Card>
             <CardHeader>
-              <CardTitle>Notifications</CardTitle>
-              <CardDescription>Manage your email notification preferences.</CardDescription>
+              <CardTitle>Notification Preferences</CardTitle>
+              <CardDescription>
+                Manage how you receive updates and alerts
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="litter_notifications">New Litter Notifications</Label>
-                <Switch
-                  id="litter_notifications"
-                  checked={subscription?.preferences?.litter_notifications || false}
-                  onCheckedChange={(checked) => handlePreferenceChange('litter_notifications', checked)}
-                  disabled={subscriptionMutation.isPending}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="birthday_reminders">Puppy Birthday Reminders</Label>
-                <Switch
-                  id="birthday_reminders"
-                  checked={subscription?.preferences?.birthday_reminders || false}
-                  onCheckedChange={(checked) => handlePreferenceChange('birthday_reminders', checked)}
-                  disabled={subscriptionMutation.isPending}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="health_tips">Health & Care Tips</Label>
-                <Switch
-                  id="health_tips"
-                  checked={subscription?.preferences?.health_tips || false}
-                  onCheckedChange={(checked) => handlePreferenceChange('health_tips', checked)}
-                  disabled={subscriptionMutation.isPending}
-                />
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="litter-notifications">New Litter Alerts</Label>
+                    <p className="text-sm text-muted-foreground">Get notified when new litters are available</p>
+                  </div>
+                  <Switch
+                    id="litter-notifications"
+                    checked={subscription?.preferences?.litter_notifications || false}
+                    onCheckedChange={(checked) => handlePreferenceChange("litter_notifications", checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="health-tips">Health & Care Tips</Label>
+                    <p className="text-sm text-muted-foreground">Receive puppy health and care advice</p>
+                  </div>
+                  <Switch
+                    id="health-tips"
+                    checked={subscription?.preferences?.health_tips || false}
+                    onCheckedChange={(checked) => handlePreferenceChange("health_tips", checked)}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
+          
         </div>
       </main>
       <Footer />
