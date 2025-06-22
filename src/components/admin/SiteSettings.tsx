@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -24,10 +24,20 @@ const settingsSchema = z.object({
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 const fetchSettings = async () => {
-  const { data, error } = await supabase.from('site_config').select('key, value');
-  if (error) throw new Error(error.message);
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/site-config`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-  const settings = data.reduce((acc, { key, value }) => {
+  if (!response.ok) {
+    throw new Error(`Failed to fetch settings: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const settings = data.reduce((acc: any, { key, value }: any) => {
     if (key) {
       acc[key] = value || '';
     }
@@ -38,9 +48,21 @@ const fetchSettings = async () => {
 };
 
 const updateSettings = async (values: SettingsFormValues) => {
+  const token = localStorage.getItem('token');
   const updates = Object.entries(values).map(([key, value]) => ({ key, value }));
-  const { error } = await supabase.from('site_config').upsert(updates);
-  if (error) throw new Error(error.message);
+  
+  const response = await fetch(`${API_BASE_URL}/api/site-config`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update settings: ${response.statusText}`);
+  }
 };
 
 export const SiteSettings = () => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,58 +25,71 @@ interface Order {
 }
 
 const fetchOrderDetails = async (orderId: string) => {
+  const token = localStorage.getItem('token');
+  
   // Get the complete order data with all Stripe information
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .single();
+  const orderResponse = await fetch(`${API_BASE_URL}/api/orders/${orderId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-  if (orderError) throw orderError;
+  if (!orderResponse.ok) {
+    throw new Error(`Failed to fetch order: ${orderResponse.statusText}`);
+  }
+
+  const orderData = await orderResponse.json();
 
   // Get user profile data with detailed information
-  const { data: profileData, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('first_name, last_name, phone, address, city, state, zip_code, user_id')
-    .eq('user_id', orderData.user_id)
-    .single();
+  let profileData = null;
+  try {
+    const profileResponse = await fetch(`${API_BASE_URL}/api/user-profiles/${orderData.user_id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-  if (profileError) {
+    if (profileResponse.ok) {
+      profileData = await profileResponse.json();
+    }
+  } catch (error) {
     console.warn('Profile not found for user:', orderData.user_id);
   }
 
-  // Get the user's actual email using the RPC function
+  // Get the user's actual email
   let userEmail = 'Email not available';
   
   try {
-    const { data: emailData, error: emailError } = await supabase.rpc('get_user_email', {
-      user_uuid: orderData.user_id
+    const emailResponse = await fetch(`${API_BASE_URL}/api/users/${orderData.user_id}/email`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
     });
     
-    if (!emailError && emailData) {
-      userEmail = emailData;
+    if (emailResponse.ok) {
+      const emailData = await emailResponse.json();
+      userEmail = emailData.email;
     }
   } catch (error) {
     console.warn('Could not fetch user email:', error);
   }
 
   // Get order items with complete puppy details and actual prices
-  const { data: orderItems, error: itemsError } = await supabase
-    .from('order_items')
-    .select(`
-      price,
-      puppy_id,
-      puppies(
-        id, 
-        name, 
-        gender, 
-        color, 
-        litters(name)
-      )
-    `)
-    .eq('order_id', orderId);
+  const itemsResponse = await fetch(`${API_BASE_URL}/api/orders/${orderId}/items`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-  if (itemsError) throw itemsError;
+  if (!itemsResponse.ok) {
+    throw new Error(`Failed to fetch order items: ${itemsResponse.statusText}`);
+  }
+
+  const orderItems = await itemsResponse.json();
 
   return {
     ...orderData,
@@ -100,29 +113,40 @@ const fetchOrderDetails = async (orderId: string) => {
 };
 
 const fetchOrders = async () => {
-  const { data, error } = await supabase.rpc('get_admin_orders');
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/admin/orders`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-  if (error) {
-    console.error("Error fetching orders:", error);
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch orders: ${response.statusText}`);
   }
+
+  const data = await response.json();
   return data as unknown as Order[];
 };
 
 const cancelOrder = async ({ order_id, token }: { order_id: string, token: string }) => {
-  const { data, error } = await supabase.functions.invoke('cancel-order', {
-    body: { order_id },
-    headers: { Authorization: `Bearer ${token}` }
+  const response = await fetch(`${API_BASE_URL}/api/orders/${order_id}/cancel`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
   });
 
-  if (error) throw new Error(error.message);
-  if (data.error) throw new Error(data.error);
+  if (!response.ok) {
+    throw new Error(`Failed to cancel order: ${response.statusText}`);
+  }
 
-  return data;
+  return await response.json();
 };
 
 export const AdminOrders = () => {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
@@ -151,12 +175,13 @@ export const AdminOrders = () => {
   });
 
   const handleCancelOrder = (orderId: string) => {
-    if (!session) {
+    const token = localStorage.getItem('token');
+    if (!token) {
       toast.error("You must be logged in to perform this action.");
       return;
     }
     if (window.confirm("Are you sure you want to cancel this order? This will make the puppy/puppies available for purchase again. This action cannot be undone.")) {
-      cancelOrderMutation({ order_id: orderId, token: session.access_token });
+      cancelOrderMutation({ order_id: orderId, token });
     }
   };
 

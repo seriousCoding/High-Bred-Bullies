@@ -237,11 +237,18 @@ export const PuppyForm: React.FC<PuppyFormProps> = ({
           };
         }));
 
-        const { error } = await supabase
-          .from('puppies')
-          .insert(puppyData);
+        const response = await fetch(`${API_BASE_URL}/api/puppies`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ puppies: puppyData }),
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(`Failed to create puppies: ${response.statusText}`);
+        }
 
         toast({
           title: "Success",
