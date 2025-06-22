@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Check, X, UserPlus } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { toast } from 'sonner';
 
 interface FriendRequest {
@@ -39,12 +39,19 @@ const FriendRequestCard: React.FC<FriendRequestCardProps> = ({ request, currentU
   
   const handleAccept = async () => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .update({ status: 'accepted' })
-        .eq('id', request.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${request.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'accepted' }),
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to accept friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request accepted!');
       onUpdate();
@@ -56,12 +63,19 @@ const FriendRequestCard: React.FC<FriendRequestCardProps> = ({ request, currentU
 
   const handleDecline = async () => {
     try {
-      const { error } = await supabase
-        .from('friend_requests')
-        .update({ status: 'declined' })
-        .eq('id', request.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/friend-requests/${request.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'declined' }),
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to decline friend request: ${response.statusText}`);
+      }
       
       toast.success('Friend request declined');
       onUpdate();

@@ -50,13 +50,19 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
     queryKey: ['breederProfile', breederId],
     queryFn: async () => {
       if (!breederId) return null;
-      const { data, error } = await supabase
-        .from('breeders')
-        .select('*')
-        .eq('id', breederId)
-        .single();
-      if (error) throw error;
-      return data;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch breeder: ${response.statusText}`);
+      }
+      
+      return await response.json();
     },
     enabled: !!breederId,
   });
@@ -64,11 +70,20 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
   const { data: siteConfig, isLoading: isLoadingSiteConfig } = useQuery({
     queryKey: ['siteConfig'],
     queryFn: async (): Promise<SiteConfig> => {
-      const { data, error } = await supabase
-        .from('site_config')
-        .select('*');
-      if (error) throw error;
-      return data.reduce((acc, item) => ({ ...acc, [item.key]: item.value }), {} as SiteConfig);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/site-config`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch site config: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.value }), {} as SiteConfig);
     },
   });
 
@@ -105,16 +120,26 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
       const deliveryFeeInCents = formData.deliveryFee ? Math.round(parseFloat(formData.deliveryFee) * 100) : 0;
 
       // Update breeder profile
-      const { error: breederError } = await supabase.from('breeders').update({
-        business_name: formData.businessName,
-        contact_phone: formData.contactPhone,
-        contact_email: formData.contactEmail,
-        address: formData.address,
-        delivery_areas: deliveryAreasArray,
-        delivery_fee: deliveryFeeInCents,
-      }).eq('id', breederId);
+      const token = localStorage.getItem('token');
+      const breederResponse = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          business_name: formData.businessName,
+          contact_phone: formData.contactPhone,
+          contact_email: formData.contactEmail,
+          address: formData.address,
+          delivery_areas: deliveryAreasArray,
+          delivery_fee: deliveryFeeInCents,
+        }),
+      });
 
-      if (breederError) throw breederError;
+      if (!breederResponse.ok) {
+        throw new Error(`Failed to update breeder: ${breederResponse.statusText}`);
+      }
 
       // Update site config
       const siteConfigUpdates = [
@@ -126,12 +151,17 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
         { key: 'business_hours_line3', value: formData.businessHoursLine3 },
       ];
 
-      for (const update of siteConfigUpdates) {
-        const { error: configError } = await supabase
-          .from('site_config')
-          .upsert(update, { onConflict: 'key' });
-        
-        if (configError) throw configError;
+      const configResponse = await fetch(`${API_BASE_URL}/api/site-config`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(siteConfigUpdates),
+      });
+
+      if (!configResponse.ok) {
+        throw new Error(`Failed to update site config: ${configResponse.statusText}`);
       }
 
       toast.success('Business settings updated successfully!');

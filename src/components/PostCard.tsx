@@ -10,7 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import SocialShareButtons from './SocialShareButtons';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserOnboarding } from '@/hooks/useUserOnboarding';
-import { supabase } from '@/integrations/supabase/client';
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { toast } from 'sonner';
 
 interface PostCardProps {
@@ -36,12 +36,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onFollow, onDelete, c
     if (!user) return;
     
     try {
-      const { error } = await supabase
-        .from('social_posts')
-        .delete()
-        .eq('id', post.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/social-posts/${post.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to delete post: ${response.statusText}`);
+      }
       
       toast.success('Post deleted successfully');
       if (onDelete) onDelete(post.id);
