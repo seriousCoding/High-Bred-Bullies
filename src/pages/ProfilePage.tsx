@@ -1,84 +1,90 @@
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useUserOnboarding } from "@/hooks/useUserOnboarding";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserProfile, NewsletterSubscription } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2, MessageSquare, User, Crown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
-import NotificationList from "@/components/NotificationList";
-import OrderHistory from "@/components/OrderHistory";
-import CreatePostCard from "@/components/CreatePostCard";
-import EnhancedProfileForm from "@/components/EnhancedProfileForm";
-import HighTableNavCard from "@/components/HighTableNavCard";
-import MessagingCenter from "@/components/MessagingCenter";
 
 const ProfilePage = () => {
   const { user } = useAuth();
-  const { userProfile, isPetOwner, isOnboarding, isReady } = useUserOnboarding();
   const queryClient = useQueryClient();
+
+  // Use relative URLs when running on Replit, localhost for local development
+  const API_BASE_URL = window.location.hostname.includes('replit.dev') ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 
   const { data: profile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ["profile", user?.id],
-    queryFn: async (): Promise<UserProfile | null> => {
+    queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", user.id).single();
-      if (error) throw new Error(error.message);
-      return data;
+      const response = await fetch(`${API_BASE_URL}/api/user`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch profile');
+      return response.json();
     },
-    enabled: !!user && isReady,
+    enabled: !!user,
   });
 
   const { data: subscription, isLoading: isLoadingSubscription } = useQuery({
     queryKey: ['newsletter-subscription', user?.id],
-    queryFn: async (): Promise<Partial<NewsletterSubscription> | null> => {
+    queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase.from('newsletter_subscriptions').select('*').eq('user_id', user.id).single();
-      if (error && error.code !== 'PGRST116') throw new Error(error.message);
-      return data as any;
+      // For now, return empty subscription data - this would be implemented when newsletter feature is added
+      return { subscribed: false };
     },
-    enabled: !!user && isReady,
+    enabled: !!user,
   });
 
   const profileMutation = useMutation({
     mutationFn: async (values: any) => {
       if (!user) throw new Error("User not authenticated");
-      const { error } = await supabase.from("user_profiles").update(values).eq("user_id", user.id);
-      if (error) throw error;
+      const response = await fetch(`${API_BASE_URL}/api/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(values)
+      });
+      if (!response.ok) throw new Error('Failed to update profile');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
       toast.success("Profile updated successfully!");
     },
-    onError: (error) => toast.error(`Failed to update profile: ${error.message}`),
+    onError: (error: any) => toast.error(`Failed to update profile: ${error.message}`),
   });
 
   const subscriptionMutation = useMutation({
-    mutationFn: async (preferences: NewsletterSubscription['preferences']) => {
-        if (!user || !user.email) throw new Error("User not authenticated");
+    mutationFn: async (preferences: any) => {
+        if (!user) throw new Error("User not authenticated");
         
-        const { data: existingSub } = await supabase.from('newsletter_subscriptions').select('id').eq('user_id', user.id).single();
-
-        if (existingSub) {
-            const { error } = await supabase.from('newsletter_subscriptions').update({ preferences }).eq('user_id', user.id);
-            if (error) throw error;
-        } else {
-            const { error } = await supabase.from('newsletter_subscriptions').insert({ user_id: user.id, email: user.email, preferences });
-            if (error) throw error;
-        }
+        const response = await fetch(`${API_BASE_URL}/api/newsletter-preferences`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ preferences })
+        });
+        if (!response.ok) throw new Error('Failed to update preferences');
+        return response.json();
     },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['newsletter-subscription', user?.id]});
         toast.success("Notification preferences updated!");
     },
-    onError: (error) => toast.error(`Update failed: ${error.message}`),
+    onError: (error: any) => toast.error(`Update failed: ${error.message}`),
   });
 
   const sendTestNotification = async (type: "litter" | "birthday" | "health_tip") => {
@@ -98,22 +104,28 @@ const ProfilePage = () => {
       details.title = "Health & Care Tips Enabled";
       details.message = "You'll receive puppy health tips!";
     }
-    const { error } = await supabase.from("user_notifications").insert([
-      {
-        user_id: user.id,
+    
+    const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         type: details.type,
         title: details.title,
         message: details.message,
-      },
-    ]);
-    if (!error) {
+      })
+    });
+    
+    if (response.ok) {
       queryClient.invalidateQueries({ queryKey: ["user-notifications", user.id] });
       toast.success(`Test notification sent (${details.title})`);
     }
   };
 
   const handlePreferenceChange = async (
-    key: keyof NonNullable<NewsletterSubscription['preferences']>,
+    key: string,
     checked: boolean
   ) => {
     const currentPreferences =

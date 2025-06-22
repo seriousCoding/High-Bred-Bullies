@@ -4,6 +4,10 @@
 
 High Bred Bullies is a comprehensive dog breeding management platform that helps breeders manage litters, puppies, orders, and customer relationships. The platform combines a React/TypeScript frontend with Express.js backend and PostgreSQL database, providing features for breeding management, blog content, social features, customer interactions, and payment processing. The application has been refactored from Supabase to use direct PostgreSQL connections with JWT authentication.
 
+The platform supports two distinct user profile types:
+- **Breeder Profile**: Full administrative access to manage litters, puppies, blog posts, and platform settings
+- **User Profile**: Customer access for browsing available puppies, placing orders, and managing purchases
+
 ## System Architecture
 
 ### Frontend Architecture

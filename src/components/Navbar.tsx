@@ -1,43 +1,21 @@
 
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
 import { APP_NAME } from "@/constants/app";
 import { Users } from "lucide-react";
 
 const Navbar = () => {
-  const { user, session } = useAuth();
+  const { user, session, signOut } = useAuth();
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isPetOwner, setIsPetOwner] = useState(false);
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (user) {
-        const { data } = await supabase.from('breeders').select('id').eq('user_id', user.id).single();
-        setIsAdmin(!!data);
-      } else {
-        setIsAdmin(false);
-      }
-    };
-    
-    const checkPetOwner = async () => {
-      if (user) {
-        const { data } = await supabase.from('pet_owners').select('id').eq('user_id', user.id).limit(1);
-        setIsPetOwner(data && data.length > 0);
-      } else {
-        setIsPetOwner(false);
-      }
-    };
-    
-    checkAdmin();
-    checkPetOwner();
-  }, [user]);
+  
+  // Get breeder status directly from JWT token
+  const isAdmin = user?.isBreeder || false;
+  // For now, assume all authenticated users can access High Table
+  const isPetOwner = !!user;
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/");
   };
 
