@@ -20,13 +20,14 @@ interface ArchivedOrder {
 }
 
 const fetchArchivedOrders = async () => {
-  const { data, error } = await supabase.rpc('get_admin_archived_orders');
-
-  if (error) {
-    console.error("Error fetching archived orders:", error);
-    throw error;
-  }
-  return data as unknown as ArchivedOrder[];
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/orders/archived`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to fetch archived orders');
+  return await response.json();
 };
 
 export const ArchivedOrders = () => {

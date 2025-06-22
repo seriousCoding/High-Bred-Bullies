@@ -27,14 +27,14 @@ interface InquiryWithProfile {
 }
 
 const fetchInquiries = async () => {
-  const { data, error } = await supabase
-    .from('inquiries')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-
-  return data as InquiryWithProfile[];
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) throw new Error('Failed to fetch inquiries');
+  return await response.json();
 };
 
 export const AdminInquiries = () => {
@@ -50,33 +50,16 @@ export const AdminInquiries = () => {
 
   const respondMutation = useMutation({
     mutationFn: async ({ inquiryId, responseText }: { inquiryId: string, responseText: string }) => {
-      const { error } = await supabase
-        .from('inquiries')
-        .update({ 
-          response: responseText, 
-          status: 'responded' 
-        })
-        .eq('id', inquiryId);
-      
-      if (error) throw error;
-
-      // Send response email to customer if email is available
-      if (selectedInquiry?.email) {
-        const { error: emailError } = await supabase.functions.invoke('send-inquiry-response', {
-          body: {
-            inquiry_id: inquiryId,
-            customer_email: selectedInquiry.email,
-            customer_name: selectedInquiry.name,
-            original_subject: selectedInquiry.subject,
-            response: responseText
-          }
-        });
-
-        if (emailError) {
-          console.error('Failed to send response email:', emailError);
-          // Don't throw here as the response was saved successfully
-        }
-      }
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/reply`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reply: responseText }),
+      });
+      if (!response.ok) throw new Error('Failed to reply to inquiry');
     },
     onSuccess: () => {
       toast.success("Response sent successfully!");
@@ -92,12 +75,14 @@ export const AdminInquiries = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (inquiryId: string) => {
-      const { error } = await supabase
-        .from('inquiries')
-        .delete()
-        .eq('id', inquiryId);
-      
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to delete inquiry');
       return inquiryId;
     },
     onSuccess: (deletedId) => {
