@@ -28,7 +28,6 @@ export function useUserOnboarding() {
       
       // Create profile if it doesn't exist
       const username = user.username?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6);
-      const token = localStorage.getItem('token');
       const createResponse = await fetch(`${API_BASE_URL}/api/user/profile`, {
         method: 'POST',
         headers: {
@@ -37,8 +36,8 @@ export function useUserOnboarding() {
         },
         body: JSON.stringify({
           username,
-          first_name: user.firstName || 'User',
-          last_name: user.lastName || '',
+          first_name: user.username || 'User',
+          last_name: '',
         }),
       });
       

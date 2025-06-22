@@ -2,7 +2,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { Bot } from 'lucide-react';
 
 const GenerateAIPostsButton = () => {
@@ -12,29 +11,34 @@ const GenerateAIPostsButton = () => {
   const generateAIPosts = async () => {
     setIsGenerating(true);
     try {
-      // Call the generate-social-posts edge function
-      const { data, error } = await supabase.functions.invoke('generate-social-posts');
+      const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/generate-social-posts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) {
-        console.error('Error generating AI posts:', error);
-        toast({
-          title: 'Error',
-          description: 'Could not generate AI posts.',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Success!',
-          description: 'AI posts generated successfully!'
-        });
-        // Refresh the page to show new posts
-        window.location.reload();
+      if (!response.ok) {
+        throw new Error('Failed to generate AI posts');
       }
+
+      const data = await response.json();
+      
+      toast({
+        title: 'Success!',
+        description: 'AI posts generated successfully!'
+      });
+      // Refresh the page to show new posts
+      window.location.reload();
     } catch (error) {
       console.error('Error:', error);
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred.',
+        description: 'Could not generate AI posts.',
         variant: 'destructive'
       });
     } finally {

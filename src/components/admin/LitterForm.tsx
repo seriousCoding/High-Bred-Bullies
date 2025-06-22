@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { LitterDetail, QuantityDiscount } from "@/types";
 import { Label } from "../ui/label";
 import { Trash, Loader2 } from "lucide-react";
@@ -183,8 +183,20 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
   const handleCleanupTestLitters = async () => {
     setIsCleaning(true);
     try {
-      const { error } = await supabase.functions.invoke('cleanup-stripe-test-litters');
-      if (error) throw new Error(`Cleanup error: ${error.message}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/cleanup-stripe-test-litters`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to cleanup test litters');
+      }
+
       toast({
         title: "Test Litters Cleaned Up",
         description: "All test litters have been removed from Stripe and your database.",
@@ -205,28 +217,29 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
     if (!litter) return;
     
     try {
-      const { error } = await supabase
-        .from("litters")
-        .update({ status: "active" })
-        .eq("id", litter.id);
-      
-      if (error) throw error;
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/litters/${litter.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: "active" }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to activate litter');
+      }
+
+      const updatedLitter = await response.json();
       
       toast({
         title: "Litter Activated",
         description: "Litter status has been changed to active.",
       });
       
-      // Refresh the litter data
-      const { data: updatedLitter, error: fetchError } = await supabase
-        .from("litters")
-        .select()
-        .eq("id", litter.id)
-        .single();
-      
-      if (!fetchError && updatedLitter) {
-        onSave(updatedLitter);
-      }
+      onSave(updatedLitter);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -254,15 +267,21 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
           stripe_female_price_id: litter?.stripe_female_price_id,
         };
 
-        const { data: stripeResponse, error: stripeError } = await supabase.functions.invoke(
-          'create-stripe-litter',
-          { body: stripePayload }
-        );
+        const token = localStorage.getItem('token');
+        const stripeResponse = await fetch(`${API_BASE_URL}/api/create-stripe-litter`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(stripePayload),
+        });
 
-        if (stripeError) {
-          throw new Error(`Stripe error: ${stripeError.message}`);
+        if (!stripeResponse.ok) {
+          const errorData = await stripeResponse.json();
+          throw new Error(`Stripe error: ${errorData.message || 'Failed to create Stripe products'}`);
         }
-        stripeIds = stripeResponse;
+        stripeIds = await stripeResponse.json();
       }
 
       const litterData = {
@@ -283,23 +302,38 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
       };
 
       let savedLitter;
+      const token = localStorage.getItem('token');
+      
       if (litter) {
-        const { data: updatedLitter, error } = await supabase
-          .from("litters")
-          .update(litterData)
-          .eq("id", litter.id)
-          .select()
-          .single();
-        if (error) throw error;
-        savedLitter = updatedLitter;
+        const response = await fetch(`${API_BASE_URL}/api/litters/${litter.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(litterData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to update litter');
+        }
+        savedLitter = await response.json();
       } else {
-        const { data: newLitter, error } = await supabase
-          .from("litters")
-          .insert(litterData)
-          .select()
-          .single();
-        if (error) throw error;
-        savedLitter = newLitter;
+        const response = await fetch(`${API_BASE_URL}/api/litters`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(litterData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to create litter');
+        }
+        savedLitter = await response.json();
         
         toast({
           title: "Litter Created",
@@ -309,17 +343,28 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
 
       const uploadImage = async (file: File | null, type: string) => {
         if (!file) return null;
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${savedLitter.id}-${type}-${Date.now()}.${fileExt}`;
-        const { data, error } = await supabase.storage.from('litter-images').upload(fileName, file);
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('type', type);
+        formData.append('litterId', savedLitter.id.toString());
 
-        if (error) {
-          console.error(`Error uploading ${type} image:`, error);
-          toast({ title: `Error uploading ${type} image`, description: error.message, variant: "destructive" });
+        const uploadResponse = await fetch(`${API_BASE_URL}/api/upload-litter-image`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          console.error(`Error uploading ${type} image:`, errorData);
+          toast({ title: `Error uploading ${type} image`, description: errorData.message || 'Upload failed', variant: "destructive" });
           return null;
         }
         
-        const { data: { publicUrl } } = supabase.storage.from('litter-images').getPublicUrl(data.path);
+        const { publicUrl } = await uploadResponse.json();
         return publicUrl;
       };
 
@@ -332,13 +377,21 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
       if (image_url) imageUrlsToUpdate.image_url = image_url;
       
       if (Object.keys(imageUrlsToUpdate).length > 0) {
-        const { data: finalLitter, error: updateError } = await supabase
-          .from('litters')
-          .update(imageUrlsToUpdate)
-          .eq('id', savedLitter.id)
-          .select()
-          .single();
-        if (updateError) throw updateError;
+        const updateResponse = await fetch(`${API_BASE_URL}/api/litters/${savedLitter.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(imageUrlsToUpdate),
+        });
+        
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json();
+          throw new Error(errorData.message || 'Failed to update litter images');
+        }
+        
+        const finalLitter = await updateResponse.json();
         onSave(finalLitter);
       } else {
         onSave(savedLitter);
