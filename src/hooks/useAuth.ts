@@ -88,6 +88,7 @@ export function useAuth() {
 
       // Store token and update state
       localStorage.setItem('auth_token', data.token);
+      console.log('Login successful, updating auth state:', data.user);
       setAuthState({
         user: data.user,
         token: data.token,

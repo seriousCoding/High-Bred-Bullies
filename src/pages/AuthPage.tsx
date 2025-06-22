@@ -18,6 +18,7 @@ const AuthPage = () => {
   const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
+    console.log("AuthPage: user state changed:", user);
     if (user) {
       console.log("User authenticated, navigating to /");
       navigate('/');
@@ -41,12 +42,25 @@ const AuthPage = () => {
 
 
     try {
+      let result;
       if (isLogin) {
-        await signIn(email, password);
-        toast({ title: 'Success', description: 'Logged in successfully!' });
+        result = await signIn(email, password);
+        if (result && !result.error) {
+          toast({ title: 'Success', description: 'Logged in successfully!' });
+          // Force navigation after successful login
+          setTimeout(() => navigate('/'), 100);
+        }
       } else {
-        await signUp(email, password);
-        toast({ title: 'Success', description: 'Registration successful!' });
+        result = await signUp(email, password);
+        if (result && !result.error) {
+          toast({ title: 'Success', description: 'Registration successful!' });
+          // Force navigation after successful signup
+          setTimeout(() => navigate('/'), 100);
+        }
+      }
+      
+      if (result && result.error) {
+        throw result.error;
       }
     } catch (error: any) {
       console.error('Auth error:', error);
