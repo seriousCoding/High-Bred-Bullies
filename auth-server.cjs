@@ -165,7 +165,7 @@ async function startServer() {
               id: user.id,
               username: user.username,
               isBreeder: isBreeder,
-              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+              fullName: user.username // Use username as display name since no first/last name fields
             }
           }));
         } catch (error) {
@@ -198,8 +198,9 @@ async function startServer() {
           
           // Get user from database with profile
           const result = await pool.query(`
-            SELECT u.id, u.username, u.first_name, u.last_name, 
-                   COALESCE(up.is_breeder, false) as is_breeder
+            SELECT u.id, u.username, u.email,
+                   COALESCE(up.is_breeder, false) as is_breeder,
+                   COALESCE(up.full_name, '') as full_name
             FROM users u
             LEFT JOIN user_profiles up ON u.id = up.user_id
             WHERE u.id = $1
@@ -217,7 +218,7 @@ async function startServer() {
             id: user.id,
             username: user.username,
             isBreeder: user.is_breeder || false,
-            fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+            fullName: user.full_name || user.username
           }));
         } catch (error) {
           console.error('Error verifying user token:', error);
