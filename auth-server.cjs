@@ -179,6 +179,48 @@ async function startServer() {
         return;
       }
 
+      // Current user endpoint for authentication persistence
+      if (pathname === '/api/auth/user' && req.method === 'GET') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'No token provided' }));
+            return;
+          }
+
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          // Get user from database
+          const result = await pool.query(`
+            SELECT id, username, first_name, last_name, is_admin
+            FROM user_profiles 
+            WHERE id = $1
+          `, [decoded.userId]);
+          
+          if (result.rows.length === 0) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'User not found' }));
+            return;
+          }
+
+          const user = result.rows[0];
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            id: user.id,
+            username: user.username,
+            isBreeder: user.is_admin || false,
+            fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+          }));
+        } catch (error) {
+          console.error('Error verifying user token:', error);
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Invalid token' }));
+        }
+        return;
+      }
+
       // Blog posts endpoint
       if (pathname === '/api/blog/posts' && req.method === 'GET') {
         try {
@@ -275,8 +317,8 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.is_active = false
-            ORDER BY l.created_at DESC
+            WHERE l.available_puppies < l.total_puppies OR l.birth_date > (NOW() - INTERVAL '30 days')
+            ORDER BY l.birth_date DESC, l.created_at DESC
             LIMIT 10
           `);
           
