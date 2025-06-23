@@ -1219,6 +1219,52 @@ async function startServer() {
         return;
       }
 
+      // Litters by breeder endpoint for admin
+      if (pathname.startsWith('/api/litters/by-breeder/') && req.method === 'GET') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
+        const token = authHeader.substring(7);
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+        } catch (error) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Invalid token' }));
+          return;
+        }
+
+        const breederId = pathname.split('/').pop();
+        try {
+          const result = await pool.query(`
+            SELECT l.*, 
+                   b.business_name as breeder_name,
+                   COALESCE((SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id), 0) as available_puppies,
+                   COALESCE((SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id), 0) as total_puppies
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.breeder_id = $1
+            ORDER BY l.created_at DESC
+          `, [breederId]);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching litters by breeder:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch litters' }));
+        }
+        return;
+      }
+
       // Litters endpoint for admin
       if (pathname === '/api/litters' && req.method === 'GET') {
         try {
@@ -1241,6 +1287,8 @@ async function startServer() {
         }
         return;
       }
+
+
 
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
