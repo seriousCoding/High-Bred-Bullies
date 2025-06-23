@@ -34,6 +34,43 @@ const ProfilePage = () => {
     enabled: !!user,
   });
 
+  // Fetch breeder profile if user is a breeder
+  const { data: breederProfile, isLoading: isLoadingBreeder } = useQuery({
+    queryKey: ["breederProfile", user?.id],
+    queryFn: async () => {
+      if (!user?.isBreeder) return null;
+      const response = await fetch(`${API_BASE_URL}/api/breeders/by-user/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        console.warn('No breeder profile found');
+        return null;
+      }
+      return response.json();
+    },
+    enabled: !!user?.isBreeder,
+  });
+
+  // Fetch user's litters if they're a breeder
+  const { data: userLitters, isLoading: isLoadingLitters } = useQuery({
+    queryKey: ["userLitters", breederProfile?.id],
+    queryFn: async () => {
+      if (!breederProfile?.id) return [];
+      const response = await fetch(`${API_BASE_URL}/api/litters/by-breeder/${breederProfile.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!breederProfile?.id,
+  });
+
   const { data: subscription, isLoading: isLoadingSubscription } = useQuery({
     queryKey: ['newsletter-subscription', user?.id],
     queryFn: async () => {
@@ -145,7 +182,7 @@ const ProfilePage = () => {
     }
   };
 
-  if (isLoadingProfile || isLoadingSubscription) {
+  if (isLoadingProfile || isLoadingSubscription || (user?.isBreeder && (isLoadingBreeder || isLoadingLitters))) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
@@ -198,32 +235,86 @@ const ProfilePage = () => {
 
           {/* Breeder-specific sections */}
           {user?.isBreeder && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Crown className="h-5 w-5" />
-                  Breeder Dashboard
-                </CardTitle>
-                <CardDescription>
-                  Manage your breeding operations and customer relationships
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button asChild variant="outline">
-                    <Link to="/admin">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Admin Panel
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to="/blog">
-                      Manage Blog Posts
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5" />
+                    Breeder Dashboard
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your breeding operations and customer relationships
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button asChild variant="outline">
+                      <Link to="/admin">
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Admin Panel
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link to="/blog">
+                        Manage Blog Posts
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Breeder Statistics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Breeding Statistics</CardTitle>
+                  <CardDescription>
+                    Overview of your breeding operations
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <Label className="text-sm font-medium text-blue-700">Total Litters</Label>
+                      <p className="text-2xl font-bold text-blue-900 mt-1">
+                        {userLitters?.length || 0}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <Label className="text-sm font-medium text-green-700">Active Litters</Label>
+                      <p className="text-2xl font-bold text-green-900 mt-1">
+                        {userLitters?.filter(l => l.status === 'active').length || 0}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-orange-50 rounded-lg">
+                      <Label className="text-sm font-medium text-orange-700">Upcoming Litters</Label>
+                      <p className="text-2xl font-bold text-orange-900 mt-1">
+                        {userLitters?.filter(l => l.status === 'upcoming').length || 0}
+                      </p>
+                    </div>
+                  </div>
+                  {breederProfile && (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                      <Label className="text-sm font-medium text-gray-700">Business Information</Label>
+                      <div className="mt-2 space-y-1">
+                        <p className="text-sm text-gray-900">
+                          <strong>Business Name:</strong> {breederProfile.business_name}
+                        </p>
+                        {breederProfile.contact_phone && (
+                          <p className="text-sm text-gray-900">
+                            <strong>Phone:</strong> {breederProfile.contact_phone}
+                          </p>
+                        )}
+                        {breederProfile.address && (
+                          <p className="text-sm text-gray-900">
+                            <strong>Address:</strong> {breederProfile.address}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {/* User sections available to all authenticated users */}

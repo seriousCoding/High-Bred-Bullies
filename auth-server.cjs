@@ -931,8 +931,106 @@ async function startServer() {
         return;
       }
 
+      // Litter management endpoint (must come before individual litter endpoint)
+      if (pathname.startsWith('/api/litters/') && pathname.endsWith('/manage') && req.method === 'GET') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
+        try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
+          const litterId = pathname.split('/')[3];
+          console.log('Fetching litter management data for ID:', litterId);
+
+          // Fetch litter details with full management data
+          const litterResult = await pool.query(`
+            SELECT l.*, b.business_name as breeder_name 
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.id = $1
+          `, [litterId]);
+          
+          if (litterResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Litter not found' }));
+            return;
+          }
+
+          // Fetch all puppies for this litter with full details
+          const puppiesResult = await pool.query(`
+            SELECT * FROM puppies 
+            WHERE litter_id = $1 
+            ORDER BY created_at ASC
+          `, [litterId]);
+
+          const litter = litterResult.rows[0];
+          const puppies = puppiesResult.rows;
+
+          const responseData = {
+            id: litter.id.toString(),
+            name: litter.name || `${litter.dam_name} x ${litter.sire_name}`,
+            breed: litter.breed,
+            birth_date: litter.birth_date,
+            available_puppies: litter.available_puppies || 0,
+            total_puppies: litter.total_puppies || 0,
+            price_per_male: litter.price_per_male || 0,
+            price_per_female: litter.price_per_female || 0,
+            stripe_male_price_id: litter.stripe_male_price_id,
+            stripe_female_price_id: litter.stripe_female_price_id,
+            stripe_product_id: litter.stripe_product_id,
+            dam_name: litter.dam_name,
+            sire_name: litter.sire_name,
+            dam_image_url: litter.dam_image_url,
+            sire_image_url: litter.sire_image_url,
+            description: litter.description,
+            image_url: litter.image_url,
+            status: litter.status || 'upcoming',
+            breeder_id: litter.breeder_id?.toString(),
+            quantity_discounts: litter.quantity_discounts,
+            created_at: litter.created_at,
+            updated_at: litter.updated_at,
+            puppies: puppies.map(puppy => ({
+              id: puppy.id.toString(),
+              litter_id: puppy.litter_id.toString(),
+              name: puppy.name,
+              gender: puppy.gender,
+              color: puppy.color,
+              markings: puppy.markings,
+              weight_at_birth: puppy.weight_at_birth,
+              notes: puppy.notes,
+              is_available: puppy.is_available,
+              image_url: puppy.image_url,
+              stripe_price_id: puppy.stripe_price_id,
+              reserved_by: puppy.reserved_by,
+              sold_to: puppy.sold_to,
+              created_at: puppy.created_at,
+              updated_at: puppy.updated_at
+            }))
+          };
+
+          res.writeHead(200);
+          res.end(JSON.stringify(responseData));
+        } catch (error) {
+          console.error('Error fetching litter management data:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch litter management data' }));
+        }
+        return;
+      }
+
       // Individual litter endpoint with puppies (must come after specific routes)
-      if (pathname.startsWith('/api/litters/') && pathname.split('/').length === 4 && !pathname.includes('/featured') && !pathname.includes('/upcoming') && !pathname.includes('/by-breeder') && req.method === 'GET') {
+      if (pathname.startsWith('/api/litters/') && pathname.split('/').length === 4 && !pathname.includes('/featured') && !pathname.includes('/upcoming') && !pathname.includes('/by-breeder') && !pathname.includes('/manage') && req.method === 'GET') {
         try {
           const litterId = pathname.split('/')[3];
           
