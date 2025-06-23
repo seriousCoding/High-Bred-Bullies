@@ -1485,6 +1485,59 @@ async function startServer() {
         return;
       }
 
+      // Puppy pricing endpoint
+      if (pathname.match(/^\/api\/litters\/[^\/]+\/puppy-prices$/) && req.method === 'GET') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Authentication required' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const litterId = pathname.split('/')[3];
+          
+          // Get puppies for this litter with their pricing
+          const puppiesResult = await pool.query(
+            'SELECT id, gender FROM puppies WHERE litter_id = $1 AND is_available = true',
+            [litterId]
+          );
+          
+          // Get litter pricing information
+          const litterResult = await pool.query(
+            'SELECT price_per_male, price_per_female FROM litters WHERE id = $1',
+            [litterId]
+          );
+          
+          if (litterResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Litter not found' }));
+            return;
+          }
+          
+          const litter = litterResult.rows[0];
+          const puppyPrices = {};
+          
+          // Build pricing for each puppy
+          puppiesResult.rows.forEach((puppy) => {
+            const price = puppy.gender === 'male' ? litter.price_per_male : litter.price_per_female;
+            puppyPrices[puppy.id] = price || 250000; // Default $2500 if no price set
+          });
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(puppyPrices));
+        } catch (error) {
+          console.error('Puppy pricing error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch puppy prices' }));
+        }
+        return;
+      }
+
       // Stripe checkout endpoint for puppy purchases
       if (pathname === '/api/checkout/create-litter-checkout' && req.method === 'POST') {
         try {
