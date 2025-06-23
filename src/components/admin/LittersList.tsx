@@ -111,7 +111,7 @@ export const LittersList = ({ breederId }: LittersListProps) => {
     try {
       console.log('Fetching litters for breeder:', currentBreederId);
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/litters/by-breeder/${currentBreederId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -179,7 +179,7 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const handleActivateLitter = async (litterId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
         method: 'PATCH',
         headers: {
@@ -215,7 +215,7 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const handleDeleteLitter = async (litterId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/litters/${litterId}`, {
         method: 'DELETE',
         headers: {
