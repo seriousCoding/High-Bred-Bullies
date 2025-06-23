@@ -344,25 +344,25 @@ async function startServer() {
               SELECT l.*, b.business_name as breeder_name 
               FROM litters l
               LEFT JOIN breeders b ON l.breeder_id = b.id
-              WHERE l.is_active = true
-              ORDER BY l.expected_delivery_date ASC
+              WHERE l.is_active = true AND l.status != 'archived'
+              ORDER BY l.birth_date ASC
               LIMIT 10
             `);
             
             const litters = result.rows.map(row => ({
               id: row.id.toString(),
-              name: `${row.dam_name} x ${row.sire_name}`,
+              name: row.name || `${row.dam_name} x ${row.sire_name}`,
               breed: row.breed,
               birth_date: row.birth_date,
               available_puppies: row.available_puppies,
               total_puppies: row.total_puppies,
-              price_per_male: row.male_price * 100, // Convert to cents
-              price_per_female: row.female_price * 100, // Convert to cents
+              price_per_male: row.price_per_male,
+              price_per_female: row.price_per_female,
               dam_name: row.dam_name,
               sire_name: row.sire_name,
               description: row.description,
-              image_url: row.images && row.images.length > 0 ? row.images[0] : null,
-              status: row.is_active ? 'active' : 'archived',
+              image_url: row.image_url,
+              status: row.status,
               breeder_id: row.breeder_id?.toString(),
               breeders: {
                 business_name: row.breeder_name,
@@ -387,7 +387,7 @@ async function startServer() {
             const result = await pool.query(`
               SELECT * FROM litters 
               WHERE breeder_id = $1 
-              ORDER BY expected_delivery_date DESC
+              ORDER BY birth_date DESC
             `, [breederId]);
             
             const litters = result.rows.map(row => ({
@@ -421,26 +421,27 @@ async function startServer() {
         if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
           try {
             const result = await pool.query(`
-              SELECT sp.*, up.full_name as author_name, up.profile_picture as author_avatar
-              FROM social_posts sp
-              LEFT JOIN user_profiles up ON sp.author_id = up.user_id
-              WHERE sp.is_public = true
-              ORDER BY sp.created_at DESC
-              LIMIT 20
+              SELECT *
+              FROM social_feed_posts
+              WHERE visibility = 'public' OR visibility = 'community'
+              ORDER BY created_at DESC
+              LIMIT 50
             `);
             
             const posts = result.rows.map(row => ({
               id: row.id,
-              authorId: row.author_id,
-              authorName: row.author_name,
-              authorAvatar: row.author_avatar,
+              authorId: row.user_id,
+              authorName: row.username || `${row.first_name} ${row.last_name}`.trim(),
+              authorAvatar: row.avatar_url,
+              title: row.title,
               content: row.content,
-              images: row.images || [],
-              isPublic: row.is_public,
+              imageUrl: row.image_url,
+              isPublic: row.visibility === 'public',
               likesCount: row.likes_count || 0,
               commentsCount: row.comments_count || 0,
               createdAt: row.created_at,
-              updatedAt: row.updated_at
+              isTestimonial: row.is_testimonial || false,
+              moderationStatus: row.moderation_status
             }));
             
             res.writeHead(200);
@@ -556,24 +557,24 @@ async function startServer() {
               SELECT l.*, b.business_name as breeder_name 
               FROM litters l
               LEFT JOIN breeders b ON l.breeder_id = b.id
-              WHERE l.is_active = true AND l.expected_delivery_date > NOW()
-              ORDER BY l.expected_delivery_date ASC
+              WHERE l.is_active = true AND l.birth_date > NOW()
+              ORDER BY l.birth_date ASC
               LIMIT 10
             `);
             
             const litters = result.rows.map(row => ({
               id: row.id.toString(),
-              name: `${row.dam_name} x ${row.sire_name}`,
+              name: row.name || `${row.dam_name} x ${row.sire_name}`,
               breed: row.breed,
               birth_date: row.birth_date,
               available_puppies: row.available_puppies,
               total_puppies: row.total_puppies,
-              price_per_male: row.male_price * 100,
-              price_per_female: row.female_price * 100,
+              price_per_male: row.price_per_male,
+              price_per_female: row.price_per_female,
               dam_name: row.dam_name,
               sire_name: row.sire_name,
               description: row.description,
-              image_url: row.images && row.images.length > 0 ? row.images[0] : null,
+              image_url: row.image_url,
               status: 'upcoming',
               breeder_id: row.breeder_id?.toString(),
               breeders: {
