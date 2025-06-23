@@ -9,9 +9,10 @@ const bcrypt = require('bcryptjs');
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Database connection
+// Database connection - Force connection to user's actual database
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable',
+  ssl: false
 });
 
 // Helper functions
@@ -483,25 +484,24 @@ async function startServer() {
         if (pathname === '/api/blog/posts' && req.method === 'GET') {
           try {
             const result = await pool.query(`
-              SELECT bp.*, up.full_name as author_name
-              FROM blog_posts bp
-              LEFT JOIN user_profiles up ON bp.author_id = up.user_id
-              WHERE bp.is_published = true
-              ORDER BY bp.published_at DESC, bp.created_at DESC
+              SELECT *
+              FROM blog_posts
+              WHERE published_at IS NOT NULL
+              ORDER BY published_at DESC, created_at DESC
               LIMIT 50
             `);
             
             const posts = result.rows.map(row => ({
               id: row.id,
               title: row.title,
-              slug: row.slug,
+              slug: row.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `post-${row.id}`,
               excerpt: row.excerpt,
               content: row.content,
               imageUrl: row.image_url,
-              authorId: row.author_id,
-              authorName: row.author_name,
+              authorId: row.id,
+              authorName: row.author_name || 'Admin User',
               category: row.category,
-              tags: row.tags || [],
+              tags: [],
               publishedAt: row.published_at,
               createdAt: row.created_at,
               updatedAt: row.updated_at
