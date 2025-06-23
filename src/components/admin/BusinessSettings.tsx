@@ -99,19 +99,24 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
   });
 
   useEffect(() => {
-    if (breeder && siteConfig) {
-      setFormData({
-        businessName: breeder.business_name || '',
-        contactPhone: breeder.contact_phone || '',
-        contactEmail: breeder.contact_email || '',
-        address: breeder.address || '',
-        deliveryAreas: (breeder.delivery_areas || []).join(', '),
-        deliveryFee: breeder.delivery_fee ? (breeder.delivery_fee / 100).toFixed(2) : '',
-        contactLocation: siteConfig.contact_location || '',
-        businessHoursLine1: siteConfig.business_hours_line1 || '',
-        businessHoursLine2: siteConfig.business_hours_line2 || '',
-        businessHoursLine3: siteConfig.business_hours_line3 || '',
-      });
+    if (breeder || siteConfig) {
+      setFormData(prev => ({
+        ...prev,
+        businessName: breeder?.business_name || prev.businessName,
+        contactPhone: breeder?.contact_phone || prev.contactPhone,
+        contactEmail: breeder?.contact_email || prev.contactEmail,
+        address: breeder?.address || prev.address,
+        deliveryAreas: Array.isArray(breeder?.delivery_areas) 
+          ? breeder.delivery_areas.join(', ') 
+          : (typeof breeder?.delivery_areas === 'string' ? breeder.delivery_areas : prev.deliveryAreas),
+        deliveryFee: breeder?.delivery_fee 
+          ? (typeof breeder.delivery_fee === 'number' ? (breeder.delivery_fee / 100).toFixed(2) : breeder.delivery_fee.toString())
+          : prev.deliveryFee,
+        contactLocation: siteConfig?.contact_location || prev.contactLocation,
+        businessHoursLine1: siteConfig?.business_hours_line1 || prev.businessHoursLine1,
+        businessHoursLine2: siteConfig?.business_hours_line2 || prev.businessHoursLine2,
+        businessHoursLine3: siteConfig?.business_hours_line3 || prev.businessHoursLine3,
+      }));
     }
   }, [breeder, siteConfig]);
 

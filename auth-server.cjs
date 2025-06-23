@@ -1207,6 +1207,71 @@ async function startServer() {
         return;
       }
 
+      // User profiles batch endpoint
+      if (pathname === '/api/user-profiles/batch' && req.method === 'POST') {
+        try {
+          // Check authentication
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+          
+          const body = await parseBody(req);
+          const { userIds } = body;
+          
+          if (!userIds || !Array.isArray(userIds)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'userIds array is required' }));
+            return;
+          }
+          
+          if (userIds.length === 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify([]));
+            return;
+          }
+          
+          const placeholders = userIds.map((_, index) => `$${index + 1}`).join(',');
+          const result = await pool.query(`
+            SELECT * FROM user_profiles 
+            WHERE user_id IN (${placeholders})
+          `, userIds);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching user profiles batch:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch user profiles' }));
+        }
+        return;
+      }
+
+      // Litters endpoint for admin
+      if (pathname === '/api/litters' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT l.*, 
+                   b.business_name as breeder_name,
+                   (SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id AND p.status = 'available') as available_puppies,
+                   (SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id) as total_puppies
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            ORDER BY l.created_at DESC
+          `);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching litters:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch litters' }));
+        }
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {
