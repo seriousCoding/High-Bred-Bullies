@@ -1104,9 +1104,10 @@ async function startServer() {
           console.log('Fetching breeder for user ID:', userId);
           
           // First try to find existing breeder record
+          // Handle both string and UUID formats
           const result = await pool.query(`
             SELECT * FROM breeders 
-            WHERE user_id = $1
+            WHERE user_id::text = $1
           `, [userId]);
           
           if (result.rows.length > 0) {
