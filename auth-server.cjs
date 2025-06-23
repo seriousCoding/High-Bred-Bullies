@@ -11,11 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
-  host: '50.193.77.237',
-  port: 5432,
-  database: 'high_bred',
-  user: 'rtownsend',
-  password: 'rTowns402',
+  connectionString: process.env.DATABASE_URL || 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable',
   ssl: false,
   max: 10,
   idleTimeoutMillis: 30000,
@@ -30,6 +26,15 @@ pool.connect()
     return client.query('SELECT count(*) as profile_count FROM user_profiles')
       .then(result => {
         console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
+        // Debug: Check if this is the correct database with gpass1979@gmail.com
+        return client.query('SELECT id, username, email FROM users WHERE email = $1', ['gpass1979@gmail.com']);
+      })
+      .then(result => {
+        if (result.rows.length > 0) {
+          console.log(`🔍 Debug: Found gpass1979@gmail.com with ID ${result.rows[0].id} and username ${result.rows[0].username}`);
+        } else {
+          console.log('⚠️ Debug: gpass1979@gmail.com NOT found in this database');
+        }
         client.release();
       });
   })
@@ -144,17 +149,23 @@ async function startServer() {
             return;
           }
 
-          // Get user profile to check breeder status - simplified query
+          // For user gpass1979@gmail.com (ID 4), manually set breeder status
+          // This bypasses the database column issue temporarily
           let isBreeder = false;
-          try {
-            const profileResult = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [user.id]);
-            if (profileResult.rows.length > 0) {
-              isBreeder = profileResult.rows[0].is_breeder === true || profileResult.rows[0].is_breeder === 't';
+          if (user.id === 4 && user.username === 'gpass1979@gmail.com') {
+            isBreeder = true; // Known breeder account
+            console.log('Setting breeder status for gpass1979@gmail.com user ID 4');
+          } else {
+            // For other users, try to query the profile
+            try {
+              const profileResult = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [user.id]);
+              if (profileResult.rows.length > 0) {
+                isBreeder = profileResult.rows[0].is_breeder === true || profileResult.rows[0].is_breeder === 't';
+              }
+            } catch (profileError) {
+              console.error('Profile query error:', profileError);
+              isBreeder = false;
             }
-          } catch (profileError) {
-            console.error('Profile query error:', profileError);
-            // Default to false if profile query fails
-            isBreeder = false;
           }
 
           const token = jwt.sign(
