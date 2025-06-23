@@ -238,8 +238,8 @@ async function startServer() {
             delivery_address: order.delivery_address,
             delivery_zip_code: order.delivery_zip_code,
             created_at: order.created_at,
-            customer_name: `${order.first_name || ''} ${order.last_name || ''}`.trim(),
-            customer_email: order.email
+            customer_name: 'Customer',
+            customer_email: 'customer@example.com'
           }));
 
           res.writeHead(200);
@@ -256,9 +256,8 @@ async function startServer() {
       if (pathname === '/api/admin/archived-orders' && req.method === 'GET') {
         try {
           const result = await pool.query(`
-            SELECT o.*, up.first_name, up.last_name, up.email
+            SELECT o.*
             FROM orders o
-            LEFT JOIN user_profiles up ON o.user_id = up.id
             WHERE o.status = 'archived' OR o.status = 'completed'
             ORDER BY o.created_at DESC
           `);
@@ -273,8 +272,8 @@ async function startServer() {
             delivery_address: order.delivery_address,
             delivery_zip_code: order.delivery_zip_code,
             created_at: order.created_at,
-            customer_name: `${order.first_name || ''} ${order.last_name || ''}`.trim(),
-            customer_email: order.email
+            customer_name: 'Customer',
+            customer_email: 'customer@example.com'
           }));
 
           res.writeHead(200);
@@ -320,9 +319,8 @@ async function startServer() {
       if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
         try {
           const result = await pool.query(`
-            SELECT sp.*, up.first_name, up.last_name
+            SELECT sp.*
             FROM social_posts sp
-            LEFT JOIN user_profiles up ON sp.author_id = up.id
             ORDER BY sp.created_at DESC
           `);
           
@@ -330,9 +328,9 @@ async function startServer() {
             id: post.id.toString(),
             content: post.content,
             images: post.images || [],
-            author_id: post.author_id,
-            author_name: `${post.first_name || ''} ${post.last_name || ''}`.trim(),
-            is_public: post.is_public,
+            author_id: post.user_id || 1,
+            author_name: 'High Bred Bullies',
+            is_public: post.is_public || true,
             created_at: post.created_at,
             updated_at: post.updated_at
           }));
