@@ -12,12 +12,8 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
-  host: '50.193.77.237',
-  port: 5432,
-  database: 'high_bred',
-  user: 'rtownsend',
-  password: 'rTowns402',
-  ssl: false,
+  connectionString: process.env.DATABASE_URL,
+  ssl: NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: parseInt(process.env.DB_POOL_MAX) || 10,
   idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
   connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 2000,
