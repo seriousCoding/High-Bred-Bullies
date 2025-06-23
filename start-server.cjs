@@ -423,7 +423,7 @@ async function startServer() {
             const result = await pool.query(`
               SELECT *
               FROM social_feed_posts
-              WHERE visibility = 'public' OR visibility = 'community'
+              WHERE visibility = 'public'
               ORDER BY created_at DESC
               LIMIT 50
             `);
