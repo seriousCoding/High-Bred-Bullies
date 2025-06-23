@@ -529,28 +529,28 @@ async function startServer() {
           const result = await pool.query(`
             SELECT 
               uf.id,
-              uf.status,
+              1 as status,
               uf.created_at,
               CASE 
-                WHEN uf.sender_id = $1 THEN receiver_profile.id
+                WHEN uf.follower_id = $1 THEN receiver_profile.id
                 ELSE sender_profile.id
               END as friend_id,
               CASE 
-                WHEN uf.sender_id = $1 THEN receiver_profile.username
+                WHEN uf.follower_id = $1 THEN receiver_profile.username
                 ELSE sender_profile.username
               END as friend_username,
               CASE 
-                WHEN uf.sender_id = $1 THEN receiver_profile.first_name
+                WHEN uf.follower_id = $1 THEN receiver_profile.first_name
                 ELSE sender_profile.first_name
               END as friend_first_name,
               CASE 
-                WHEN uf.sender_id = $1 THEN receiver_profile.last_name
+                WHEN uf.follower_id = $1 THEN receiver_profile.last_name
                 ELSE sender_profile.last_name
               END as friend_last_name
             FROM user_follows uf
-            JOIN user_profiles sender_profile ON uf.sender_id = sender_profile.id
-            JOIN user_profiles receiver_profile ON uf.receiver_id = receiver_profile.id
-            WHERE (uf.sender_id = $1 OR uf.receiver_id = $1) AND uf.status = 'accepted'
+            JOIN user_profiles sender_profile ON uf.follower_id = sender_profile.id
+            JOIN user_profiles receiver_profile ON uf.following_id = receiver_profile.id
+            WHERE (uf.follower_id = $1 OR uf.following_id = $1) AND 1 as status = 'accepted'
             ORDER BY uf.created_at DESC
           `, [authResult.userId]);
 
@@ -577,15 +577,15 @@ async function startServer() {
           const result = await pool.query(`
             SELECT 
               uf.id,
-              uf.status,
+              1 as status,
               uf.created_at,
-              sender_profile.id as sender_id,
+              sender_profile.id as follower_id,
               sender_profile.username as sender_username,
               sender_profile.first_name as sender_first_name,
               sender_profile.last_name as sender_last_name
             FROM user_follows uf
-            JOIN user_profiles sender_profile ON uf.sender_id = sender_profile.id
-            WHERE uf.receiver_id = $1 AND uf.status = 'pending'
+            JOIN user_profiles sender_profile ON uf.follower_id = sender_profile.id
+            WHERE uf.following_id = $1 AND 1 as status = 'pending'
             ORDER BY uf.created_at DESC
           `, [authResult.userId]);
 
@@ -621,7 +621,7 @@ async function startServer() {
           // Check if request already exists
           const existingResult = await pool.query(`
             SELECT id FROM user_follows 
-            WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+            WHERE (follower_id = $1 AND following_id = $2) OR (follower_id = $2 AND following_id = $1)
           `, [authResult.userId, targetUserId]);
 
           if (existingResult.rows.length > 0) {
@@ -632,7 +632,7 @@ async function startServer() {
 
           // Create friend request
           const result = await pool.query(`
-            INSERT INTO user_follows (sender_id, receiver_id, status, created_at)
+            INSERT INTO user_follows (follower_id, following_id, status, created_at)
             VALUES ($1, $2, 'pending', NOW())
             RETURNING id
           `, [authResult.userId, targetUserId]);
@@ -674,7 +674,7 @@ async function startServer() {
           const result = await pool.query(`
             UPDATE user_follows 
             SET status = $1, updated_at = NOW()
-            WHERE id = $2 AND receiver_id = $3
+            WHERE id = $2 AND following_id = $3
             RETURNING *
           `, [status, requestId, authResult.userId]);
 
@@ -714,13 +714,13 @@ async function startServer() {
               m.id,
               m.content,
               m.created_at,
-              m.sender_id,
+              m.follower_id,
               sender.username as sender_username,
               sender.first_name as sender_first_name
             FROM messages m
-            JOIN user_profiles sender ON m.sender_id = sender.id
-            WHERE (m.sender_id = $1 AND m.receiver_id = $2) 
-               OR (m.sender_id = $2 AND m.receiver_id = $1)
+            JOIN user_profiles sender ON m.follower_id = sender.id
+            WHERE (m.follower_id = $1 AND m.following_id = $2) 
+               OR (m.follower_id = $2 AND m.following_id = $1)
             ORDER BY m.created_at ASC
             LIMIT 50
           `, [authResult.userId, otherUserId]);
@@ -757,7 +757,7 @@ async function startServer() {
           // Check if users are friends
           const friendResult = await pool.query(`
             SELECT id FROM user_follows 
-            WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+            WHERE ((follower_id = $1 AND following_id = $2) OR (follower_id = $2 AND following_id = $1))
               AND status = 'accepted'
           `, [authResult.userId, receiverId]);
 
@@ -769,7 +769,7 @@ async function startServer() {
 
           // Create message
           const result = await pool.query(`
-            INSERT INTO messages (sender_id, receiver_id, content, created_at)
+            INSERT INTO messages (follower_id, following_id, content, created_at)
             VALUES ($1, $2, $3, NOW())
             RETURNING id, created_at
           `, [authResult.userId, receiverId, content]);
