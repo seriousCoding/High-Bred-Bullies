@@ -1,4 +1,7 @@
 require('dotenv/config');
+
+// Force override DATABASE_URL to use external PostgreSQL
+process.env.DATABASE_URL = 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable';
 const { createServer } = require('vite');
 const { createServer: createHttpServer } = require('http');
 const { parse } = require('url');
@@ -123,8 +126,8 @@ async function startServer() {
         try {
           // Find user by username or email - correct table and columns
           const result = await pool.query(`
-            SELECT id, username, email, password_hash
-            FROM users 
+            SELECT id, username, email, password_hash, is_breeder, full_name
+            FROM user_profiles 
             WHERE username = $1 OR email = $1
           `, [username]);
           
@@ -147,24 +150,8 @@ async function startServer() {
             return;
           }
 
-          // For user gpass1979@gmail.com (ID 4), manually set breeder status
-          // This bypasses the database column issue temporarily  
-          let isBreeder = false;
-          if (user.id === 4 && (user.username === 'gpass1979@gmail.com' || user.email === 'gpass1979@gmail.com')) {
-            isBreeder = true; // Known breeder account
-            console.log('Setting breeder status for gpass1979@gmail.com user ID 4');
-          } else {
-            // For other users, try to query the profile
-            try {
-              const profileResult = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [user.id]);
-              if (profileResult.rows.length > 0) {
-                isBreeder = profileResult.rows[0].is_breeder === true || profileResult.rows[0].is_breeder === 't';
-              }
-            } catch (profileError) {
-              console.error('Profile query error:', profileError);
-              isBreeder = false;
-            }
-          }
+          // Use is_breeder status directly from database
+          const isBreeder = user.is_breeder || false;
 
           const token = jwt.sign(
             { 
@@ -216,12 +203,11 @@ async function startServer() {
           
           // Get user from database with profile
           const result = await pool.query(`
-            SELECT u.id, u.username, u.email,
+            SELECT up.id, up.username, up.email,
                    COALESCE(up.is_breeder, false) as is_breeder,
                    COALESCE(up.full_name, '') as full_name
-            FROM users u
-            LEFT JOIN user_profiles up ON u.id = up.user_id
-            WHERE u.id = $1
+            FROM user_profiles up
+            WHERE up.id = $1
           `, [decoded.userId]);
           
           if (result.rows.length === 0) {
