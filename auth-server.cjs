@@ -1535,7 +1535,7 @@ async function startServer() {
             return;
           }
 
-          // Store inquiry in database
+          // Store inquiry in database first
           const result = await pool.query(`
             INSERT INTO inquiries (name, email, subject, message, status, created_at)
             VALUES ($1, $2, $3, $4, 'new', NOW())
@@ -1544,12 +1544,53 @@ async function startServer() {
 
           console.log(`Contact form submitted: ${name} (${email}) - ${subject || 'No subject'}`);
 
-          // Respond immediately - no email sending to avoid timeouts
+          // Send email with timeout handling
+          let emailSent = false;
+          if (emailTransporter) {
+            try {
+              const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h1 style="color: #2563eb;">New Contact Form Submission</h1>
+                  <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <p><strong>Name:</strong> ${name}</p>
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
+                    <p><strong>Message:</strong></p>
+                    <p style="white-space: pre-wrap;">${message}</p>
+                  </div>
+                </div>
+              `;
+
+              // Use Promise.race for timeout
+              await Promise.race([
+                emailTransporter.sendMail({
+                  from: 'High Bred Bullies <noreply@highbredbullies.com>',
+                  to: 'gpass1979@gmail.com',
+                  subject: `Contact Form: ${subject || 'New Inquiry'}`,
+                  html: emailHtml
+                }),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Email timeout')), 8000)
+                )
+              ]);
+              
+              emailSent = true;
+              console.log('Contact form email sent successfully');
+            } catch (emailError) {
+              console.error('Email sending failed:', emailError.message);
+              // Continue without failing the request
+            }
+          } else {
+            console.warn('Email service not configured');
+          }
+
+          // Respond with success regardless of email status
           res.writeHead(200);
           res.end(JSON.stringify({ 
             success: true, 
             id: result.rows[0].id,
-            message: 'Your message has been received. We will get back to you soon!'
+            message: 'Your message has been received. We will get back to you soon!',
+            emailSent
           }));
         } catch (error) {
           console.error('Error handling contact form:', error);
