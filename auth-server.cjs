@@ -357,21 +357,33 @@ async function startServer() {
             LIMIT 50
           `);
           
-          const posts = result.rows.map((row, index) => {
-            // Add sample images for some posts to make High Table more visually appealing
-            const sampleImages = index % 3 === 0 ? [
-              'https://images.unsplash.com/photo-1551717743-49959800b1f6?w=400',
-              'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400'
-            ] : index % 4 === 0 ? [
-              'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400'
-            ] : [];
+          const posts = result.rows.map(row => {
+            // Properly handle media from database - check for various possible column names
+            let images = [];
+            let videos = [];
+            
+            // Handle different possible media column formats
+            if (row.images && Array.isArray(row.images)) {
+              images = row.images;
+            } else if (row.image_urls && Array.isArray(row.image_urls)) {
+              images = row.image_urls;
+            } else if (row.media_urls && Array.isArray(row.media_urls)) {
+              // Filter for image types
+              images = row.media_urls.filter(url => 
+                url && (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif'))
+              );
+              // Filter for video types
+              videos = row.media_urls.filter(url => 
+                url && (url.includes('.mp4') || url.includes('.webm') || url.includes('.mov'))
+              );
+            }
 
             return {
               id: row.id,
               author_id: row.user_id || row.id,
               content: row.content || 'Social post content',
-              images: row.images || sampleImages,
-              videos: row.videos || [],
+              images: images,
+              videos: videos,
               media_urls: row.media_urls || [],
               likes_count: row.likes_count || 0,
               comments_count: row.comments_count || 0,
