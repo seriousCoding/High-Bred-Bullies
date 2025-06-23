@@ -528,24 +528,15 @@ async function startServer() {
             `, [litterId]);
             
             const puppies = result.rows.map(row => ({
-              id: row.id,
-              litterId: row.litter_id,
+              id: row.id.toString(),
+              litter_id: row.litter_id.toString(),
               name: row.name,
               gender: row.gender,
               color: row.color,
-              markings: row.markings,
-              weight: row.weight,
-              personalityTraits: row.personality_traits || [],
-              healthStatus: row.health_status,
-              vaccinationStatus: row.vaccination_status || [],
-              images: row.images || [],
-              price: row.price,
-              isAvailable: row.is_available,
-              isReserved: row.is_reserved,
-              reservedBy: row.reserved_by,
-              reservedAt: row.reserved_at,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at
+              is_available: row.is_available,
+              image_url: row.images && row.images.length > 0 ? row.images[0] : null,
+              created_at: row.created_at,
+              updated_at: row.updated_at
             }));
             
             res.writeHead(200);
