@@ -90,7 +90,7 @@ export const PurchaseSuccessPage: React.FC = () => {
             
             <Button 
               variant="outline"
-              onClick={() => navigate('/schedule-pickup')}
+              onClick={() => navigate(`/schedule-pickup/${sessionId || 'new'}`)}
               className="w-full"
             >
               <Calendar className="w-4 h-4 mr-2" />
