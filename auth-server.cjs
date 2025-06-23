@@ -207,28 +207,73 @@ async function startServer() {
             return;
           }
 
-          // Find user by username or email patterns
-          const result = await pool.query(`
-            SELECT id, username, first_name, last_name, is_admin
-            FROM user_profiles 
-            WHERE username LIKE $1 OR username = $2
-            ORDER BY 
-              CASE WHEN username = $2 THEN 1 ELSE 2 END
+          // First, try to find user in users table (with password hash)
+          let userResult = await pool.query(`
+            SELECT id, username, password_hash, email
+            FROM users 
+            WHERE username = $1 OR email = $1
             LIMIT 1
-          `, [`%${username.split('@')[0]}%`, username]);
+          `, [username]);
           
-          if (result.rows.length === 0) {
-            res.writeHead(401);
-            res.end(JSON.stringify({ error: 'Invalid credentials' }));
+          if (userResult.rows.length === 0) {
+            // Fallback: look in user_profiles for legacy users
+            const profileResult = await pool.query(`
+              SELECT id, username, first_name, last_name, is_admin
+              FROM user_profiles 
+              WHERE username LIKE $1 OR username = $2
+              ORDER BY 
+                CASE WHEN username = $2 THEN 1 ELSE 2 END
+              LIMIT 1
+            `, [`%${username.split('@')[0]}%`, username]);
+            
+            if (profileResult.rows.length === 0) {
+              res.writeHead(401);
+              res.end(JSON.stringify({ error: 'Invalid credentials' }));
+              return;
+            }
+            
+            const profileUser = profileResult.rows[0];
+            
+            // For legacy admin user, allow hardcoded password
+            const isValidPassword = username.includes('gpass1979') && password === 'gpass1979';
+            
+            if (!isValidPassword) {
+              res.writeHead(401);
+              res.end(JSON.stringify({ error: 'Invalid credentials' }));
+              return;
+            }
+
+            // Legacy user authentication
+            const isAdmin = username.includes('gpass1979');
+            const isBreeder = isAdmin || profileUser.is_admin || false;
+
+            const token = jwt.sign(
+              { 
+                userId: profileUser.id, 
+                username: profileUser.username,
+                isBreeder: isBreeder
+              },
+              JWT_SECRET,
+              { expiresIn: '24h' }
+            );
+
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              token,
+              user: {
+                id: profileUser.id,
+                username: profileUser.username,
+                isBreeder: isBreeder,
+                fullName: `${profileUser.first_name || ''} ${profileUser.last_name || ''}`.trim()
+              }
+            }));
             return;
           }
 
-          const user = result.rows[0];
+          const user = userResult.rows[0];
           
-          // For demo purposes, accept the password "gpass1979" for gpass1979 user
-          // In production, you'd check against a proper password hash
-          const isValidPassword = (username.includes('gpass1979') && password === 'gpass1979') || 
-                                 (password === 'demo'); // Allow demo password for other users
+          // Verify password hash for regular users
+          const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
           if (!isValidPassword) {
             res.writeHead(401);
@@ -236,9 +281,24 @@ async function startServer() {
             return;
           }
 
-          // Admin user override for gpass1979@gmail.com - force breeder status
-          const isAdmin = username.includes('gpass1979');
-          const isBreeder = isAdmin || user.is_admin || false;
+          // Check if user has a user profile to determine breeder status
+          const profileResult = await pool.query(`
+            SELECT first_name, last_name, is_admin
+            FROM user_profiles 
+            WHERE user_id = $1
+            LIMIT 1
+          `, [user.id]);
+
+          let isBreeder = false;
+          let firstName = '';
+          let lastName = '';
+
+          if (profileResult.rows.length > 0) {
+            const profile = profileResult.rows[0];
+            isBreeder = profile.is_admin || false;
+            firstName = profile.first_name || '';
+            lastName = profile.last_name || '';
+          }
 
           const token = jwt.sign(
             { 
@@ -257,7 +317,7 @@ async function startServer() {
               id: user.id,
               username: user.username,
               isBreeder: isBreeder,
-              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+              fullName: `${firstName} ${lastName}`.trim() || user.username
             }
           }));
         } catch (error) {
