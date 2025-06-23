@@ -44,6 +44,12 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
+    tls: {
+      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false'
+    }
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
@@ -1544,42 +1550,40 @@ async function startServer() {
 
           console.log(`Contact form submitted: ${name} (${email}) - ${subject || 'No subject'}`);
 
-          // Send email with timeout handling
-          let emailSent = false;
-          if (emailTransporter) {
-            try {
-              const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #2563eb;">New Contact Form Submission</h1>
-                  <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p><strong>Name:</strong> ${name}</p>
-                    <p><strong>Email:</strong> ${email}</p>
-                    <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
-                    <p><strong>Message:</strong></p>
-                    <p style="white-space: pre-wrap;">${message}</p>
-                  </div>
-                </div>
-              `;
+          // Send email asynchronously without blocking response
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">New Contact Form Submission</h1>
+              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Name:</strong> ${name}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
+                <p><strong>Message:</strong></p>
+                <p style="white-space: pre-wrap;">${message}</p>
+              </div>
+            </div>
+          `;
 
-              // Use Promise.race for timeout
-              await Promise.race([
-                emailTransporter.sendMail({
-                  from: 'High Bred Bullies <noreply@highbredbullies.com>',
-                  to: 'gpass1979@gmail.com',
-                  subject: `Contact Form: ${subject || 'New Inquiry'}`,
-                  html: emailHtml
-                }),
-                new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Email timeout')), 8000)
-                )
-              ]);
-              
-              emailSent = true;
-              console.log('Contact form email sent successfully');
-            } catch (emailError) {
-              console.error('Email sending failed:', emailError.message);
-              // Continue without failing the request
-            }
+          // Send email in background without blocking response
+          if (emailTransporter) {
+            setImmediate(async () => {
+              try {
+                await Promise.race([
+                  emailTransporter.sendMail({
+                    from: 'High Bred Bullies <admin@firsttolaunch.com>',
+                    to: 'gpass1979@gmail.com',
+                    subject: `Contact Form: ${subject || 'New Inquiry'}`,
+                    html: emailHtml
+                  }),
+                  new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Email timeout')), 10000)
+                  )
+                ]);
+                console.log('Contact form email sent successfully');
+              } catch (emailError) {
+                console.error('Email sending failed:', emailError.message);
+              }
+            });
           } else {
             console.warn('Email service not configured');
           }
