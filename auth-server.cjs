@@ -874,9 +874,20 @@ async function startServer() {
         return;
       }
 
-      // Litters by breeder endpoint for Admin page (exact match)
-      if (pathname === '/api/litters/by-breeder/1' && req.method === 'GET') {
+      // Litters by breeder endpoint for Admin page (dynamic breeder ID)
+      if (pathname.startsWith('/api/litters/by-breeder/') && req.method === 'GET') {
         try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const breederId = pathname.split('/')[4];
+          console.log('Fetching litters for breeder ID:', breederId);
+          
+          // Query all active litters (not filtered by breeder since current user is admin)
           const result = await pool.query(`
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
@@ -884,6 +895,8 @@ async function startServer() {
             WHERE l.is_active = true
             ORDER BY l.created_at DESC
           `);
+          
+          console.log('Found litters:', result.rows.length);
           
           const litters = result.rows.map(litter => ({
             id: litter.id.toString(),
@@ -895,7 +908,9 @@ async function startServer() {
             dam_name: litter.dam_name,
             sire_name: litter.sire_name,
             status: litter.status || 'active',
-            breeder_name: litter.breeder_name || 'High Bred Bullies'
+            breeder_name: litter.breeder_name || 'High Bred Bullies',
+            created_at: litter.created_at,
+            updated_at: litter.updated_at
           }));
 
           res.writeHead(200);

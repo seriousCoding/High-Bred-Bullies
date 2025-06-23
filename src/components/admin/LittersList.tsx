@@ -54,7 +54,7 @@ export const LittersList = ({ breederId }: LittersListProps) => {
 
   const getCurrentBreederAndFetchLitters = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         setError('No authenticated user found');
         setLoading(false);
