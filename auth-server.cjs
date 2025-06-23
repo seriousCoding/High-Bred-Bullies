@@ -347,6 +347,57 @@ async function startServer() {
         return;
       }
 
+      // High Table social feed posts endpoint
+      if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT 
+              sp.id,
+              sp.author_id,
+              sp.content,
+              sp.images,
+              sp.likes_count,
+              sp.comments_count,
+              sp.created_at,
+              sp.updated_at,
+              up.username as author_username,
+              up.first_name as author_first_name,
+              up.last_name as author_last_name,
+              up.avatar_url as author_avatar
+            FROM social_posts sp
+            LEFT JOIN user_profiles up ON sp.author_id = up.id
+            WHERE sp.is_published = true AND sp.is_public = true
+            ORDER BY sp.created_at DESC
+            LIMIT 50
+          `);
+          
+          const posts = result.rows.map(row => ({
+            id: row.id,
+            author_id: row.author_id,
+            content: row.content,
+            images: row.images || [],
+            likes_count: row.likes_count || 0,
+            comments_count: row.comments_count || 0,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            author: {
+              username: row.author_username,
+              first_name: row.author_first_name,
+              last_name: row.author_last_name,
+              avatar_url: row.author_avatar
+            }
+          }));
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(posts));
+        } catch (error) {
+          console.error('Error fetching social feed posts:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch social feed posts' }));
+        }
+        return;
+      }
+
       // Admin blog posts endpoint
       if (pathname === '/api/admin/blog-posts' && req.method === 'GET') {
         try {

@@ -32,14 +32,8 @@ const HighTablePage = () => {
     console.log('Fetching posts from social_feed_posts...');
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/social-posts`, {
+      const response = await fetch(`${API_BASE_URL}/api/social_feed_posts`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
