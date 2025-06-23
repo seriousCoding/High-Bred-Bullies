@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useRouter } from 'wouter';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Mail, Loader2 } from 'lucide-react';
@@ -10,15 +10,15 @@ interface VerificationState {
 }
 
 export default function EmailVerificationPage() {
-  const [location] = useLocation();
-  const [, setLocation] = useRouter();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [verification, setVerification] = useState<VerificationState>({
     status: 'loading',
     message: 'Verifying your email...'
   });
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.split('?')[1]);
+    const urlParams = new URLSearchParams(location.search);
     const token = urlParams.get('token');
 
     if (!token) {
@@ -66,7 +66,7 @@ export default function EmailVerificationPage() {
   };
 
   const handleContinue = () => {
-    setLocation('/');
+    navigate('/');
   };
 
   const getIcon = () => {
@@ -144,7 +144,7 @@ export default function EmailVerificationPage() {
               <div className="pt-2">
                 <Button 
                   variant="outline"
-                  onClick={() => setLocation('/profile')}
+                  onClick={() => navigate('/profile')}
                   className="w-full"
                 >
                   Request New Verification Email

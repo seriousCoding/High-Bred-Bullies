@@ -20,6 +20,7 @@ import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
 import CheckoutCancelPage from '@/pages/CheckoutCancelPage';
 import SchedulePickupPage from '@/pages/SchedulePickupPage';
 import HighTablePage from '@/pages/HighTablePage';
+import EmailVerificationPage from '@/pages/EmailVerificationPage';
 import NotFound from '@/pages/NotFound';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -93,6 +94,7 @@ function App() {
                 <ProfilePage />
               </ProtectedRoute>
             } />
+            <Route path="/verify-email" element={<EmailVerificationPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {showInstallPrompt && !isInstalled && (
