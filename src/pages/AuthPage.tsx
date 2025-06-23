@@ -156,8 +156,21 @@ const AuthPage = () => {
           }} className="text-sm">
             {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
           </Button>
+          {isLogin && (
+            <Button 
+              variant="link" 
+              onClick={() => setShowPasswordReset(true)}
+              className="text-xs text-muted-foreground"
+            >
+              Forgot your password?
+            </Button>
+          )}
         </CardFooter>
       </Card>
+      <PasswordResetModal 
+        open={showPasswordReset} 
+        onOpenChange={setShowPasswordReset} 
+      />
     </div>
   );
 };

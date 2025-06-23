@@ -45,7 +45,7 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
     if (!userProfile) return;
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/friends`, {
         headers: {
           'Authorization': `Bearer ${token}`,
