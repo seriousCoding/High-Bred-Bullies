@@ -88,6 +88,7 @@ const ManageLitterPage = () => {
     const [malePriceId, setMalePriceId] = useState('');
     const [femalePriceId, setFemalePriceId] = useState('');
     const [activeTab, setActiveTab] = useState("puppies");
+    const [puppyPrices, setPuppyPrices] = useState<{[key: string]: {price: number | null, currency: string}}>({});
 
     const fetchLitterWithPuppies = async (): Promise<LitterWithPuppies> => {
         if (!litterId) throw new Error('No litter ID provided');
@@ -112,6 +113,34 @@ const ManageLitterPage = () => {
         queryKey: ['litterWithPuppies', litterId],
         queryFn: fetchLitterWithPuppies,
         enabled: !!litterId,
+    });
+
+    // Fetch Stripe pricing data for all puppies
+    const fetchPuppyPrices = async (puppyIds: string[]): Promise<{[key: string]: {price: number | null, currency: string}}> => {
+        if (puppyIds.length === 0) return {};
+        
+        const response = await fetch(`${API_BASE_URL}/api/puppies/stripe-prices`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            },
+            body: JSON.stringify({ puppyIds })
+        });
+        
+        if (!response.ok) {
+            console.error('Failed to fetch puppy prices');
+            return {};
+        }
+        
+        return await response.json();
+    };
+
+    // Query for Stripe prices
+    const { data: stripePrices } = useQuery({
+        queryKey: ['puppyPrices', litter?.puppies?.map(p => p.id)],
+        queryFn: () => fetchPuppyPrices(litter?.puppies?.map(p => p.id) || []),
+        enabled: !!litter?.puppies?.length,
     });
 
     const updateLitterMutation = useMutation({
@@ -206,6 +235,16 @@ const ManageLitterPage = () => {
             currency: 'USD',
         });
     };
+
+    const getPuppyPrice = (puppy: ExtendedPuppy): number => {
+        // First check if we have Stripe pricing data
+        if (stripePrices && stripePrices[puppy.id] && stripePrices[puppy.id].price) {
+            return stripePrices[puppy.id].price;
+        }
+        
+        // Fallback to litter-based pricing
+        return puppy.gender === 'male' ? litter?.price_per_male || 0 : litter?.price_per_female || 0;
+    };
     
     const getPuppyStatus = (puppy: ExtendedPuppy): 'available' | 'reserved' | 'sold' => {
         if (puppy.sold_to) return 'sold';
@@ -290,7 +329,7 @@ const ManageLitterPage = () => {
                                     {litter.puppies.length > 0 ? (
                                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                             {litter.puppies.map(puppy => {
-                                                const price = puppy.gender === 'male' ? litter.price_per_male : litter.price_per_female;
+                                                const price = getPuppyPrice(puppy);
                                                 const status = getPuppyStatus(puppy);
 
                                                 return (
@@ -323,6 +362,11 @@ const ManageLitterPage = () => {
                                                         </div>
                                                         <p className="text-sm text-muted-foreground capitalize mt-2">Status: {status}</p>
                                                         {puppy.stripe_price_id && <p className="text-xs text-muted-foreground mt-1 truncate">Stripe ID: {puppy.stripe_price_id}</p>}
+                                                        {stripePrices && stripePrices[puppy.id] && stripePrices[puppy.id].stripe_price_id && (
+                                                            <p className="text-xs text-green-600 mt-1">
+                                                                ✓ Real-time Stripe pricing
+                                                            </p>
+                                                        )}
                                                         <div className="flex gap-2 mt-4">
                                                             <Button variant="outline" size="sm" className="w-full" onClick={() => setEditingPuppy(puppy)}>
                                                                 <Edit className="mr-2 h-4 w-4" /> Edit
