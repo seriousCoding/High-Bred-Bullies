@@ -55,7 +55,7 @@ function App() {
             <Route path="/upcoming-litters" element={<UpcomingLittersPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/blog" element={<BlogListPage />} />
-            <Route path="/blog/:slug" element={<BlogPostPage />} />
+            <Route path="/blog/:id" element={<BlogPostPage />} />
             <Route path="/blog/edit/:id" element={
               <ProtectedRoute requireBreeder={true}>
                 <EditBlogPostPage />

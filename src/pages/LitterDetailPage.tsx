@@ -181,7 +181,7 @@ const LitterDetailPage = () => {
     }
 
     const stillAvailablePuppies = selectedPuppies.filter(selectedPuppy => {
-        const freshPuppyData = freshLitterData.puppies.find(p => p.id === selectedPuppy.id);
+        const freshPuppyData = freshLitterData.puppies?.find(p => p.id === selectedPuppy.id);
         return freshPuppyData && freshPuppyData.is_available;
     });
 
