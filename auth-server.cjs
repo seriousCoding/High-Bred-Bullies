@@ -7,15 +7,16 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'savvai_jwt_secret_key_2025';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable',
-  ssl: false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionString: process.env.DATABASE_URL,
+  ssl: NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: parseInt(process.env.DB_POOL_MAX) || 10,
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 2000,
 });
 
 console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
