@@ -9,14 +9,29 @@ const bcrypt = require('bcryptjs');
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Database connection - Force connection to user's actual database (ignore Replit's DATABASE_URL override)
-const USER_DATABASE_URL = 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable';
+// Database connection - Force connection to user's actual database
+// Clear any environment DATABASE_URL to prevent override
+delete process.env.DATABASE_URL;
+
 const pool = new Pool({
-  connectionString: USER_DATABASE_URL,
+  host: '50.193.77.237',
+  port: 5432,
+  database: 'high_bred',
+  user: 'rtownsend',
+  password: 'rTowns402',
   ssl: false
 });
 
-console.log('🔗 Connecting to user database:', USER_DATABASE_URL.replace(/:[^:@]*@/, ':****@'));
+console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
+
+// Verify database connection on startup
+pool.query('SELECT current_database(), count(*) as user_count FROM users')
+  .then(result => {
+    console.log(`✅ Connected to database: ${result.rows[0].current_database}, Users found: ${result.rows[0].user_count}`);
+  })
+  .catch(err => {
+    console.error('❌ Database connection error:', err.message);
+  });
 
 // Helper functions
 function parseBody(req) {

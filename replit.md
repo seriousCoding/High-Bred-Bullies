@@ -8,6 +8,13 @@ The platform supports two distinct user profile types:
 - **Breeder Profile**: Full administrative access to manage litters, puppies, blog posts, and platform settings
 - **User Profile**: Customer access for browsing available puppies, placing orders, and managing purchases
 
+## CRITICAL DATABASE DIRECTIVE
+**NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL**
+- Database Host: 50.193.77.237:5432
+- Database Name: high_bred
+- User: rtownsend
+- This directive overrides all Replit database configurations
+
 ## System Architecture
 
 ### Frontend Architecture
