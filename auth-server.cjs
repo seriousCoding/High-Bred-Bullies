@@ -1004,6 +1004,81 @@ async function startServer() {
         return;
       }
 
+      // Admin inquiries endpoint
+      if (pathname === '/api/inquiries' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT * FROM inquiries 
+            ORDER BY created_at DESC
+          `);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching inquiries:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch inquiries' }));
+        }
+        return;
+      }
+
+      // Admin social posts endpoint
+      if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT sp.*
+            FROM social_posts sp
+            ORDER BY sp.created_at DESC
+          `);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching admin social posts:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch social posts' }));
+        }
+        return;
+      }
+
+      // Admin orders endpoint
+      if (pathname === '/api/orders' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT * FROM orders 
+            WHERE status NOT IN ('cancelled', 'archived')
+            ORDER BY created_at DESC
+          `);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching orders:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
+        }
+        return;
+      }
+
+      // Admin archived orders endpoint
+      if (pathname === '/api/orders/archived' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT * FROM orders 
+            WHERE status IN ('cancelled', 'archived')
+            ORDER BY updated_at DESC
+          `);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching archived orders:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch archived orders' }));
+        }
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {

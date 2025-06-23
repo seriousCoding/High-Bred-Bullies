@@ -20,7 +20,7 @@ interface ArchivedOrder {
 }
 
 const fetchArchivedOrders = async () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('auth_token');
   const response = await fetch(`${API_BASE_URL}/api/orders/archived`, {
     headers: {
       'Authorization': `Bearer ${token}`,
