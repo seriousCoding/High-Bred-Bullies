@@ -953,78 +953,100 @@ async function startServer() {
           const litterId = pathname.split('/')[3];
           console.log('Fetching litter management data for ID:', litterId);
 
-          // Fetch litter details with full management data
-          const litterResult = await pool.query(`
-            SELECT l.*, b.business_name as breeder_name 
-            FROM litters l
-            LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.id = $1
-          `, [litterId]);
-          
-          if (litterResult.rows.length === 0) {
-            res.writeHead(404);
-            res.end(JSON.stringify({ error: 'Litter not found' }));
-            return;
+          // Use a single optimized query to fetch both litter and puppies data
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            
+            // Fetch litter details with breeder info
+            const litterResult = await client.query(`
+              SELECT l.*, b.business_name as breeder_name 
+              FROM litters l
+              LEFT JOIN breeders b ON l.breeder_id = b.id
+              WHERE l.id = $1
+            `, [litterId]);
+            
+            if (litterResult.rows.length === 0) {
+              await client.query('ROLLBACK');
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Litter not found' }));
+              return;
+            }
+
+            // Fetch all puppies for this litter with a simplified query
+            const puppiesResult = await client.query(`
+              SELECT id, litter_id, name, gender, color, markings, 
+                     weight_at_birth, notes, is_available, image_url, 
+                     stripe_price_id, reserved_by, sold_to, created_at, updated_at
+              FROM puppies 
+              WHERE litter_id = $1 
+              ORDER BY created_at ASC
+            `, [litterId]);
+
+            await client.query('COMMIT');
+
+            const litter = litterResult.rows[0];
+            const puppies = puppiesResult.rows;
+
+            const responseData = {
+              id: litter.id.toString(),
+              name: litter.name || `${litter.dam_name} x ${litter.sire_name}`,
+              breed: litter.breed,
+              birth_date: litter.birth_date,
+              available_puppies: litter.available_puppies || 0,
+              total_puppies: litter.total_puppies || 0,
+              price_per_male: litter.price_per_male || 0,
+              price_per_female: litter.price_per_female || 0,
+              stripe_male_price_id: litter.stripe_male_price_id,
+              stripe_female_price_id: litter.stripe_female_price_id,
+              stripe_product_id: litter.stripe_product_id,
+              dam_name: litter.dam_name,
+              sire_name: litter.sire_name,
+              dam_image_url: litter.dam_image_url,
+              sire_image_url: litter.sire_image_url,
+              description: litter.description,
+              image_url: litter.image_url,
+              status: litter.status || 'upcoming',
+              breeder_id: litter.breeder_id?.toString(),
+              quantity_discounts: litter.quantity_discounts,
+              created_at: litter.created_at,
+              updated_at: litter.updated_at,
+              puppies: puppies.map(puppy => ({
+                id: puppy.id.toString(),
+                litter_id: puppy.litter_id.toString(),
+                name: puppy.name,
+                gender: puppy.gender,
+                color: puppy.color,
+                markings: puppy.markings,
+                weight_at_birth: puppy.weight_at_birth,
+                notes: puppy.notes,
+                is_available: puppy.is_available,
+                image_url: puppy.image_url,
+                stripe_price_id: puppy.stripe_price_id,
+                reserved_by: puppy.reserved_by,
+                sold_to: puppy.sold_to,
+                created_at: puppy.created_at,
+                updated_at: puppy.updated_at
+              }))
+            };
+
+            console.log(`Successfully fetched litter ${litterId} with ${puppies.length} puppies`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(responseData));
+
+          } catch (dbError) {
+            await client.query('ROLLBACK');
+            console.error('Error fetching litter management data:', dbError);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to fetch litter management data' }));
+          } finally {
+            client.release();
           }
 
-          // Fetch all puppies for this litter with full details
-          const puppiesResult = await pool.query(`
-            SELECT * FROM puppies 
-            WHERE litter_id = $1 
-            ORDER BY created_at ASC
-          `, [litterId]);
-
-          const litter = litterResult.rows[0];
-          const puppies = puppiesResult.rows;
-
-          const responseData = {
-            id: litter.id.toString(),
-            name: litter.name || `${litter.dam_name} x ${litter.sire_name}`,
-            breed: litter.breed,
-            birth_date: litter.birth_date,
-            available_puppies: litter.available_puppies || 0,
-            total_puppies: litter.total_puppies || 0,
-            price_per_male: litter.price_per_male || 0,
-            price_per_female: litter.price_per_female || 0,
-            stripe_male_price_id: litter.stripe_male_price_id,
-            stripe_female_price_id: litter.stripe_female_price_id,
-            stripe_product_id: litter.stripe_product_id,
-            dam_name: litter.dam_name,
-            sire_name: litter.sire_name,
-            dam_image_url: litter.dam_image_url,
-            sire_image_url: litter.sire_image_url,
-            description: litter.description,
-            image_url: litter.image_url,
-            status: litter.status || 'upcoming',
-            breeder_id: litter.breeder_id?.toString(),
-            quantity_discounts: litter.quantity_discounts,
-            created_at: litter.created_at,
-            updated_at: litter.updated_at,
-            puppies: puppies.map(puppy => ({
-              id: puppy.id.toString(),
-              litter_id: puppy.litter_id.toString(),
-              name: puppy.name,
-              gender: puppy.gender,
-              color: puppy.color,
-              markings: puppy.markings,
-              weight_at_birth: puppy.weight_at_birth,
-              notes: puppy.notes,
-              is_available: puppy.is_available,
-              image_url: puppy.image_url,
-              stripe_price_id: puppy.stripe_price_id,
-              reserved_by: puppy.reserved_by,
-              sold_to: puppy.sold_to,
-              created_at: puppy.created_at,
-              updated_at: puppy.updated_at
-            }))
-          };
-
-          res.writeHead(200);
-          res.end(JSON.stringify(responseData));
         } catch (error) {
-          console.error('Error fetching litter management data:', error);
-          res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Failed to fetch litter management data' }));
+          console.error('Error in manage endpoint:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
         }
         return;
       }
