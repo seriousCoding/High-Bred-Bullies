@@ -240,6 +240,76 @@ async function startServer() {
         return;
       }
 
+      // Registration endpoint
+      if (pathname === '/api/register' && req.method === 'POST') {
+        setHeaders(res);
+        
+        try {
+          const data = await parseBody(req);
+          const { username, password, email } = data;
+
+          if (!username || !password) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Username and password required' }));
+            return;
+          }
+
+          // Check if user already exists
+          const existingUser = await pool.query(`
+            SELECT id FROM user_profiles 
+            WHERE username = $1 OR username LIKE $2
+          `, [username, `%${username.split('@')[0]}%`]);
+          
+          if (existingUser.rows.length > 0) {
+            res.writeHead(409);
+            res.end(JSON.stringify({ error: 'User already exists' }));
+            return;
+          }
+
+          // Create new user profile
+          const result = await pool.query(`
+            INSERT INTO user_profiles (username, first_name, last_name, email, is_admin, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING id, username, first_name, last_name, is_admin
+          `, [
+            username,
+            username.split('@')[0] || username,
+            '',
+            email || username,
+            false
+          ]);
+
+          const user = result.rows[0];
+          
+          // Create JWT token
+          const token = jwt.sign(
+            { 
+              userId: user.id, 
+              username: user.username,
+              isBreeder: false
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+          );
+
+          res.writeHead(201);
+          res.end(JSON.stringify({
+            token,
+            user: {
+              id: user.id,
+              username: user.username,
+              isBreeder: false,
+              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+            }
+          }));
+        } catch (error) {
+          console.error('Registration error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Registration failed' }));
+        }
+        return;
+      }
+
       // Get current user endpoint (for authentication verification)
       if (pathname === '/api/user' && req.method === 'GET') {
         try {
