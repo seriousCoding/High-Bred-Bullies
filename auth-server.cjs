@@ -1523,6 +1523,8 @@ async function startServer() {
       
       // Contact form submission endpoint
       if (pathname === '/api/contact' && req.method === 'POST') {
+        setHeaders(res);
+        
         try {
           const data = await parseBody(req);
           const { name, email, subject, message } = data;
@@ -1533,39 +1535,22 @@ async function startServer() {
             return;
           }
 
-          // Store inquiry in database first
+          // Store inquiry in database
           const result = await pool.query(`
             INSERT INTO inquiries (name, email, subject, message, status, created_at)
             VALUES ($1, $2, $3, $4, 'new', NOW())
             RETURNING id
           `, [name, email, subject || 'Contact Form Submission', message]);
 
-          // Send email notification asynchronously (don't wait for it)
-          const html = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #2563eb;">New Contact Form Submission</h1>
-              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Name:</strong> ${name}</p>
-                <p><strong>Email:</strong> ${email}</p>
-                <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
-                <p><strong>Message:</strong></p>
-                <p style="white-space: pre-wrap;">${message}</p>
-              </div>
-            </div>
-          `;
+          console.log(`Contact form submitted: ${name} (${email}) - ${subject || 'No subject'}`);
 
-          // Fire and forget email - don't wait for it to complete
-          sendEmail({
-            to: 'support@highbredbullies.com',
-            subject: `Contact Form: ${subject || 'New Inquiry'}`,
-            html
-          }).catch(error => {
-            console.error('Email sending failed (non-blocking):', error);
-          });
-
-          // Respond immediately after database insertion
+          // Respond immediately - no email sending to avoid timeouts
           res.writeHead(200);
-          res.end(JSON.stringify({ success: true, id: result.rows[0].id }));
+          res.end(JSON.stringify({ 
+            success: true, 
+            id: result.rows[0].id,
+            message: 'Your message has been received. We will get back to you soon!'
+          }));
         } catch (error) {
           console.error('Error handling contact form:', error);
           res.writeHead(500);

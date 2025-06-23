@@ -65,7 +65,13 @@ const ContactPage = () => {
 
   const submitInquiry = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const response = await fetch(`${API_BASE_URL}/api/contact`, {
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout - please try again')), 10000)
+      );
+
+      // Create fetch promise
+      const fetchPromise = fetch(`${API_BASE_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,8 +84,12 @@ const ContactPage = () => {
         }),
       });
 
+      // Race between fetch and timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
       if (!response.ok) {
-        throw new Error(`Failed to submit inquiry: ${response.statusText}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Failed to submit inquiry: ${response.status} ${errorText}`);
       }
 
       return response.json();
@@ -91,8 +101,9 @@ const ContactPage = () => {
       form.reset();
     },
     onError: (error: any) => {
+      console.error('Contact form error:', error);
       toast.error("Failed to send message", {
-        description: error.message,
+        description: error.message || "Please try again or contact us directly.",
       });
     }
   });
