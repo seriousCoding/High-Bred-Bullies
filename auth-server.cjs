@@ -317,7 +317,7 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.available_puppies < l.total_puppies OR l.birth_date > (NOW() - INTERVAL '30 days')
+            WHERE l.available_puppies < l.total_puppies
             ORDER BY l.birth_date DESC, l.created_at DESC
             LIMIT 10
           `);
