@@ -173,7 +173,7 @@ async function startServer() {
               isBreeder: isBreeder
             },
             JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: process.env.JWT_EXPIRATION || '24h' }
           );
 
           res.writeHead(200);
