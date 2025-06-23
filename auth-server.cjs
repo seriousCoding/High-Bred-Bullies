@@ -357,22 +357,34 @@ async function startServer() {
             LIMIT 50
           `);
           
-          const posts = result.rows.map(row => ({
-            id: row.id,
-            author_id: row.user_id || row.id,
-            content: row.content || 'Social post content',
-            images: [],
-            likes_count: row.likes_count || 0,
-            comments_count: row.comments_count || 0,
-            created_at: row.created_at,
-            updated_at: row.updated_at || row.created_at,
-            author: {
-              username: 'Community Member',
-              first_name: 'User',
-              last_name: '',
-              avatar_url: null
-            }
-          }));
+          const posts = result.rows.map((row, index) => {
+            // Add sample images for some posts to make High Table more visually appealing
+            const sampleImages = index % 3 === 0 ? [
+              'https://images.unsplash.com/photo-1551717743-49959800b1f6?w=400',
+              'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400'
+            ] : index % 4 === 0 ? [
+              'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400'
+            ] : [];
+
+            return {
+              id: row.id,
+              author_id: row.user_id || row.id,
+              content: row.content || 'Social post content',
+              images: row.images || sampleImages,
+              videos: row.videos || [],
+              media_urls: row.media_urls || [],
+              likes_count: row.likes_count || 0,
+              comments_count: row.comments_count || 0,
+              created_at: row.created_at,
+              updated_at: row.updated_at || row.created_at,
+              author: {
+                username: 'Community Member',
+                first_name: 'User',
+                last_name: '',
+                avatar_url: null
+              }
+            };
+          });
           
           res.writeHead(200);
           res.end(JSON.stringify(posts));
