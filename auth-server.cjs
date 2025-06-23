@@ -176,6 +176,48 @@ async function startServer() {
         return;
       }
 
+      // Get current user endpoint (for authentication verification)
+      if (pathname === '/api/user' && req.method === 'GET') {
+        try {
+          const token = req.headers.authorization?.replace('Bearer ', '');
+          if (!token) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'No token provided' }));
+            return;
+          }
+
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          // Fetch user details from user_profiles
+          const result = await pool.query(`
+            SELECT id, username, first_name, last_name, is_admin
+            FROM user_profiles 
+            WHERE id = $1
+          `, [decoded.userId]);
+          
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'User not found' }));
+            return;
+          }
+
+          const user = result.rows[0];
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            id: user.id,
+            username: user.username,
+            isBreeder: decoded.isBreeder || user.is_admin || false,
+            fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+          }));
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Invalid token' }));
+        }
+        return;
+      }
+
       // Health check endpoint
       if (pathname === '/api/health' && req.method === 'GET') {
         res.writeHead(200);
