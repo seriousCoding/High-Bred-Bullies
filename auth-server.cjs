@@ -1219,6 +1219,54 @@ async function startServer() {
         return;
       }
 
+      // Breeders by user endpoint for admin
+      if (pathname.match(/^\/api\/breeders\/by-user\/[^\/]+$/) && req.method === 'GET') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
+        const token = authHeader.substring(7);
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+        } catch (error) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Invalid token' }));
+          return;
+        }
+
+        const userId = pathname.substring('/api/breeders/by-user/'.length);
+        console.log('Fetching breeder for user ID:', userId);
+        try {
+          const result = await pool.query(`
+            SELECT b.* 
+            FROM breeders b
+            WHERE b.user_id = $1
+          `, [userId]);
+          
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'No breeder profile found for user' }));
+            return;
+          }
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows[0]));
+        } catch (error) {
+          console.error('Error fetching breeder by user:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch breeder' }));
+        }
+        return;
+      }
+
       // Litters by breeder endpoint for admin
       if (pathname.startsWith('/api/litters/by-breeder/') && req.method === 'GET') {
         const authHeader = req.headers.authorization;
