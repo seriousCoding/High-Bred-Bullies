@@ -1220,7 +1220,7 @@ async function startServer() {
       }
 
       // Breeders by user endpoint for admin
-      if (pathname.match(/^\/api\/breeders\/by-user\/[^\/]+$/) && req.method === 'GET') {
+      if (pathname.startsWith('/api/breeders/by-user/') && req.method === 'GET') {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           res.writeHead(401);
@@ -1242,11 +1242,12 @@ async function startServer() {
           return;
         }
 
-        const match = pathname.match(/^\/api\/breeders\/by-user\/(.+)$/);
-        const userId = match ? match[1] : null;
-        console.log('Fetching breeder for user ID:', userId);
+        // Extract userId from URL path: /api/breeders/by-user/{userId}
+        const userId = pathname.replace('/api/breeders/by-user/', '');
+        console.log('Full pathname:', pathname);
+        console.log('Extracted user ID:', userId);
         
-        if (!userId) {
+        if (!userId || userId.length < 10) {
           res.writeHead(400);
           res.end(JSON.stringify({ error: 'Invalid user ID' }));
           return;
