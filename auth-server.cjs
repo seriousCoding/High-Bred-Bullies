@@ -6,7 +6,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const SeasonalEmailService = require('./server/seasonal-email-service.js');
+const { SeasonalEmailService } = require('./server/seasonal-email-service.js');
 // Initialize Stripe with error handling
 let stripe = null;
 try {
@@ -1482,6 +1482,132 @@ async function startServer() {
           console.error('Error checking pet owner status:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Failed to check status' }));
+        }
+        return;
+      }
+
+      // Get Stripe prices for puppies
+      if (pathname.startsWith('/api/puppies/') && pathname.endsWith('/stripe-price') && req.method === 'GET') {
+        try {
+          const puppyId = pathname.split('/')[3];
+          
+          if (!stripe) {
+            res.writeHead(503);
+            res.end(JSON.stringify({ error: 'Stripe not configured' }));
+            return;
+          }
+
+          // Get puppy data with stripe_price_id
+          const puppyQuery = 'SELECT id, stripe_price_id, gender, litter_id FROM puppies WHERE id = $1';
+          const puppyResult = await pool.query(puppyQuery, [puppyId]);
+          
+          if (puppyResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Puppy not found' }));
+            return;
+          }
+
+          const puppy = puppyResult.rows[0];
+          let priceId = puppy.stripe_price_id;
+
+          // If no puppy-specific price, fall back to litter price
+          if (!priceId) {
+            const litterQuery = 'SELECT stripe_male_price_id, stripe_female_price_id FROM litters WHERE id = $1';
+            const litterResult = await pool.query(litterQuery, [puppy.litter_id]);
+            
+            if (litterResult.rows.length > 0) {
+              const litter = litterResult.rows[0];
+              priceId = puppy.gender === 'male' ? litter.stripe_male_price_id : litter.stripe_female_price_id;
+            }
+          }
+
+          if (!priceId) {
+            res.writeHead(200);
+            res.end(JSON.stringify({ price: null, currency: 'usd' }));
+            return;
+          }
+
+          // Fetch price from Stripe
+          const stripePrice = await stripe.prices.retrieve(priceId);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            price: stripePrice.unit_amount,
+            currency: stripePrice.currency,
+            stripe_price_id: priceId
+          }));
+
+        } catch (error) {
+          console.error('Error fetching Stripe price:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch price data' }));
+        }
+        return;
+      }
+
+      // Get Stripe prices for multiple puppies
+      if (pathname === '/api/puppies/stripe-prices' && req.method === 'POST') {
+        try {
+          if (!stripe) {
+            res.writeHead(503);
+            res.end(JSON.stringify({ error: 'Stripe not configured' }));
+            return;
+          }
+
+          const body = await parseBody(req);
+          const { puppyIds } = body;
+
+          if (!Array.isArray(puppyIds) || puppyIds.length === 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify({}));
+            return;
+          }
+
+          // Get puppy data with stripe_price_ids
+          const placeholders = puppyIds.map((_, i) => `$${i + 1}`).join(',');
+          const puppyQuery = `SELECT id, stripe_price_id, gender, litter_id FROM puppies WHERE id IN (${placeholders})`;
+          const puppyResult = await pool.query(puppyQuery, puppyIds);
+
+          const prices = {};
+
+          for (const puppy of puppyResult.rows) {
+            let priceId = puppy.stripe_price_id;
+
+            // If no puppy-specific price, fall back to litter price
+            if (!priceId) {
+              const litterQuery = 'SELECT stripe_male_price_id, stripe_female_price_id FROM litters WHERE id = $1';
+              const litterResult = await pool.query(litterQuery, [puppy.litter_id]);
+              
+              if (litterResult.rows.length > 0) {
+                const litter = litterResult.rows[0];
+                priceId = puppy.gender === 'male' ? litter.stripe_male_price_id : litter.stripe_female_price_id;
+              }
+            }
+
+            if (priceId) {
+              try {
+                const stripePrice = await stripe.prices.retrieve(priceId);
+                prices[puppy.id] = {
+                  price: stripePrice.unit_amount,
+                  currency: stripePrice.currency,
+                  stripe_price_id: priceId
+                };
+              } catch (stripeError) {
+                console.error(`Error fetching Stripe price for puppy ${puppy.id}:`, stripeError);
+                prices[puppy.id] = { price: null, currency: 'usd' };
+              }
+            } else {
+              prices[puppy.id] = { price: null, currency: 'usd' };
+            }
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify(prices));
+
+        } catch (error) {
+          console.error('Error fetching Stripe prices:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch price data' }));
         }
         return;
       }

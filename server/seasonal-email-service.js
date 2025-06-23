@@ -382,4 +382,4 @@ class SeasonalEmailService {
   }
 }
 
-module.exports = SeasonalEmailService;
+module.exports = { SeasonalEmailService };
