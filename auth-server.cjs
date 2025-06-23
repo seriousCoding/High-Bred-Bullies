@@ -1026,13 +1026,31 @@ async function startServer() {
       if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
         try {
           const result = await pool.query(`
-            SELECT sp.*
+            SELECT sp.*, up.first_name, up.last_name, up.username
             FROM social_posts sp
+            LEFT JOIN user_profiles up ON sp.user_id = up.user_id
             ORDER BY sp.created_at DESC
           `);
           
+          const posts = result.rows.map(post => ({
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            image_url: post.image_url,
+            visibility: post.visibility || 'public',
+            moderation_status: post.moderation_status || 'pending',
+            is_testimonial: post.is_testimonial || false,
+            created_at: post.created_at,
+            user_id: post.user_id,
+            user_profiles: post.first_name || post.last_name || post.username ? {
+              first_name: post.first_name,
+              last_name: post.last_name,
+              username: post.username
+            } : undefined
+          }));
+          
           res.writeHead(200);
-          res.end(JSON.stringify(result.rows));
+          res.end(JSON.stringify(posts));
         } catch (error) {
           console.error('Error fetching admin social posts:', error);
           res.writeHead(500);

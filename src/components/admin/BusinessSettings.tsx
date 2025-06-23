@@ -50,7 +50,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
     queryKey: ['breederProfile', breederId],
     queryFn: async () => {
       if (!breederId) return null;
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -70,7 +70,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
   const { data: siteConfig, isLoading: isLoadingSiteConfig } = useQuery({
     queryKey: ['siteConfig'],
     queryFn: async (): Promise<SiteConfig> => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/site-config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -120,7 +120,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
       const deliveryFeeInCents = formData.deliveryFee ? Math.round(parseFloat(formData.deliveryFee) * 100) : 0;
 
       // Update breeder profile
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const breederResponse = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
         method: 'PUT',
         headers: {
