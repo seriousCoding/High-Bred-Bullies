@@ -460,6 +460,205 @@ async function startServer() {
         return;
       }
 
+      // User profile GET endpoint
+      if (pathname === '/api/user/profile' && req.method === 'GET') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const result = await pool.query(`
+            SELECT * FROM user_profiles WHERE user_id = $1
+          `, [userId]);
+
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Profile not found' }));
+            return;
+          }
+
+          const profile = result.rows[0];
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            id: profile.id.toString(),
+            user_id: profile.user_id,
+            username: profile.username,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            avatar_url: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          }));
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch profile' }));
+        }
+        return;
+      }
+
+      // User profile POST endpoint
+      if (pathname === '/api/user/profile' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const body = await parseBody(req);
+          const { username, first_name, last_name } = body;
+
+          const result = await pool.query(`
+            INSERT INTO user_profiles (user_id, username, first_name, last_name, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              username = EXCLUDED.username,
+              first_name = EXCLUDED.first_name,
+              last_name = EXCLUDED.last_name,
+              updated_at = NOW()
+            RETURNING *
+          `, [userId, username, first_name, last_name]);
+
+          const profile = result.rows[0];
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            id: profile.id.toString(),
+            user_id: profile.user_id,
+            username: profile.username,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            avatar_url: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          }));
+        } catch (error) {
+          console.error('Error creating/updating user profile:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to create profile' }));
+        }
+        return;
+      }
+
+      // Pet owner status endpoint
+      if (pathname === '/api/user/pet-owner-status' && req.method === 'GET') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const result = await pool.query(`
+            SELECT * FROM pet_owners WHERE user_id = $1
+          `, [userId]);
+
+          if (result.rows.length > 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify(result.rows[0]));
+          } else {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Not a pet owner' }));
+          }
+        } catch (error) {
+          console.error('Error checking pet owner status:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to check status' }));
+        }
+        return;
+      }
+
+      // User orders endpoint
+      if (pathname.startsWith('/api/user/orders') && req.method === 'GET') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const url = new URL(req.url, `http://${req.headers.host}`);
+          const status = url.searchParams.get('status');
+
+          let query = 'SELECT * FROM orders WHERE user_id = $1';
+          const params = [userId];
+
+          if (status) {
+            query += ' AND status = $2';
+            params.push(status);
+          }
+
+          query += ' ORDER BY created_at DESC';
+
+          const result = await pool.query(query, params);
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching user orders:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
+        }
+        return;
+      }
+
+      // Create pet owner endpoint
+      if (pathname === '/api/user/pet-owner' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const body = await parseBody(req);
+          const { adoption_date } = body;
+
+          const result = await pool.query(`
+            INSERT INTO pet_owners (user_id, adoption_date, created_at, updated_at)
+            VALUES ($1, $2, NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              adoption_date = EXCLUDED.adoption_date,
+              updated_at = NOW()
+            RETURNING *
+          `, [userId, adoption_date]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows[0]));
+        } catch (error) {
+          console.error('Error creating pet owner:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to create pet owner' }));
+        }
+        return;
+      }
+
       // Health check endpoint
       if (pathname === '/api/health' && req.method === 'GET') {
         res.writeHead(200);
