@@ -15,7 +15,7 @@ const fetchUpcomingLitters = async (): Promise<Litter[]> => {
   
   const response = await fetch(`${API_BASE_URL}/api/litters/upcoming`, {
     headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
     }
   });
 

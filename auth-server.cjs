@@ -275,9 +275,9 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.birth_date > NOW() OR l.expected_delivery_date > NOW()
-            ORDER BY COALESCE(l.expected_delivery_date, l.birth_date) ASC, l.created_at DESC
-            LIMIT 10
+            WHERE l.is_active = true
+            ORDER BY l.created_at DESC
+            LIMIT 3
           `);
           
           const litters = result.rows.map(litter => ({
@@ -285,7 +285,7 @@ async function startServer() {
             name: litter.dam_name + " x " + litter.sire_name,
             breed: litter.breed,
             birth_date: litter.birth_date,
-            expected_date: litter.birth_date, // Use birth_date since expected_delivery_date may not exist
+            expected_date: litter.expected_delivery_date || litter.birth_date,
             available_puppies: litter.total_puppies || 0,
             total_puppies: litter.total_puppies || 0,
             price_per_male: litter.male_price,
