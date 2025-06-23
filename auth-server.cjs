@@ -953,10 +953,11 @@ async function startServer() {
           const litterId = pathname.split('/')[3];
           console.log('Fetching litter management data for ID:', litterId);
 
-          // Use a single optimized query to fetch both litter and puppies data
+          // Use a single optimized query with better timeout handling
           const client = await pool.connect();
           try {
-            await client.query('BEGIN');
+            // Set a shorter statement timeout for this specific query
+            await client.query('SET statement_timeout = 8000'); // 8 seconds
             
             // Fetch litter details with breeder info
             const litterResult = await client.query(`
@@ -967,7 +968,6 @@ async function startServer() {
             `, [litterId]);
             
             if (litterResult.rows.length === 0) {
-              await client.query('ROLLBACK');
               res.writeHead(404);
               res.end(JSON.stringify({ error: 'Litter not found' }));
               return;

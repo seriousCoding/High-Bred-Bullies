@@ -297,9 +297,23 @@ const ManageLitterPage = () => {
                                                 <Card key={puppy.id}>
                                                     <CardContent className="p-4">
                                                         {puppy.image_url ? 
-                                                            <img src={puppy.image_url} alt={puppy.name || 'Puppy'} className="w-full h-60 object-contain bg-muted rounded-md mb-4" />
-                                                            : <div className="w-full h-60 bg-muted rounded-md mb-4 flex items-center justify-center text-muted-foreground">No Image</div>
+                                                            <img 
+                                                                src={puppy.image_url} 
+                                                                alt={puppy.name || 'Puppy'} 
+                                                                className="w-full h-60 object-contain bg-muted rounded-md mb-4" 
+                                                                onError={(e) => {
+                                                                    e.currentTarget.style.display = 'none';
+                                                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                                }}
+                                                            />
+                                                            : null
                                                         }
+                                                        <div className={`w-full h-60 bg-muted rounded-md mb-4 flex items-center justify-center text-muted-foreground ${puppy.image_url ? 'hidden' : ''}`}>
+                                                            <div className="text-center">
+                                                                <div className="text-2xl mb-2">🐕</div>
+                                                                <div>No Image Available</div>
+                                                            </div>
+                                                        </div>
                                                         <div className="flex justify-between items-start">
                                                             <div>
                                                                 <p className="font-semibold">{puppy.name || 'Unnamed Puppy'}</p>
@@ -413,14 +427,40 @@ const ManageLitterPage = () => {
                                             <Label className="font-semibold">Dam (Mother):</Label>
                                             <p>{litter.dam_name}</p>
                                             {litter.dam_image_url && (
-                                                <img src={litter.dam_image_url} alt="Dam" className="w-32 h-32 object-cover rounded-md mt-2" />
+                                                <div className="mt-2">
+                                                    <img 
+                                                        src={litter.dam_image_url} 
+                                                        alt="Dam" 
+                                                        className="w-32 h-32 object-cover rounded-md" 
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                        }}
+                                                    />
+                                                    <div className="hidden w-32 h-32 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-sm">
+                                                        No Image
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                         <div>
                                             <Label className="font-semibold">Sire (Father):</Label>
                                             <p>{litter.sire_name}</p>
                                             {litter.sire_image_url && (
-                                                <img src={litter.sire_image_url} alt="Sire" className="w-32 h-32 object-cover rounded-md mt-2" />
+                                                <div className="mt-2">
+                                                    <img 
+                                                        src={litter.sire_image_url} 
+                                                        alt="Sire" 
+                                                        className="w-32 h-32 object-cover rounded-md" 
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                        }}
+                                                    />
+                                                    <div className="hidden w-32 h-32 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-sm">
+                                                        No Image
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </CardContent>
