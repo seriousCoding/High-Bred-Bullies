@@ -19,7 +19,7 @@ const pool = new Pool({
   ssl: false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
@@ -1255,8 +1255,8 @@ async function startServer() {
           const result = await pool.query(`
             SELECT l.*, 
                    b.business_name as breeder_name,
-                   (SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id AND p.status = 'available') as available_puppies,
-                   (SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id) as total_puppies
+                   COALESCE((SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id), 0) as available_puppies,
+                   COALESCE((SELECT COUNT(*) FROM puppies p WHERE p.litter_id = l.id), 0) as total_puppies
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
             ORDER BY l.created_at DESC
