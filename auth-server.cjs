@@ -279,14 +279,13 @@ async function startServer() {
 
           // Create new user profile
           const result = await pool.query(`
-            INSERT INTO user_profiles (username, first_name, last_name, email, is_admin, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            INSERT INTO user_profiles (username, first_name, last_name, is_admin, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
             RETURNING id, username, first_name, last_name, is_admin
           `, [
             username,
             username.split('@')[0] || username,
             '',
-            email || username,
             false
           ]);
 
