@@ -338,6 +338,43 @@ async function startServer() {
         return;
       }
 
+      // Litter puppies endpoint (for individual litter puppy data)
+      if (pathname.match(/^\/api\/litters\/[^\/]+\/puppies$/) && req.method === 'GET') {
+        try {
+          const litterId = pathname.split('/')[3];
+          
+          const puppiesResult = await pool.query(`
+            SELECT * FROM puppies 
+            WHERE litter_id = $1 
+            ORDER BY name ASC
+          `, [litterId]);
+
+          const puppies = puppiesResult.rows.map(puppy => ({
+            id: puppy.id.toString(),
+            litter_id: puppy.litter_id.toString(),
+            name: puppy.name,
+            gender: puppy.gender,
+            weight: puppy.weight,
+            color: puppy.color,
+            markings: puppy.markings,
+            birth_order: puppy.birth_order,
+            is_available: puppy.is_available,
+            price: puppy.price,
+            description: puppy.description,
+            health_status: puppy.health_status,
+            images: puppy.images || []
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(puppies));
+        } catch (error) {
+          console.error('Error fetching litter puppies:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch litter puppies' }));
+        }
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {
