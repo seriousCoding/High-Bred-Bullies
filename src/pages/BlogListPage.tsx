@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const fetchPublishedBlogPosts = async (): Promise<BlogPost[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/blog-posts?published=true`);
+  const response = await fetch(`${API_BASE_URL}/api/blog/posts`);
   
   if (!response.ok) {
     throw new Error('Failed to fetch blog posts');

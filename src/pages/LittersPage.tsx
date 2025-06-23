@@ -11,18 +11,22 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const fetchLitters = async (): Promise<Litter[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/litters`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-    }
-  });
+  try {
+    // Fetch both featured and upcoming litters
+    const [featuredResponse, upcomingResponse] = await Promise.all([
+      fetch(`${API_BASE_URL}/api/litters/featured`),
+      fetch(`${API_BASE_URL}/api/litters/upcoming`)
+    ]);
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch litters');
+    const featuredData = featuredResponse.ok ? await featuredResponse.json() : [];
+    const upcomingData = upcomingResponse.ok ? await upcomingResponse.json() : [];
+
+    // Combine both arrays
+    return [...featuredData, ...upcomingData] as Litter[];
+  } catch (error) {
+    console.error('Error fetching litters:', error);
+    return [];
   }
-
-  const data = await response.json();
-  return (data || []) as Litter[];
 };
 
 const LittersPage = () => {

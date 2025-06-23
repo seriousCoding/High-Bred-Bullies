@@ -518,6 +518,50 @@ async function startServer() {
           return;
         }
 
+        // Individual blog post endpoint
+        if (pathname.startsWith('/api/blog/posts/') && req.method === 'GET') {
+          try {
+            const postId = pathname.split('/')[4];
+            const result = await pool.query(`
+              SELECT *
+              FROM blog_posts
+              WHERE id = $1 AND published_at IS NOT NULL
+              LIMIT 1
+            `, [postId]);
+            
+            if (result.rows.length === 0) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Blog post not found' }));
+              return;
+            }
+            
+            const row = result.rows[0];
+            const post = {
+              id: row.id,
+              title: row.title,
+              slug: row.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `post-${row.id}`,
+              excerpt: row.excerpt,
+              content: row.content,
+              imageUrl: row.image_url,
+              authorId: row.id,
+              authorName: row.author_name || 'Admin User',
+              category: row.category,
+              tags: [],
+              publishedAt: row.published_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at
+            };
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(post));
+          } catch (error) {
+            console.error('Error fetching blog post:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch blog post' }));
+          }
+          return;
+        }
+
         // Puppies for a specific litter - check this BEFORE individual litter endpoint
         if (pathname.startsWith('/api/litters/') && pathname.includes('/puppies') && req.method === 'GET') {
           try {

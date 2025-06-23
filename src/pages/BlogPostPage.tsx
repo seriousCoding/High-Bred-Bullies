@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const fetchBlogPostById = async (id: string) => {
-  const response = await fetch(`${API_BASE_URL}/api/blog-posts/${id}`);
+  const response = await fetch(`${API_BASE_URL}/api/blog/posts/${id}`);
   
   if (!response.ok) {
     throw new Error('Failed to fetch blog post');
