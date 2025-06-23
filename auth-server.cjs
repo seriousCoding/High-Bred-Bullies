@@ -1485,6 +1485,117 @@ async function startServer() {
         return;
       }
 
+      // Stripe checkout endpoint for puppy purchases
+      if (pathname === '/api/checkout/create-litter-checkout' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Authentication required' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const data = await parseBody(req);
+          const { litterId, puppyIds, deliveryOption, deliveryZipCode } = data;
+
+          if (!litterId || !puppyIds || !Array.isArray(puppyIds) || puppyIds.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid request data' }));
+            return;
+          }
+
+          // Get litter and puppy information
+          const litterResult = await pool.query(`
+            SELECT l.*, b.business_name, b.contact_email
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.id = $1
+          `, [litterId]);
+
+          if (litterResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Litter not found' }));
+            return;
+          }
+
+          const litter = litterResult.rows[0];
+
+          // Get puppy details
+          const puppiesResult = await pool.query(`
+            SELECT id, name, gender, color, is_available
+            FROM puppies
+            WHERE id = ANY($1) AND litter_id = $2 AND is_available = true
+          `, [puppyIds, litterId]);
+
+          if (puppiesResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'No available puppies found' }));
+            return;
+          }
+
+          // Calculate total price (using base price from litter)
+          const basePrice = litter.male_price || litter.female_price || 250000; // Default $2500 in cents
+          const totalAmount = puppiesResult.rows.length * basePrice;
+
+          if (stripe) {
+            // Create Stripe checkout session
+            const session = await stripe.checkout.sessions.create({
+              payment_method_types: ['card'],
+              line_items: puppiesResult.rows.map(puppy => ({
+                price_data: {
+                  currency: 'usd',
+                  product_data: {
+                    name: `${puppy.name || 'Puppy'} - ${litter.name || 'Premium Litter'}`,
+                    description: `${puppy.color} ${puppy.gender} American Bully puppy`,
+                    images: ['https://placehold.co/400x300/e2e8f0/64748b?text=American+Bully'],
+                  },
+                  unit_amount: basePrice,
+                },
+                quantity: 1,
+              })),
+              mode: 'payment',
+              success_url: `${req.headers.origin}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+              cancel_url: `${req.headers.origin}/litter/${litterId}`,
+              metadata: {
+                userId: userId,
+                litterId: litterId,
+                puppyIds: puppyIds.join(','),
+                deliveryOption: deliveryOption,
+                deliveryZipCode: deliveryZipCode || ''
+              }
+            });
+
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              url: session.url,
+              sessionId: session.id,
+              success: true 
+            }));
+          } else {
+            // Mock response when Stripe is not configured
+            const mockCheckoutUrl = `${req.headers.origin}/purchase-success?mock=true&amount=${totalAmount}&puppies=${puppiesResult.rows.length}`;
+            
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              url: mockCheckoutUrl,
+              sessionId: 'mock_session_' + Date.now(),
+              success: true,
+              message: 'Mock checkout - Stripe not configured'
+            }));
+          }
+
+        } catch (error) {
+          console.error('Checkout creation error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to create checkout session' }));
+        }
+        return;
+      }
+
       // Get Stripe prices for puppies
       if (pathname.startsWith('/api/puppies/') && pathname.endsWith('/stripe-price') && req.method === 'GET') {
         try {
