@@ -3957,7 +3957,24 @@ async function startServer() {
     }
   });
 
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', async () => {
+    // Create password reset table if it doesn't exist
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          token TEXT NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          used_at TIMESTAMP NULL
+        )
+      `);
+      console.log('🔑 Password reset table initialized');
+    } catch (error) {
+      console.warn('⚠️ Password reset table creation skipped (may already exist)');
+    }
+    
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
     console.log('📊 Database: PostgreSQL connected');
     console.log('🔐 JWT Authentication: Enabled');

@@ -58,9 +58,14 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       }
 
       const data = await response.json();
-      if (data && data.length > 0) {
-        setFriends(data);
-      }
+      const friendsData = data.friends || [];
+      setFriends(friendsData.map(f => ({
+        id: f.friend_id,
+        username: f.friend_username,
+        first_name: f.friend_first_name,
+        last_name: f.friend_last_name,
+        avatar_url: null
+      })));
     } catch (error) {
       console.error('Error fetching friends:', error);
     }
@@ -71,7 +76,7 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
     if (!userProfile) return;
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/friend-requests`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -84,11 +89,19 @@ const FriendsManager: React.FC<FriendsManagerProps> = ({ onStartConversation }) 
       }
 
       const data = await response.json();
-      const received = data.filter((req: any) => req.receiver_id === userProfile.id && req.status === 'pending');
-      const sent = data.filter((req: any) => req.sender_id === userProfile.id && req.status === 'pending');
-      
-      setFriendRequests(received);
-      setSentRequests(sent);
+      const requestsData = data.requests || [];
+      setFriendRequests(requestsData.map((req: any) => ({
+        id: req.id,
+        sender_id: req.sender_id,
+        receiver_id: userProfile.id,
+        status: req.status,
+        created_at: req.created_at,
+        sender: {
+          username: req.sender_username,
+          first_name: req.sender_first_name,
+          last_name: req.sender_last_name
+        }
+      })));
     } catch (error) {
       console.error('Error fetching friend requests:', error);
     }
