@@ -1243,8 +1243,10 @@ async function startServer() {
         }
 
         // Extract userId from URL path: /api/breeders/by-user/{userId}
-        const userId = pathname.replace('/api/breeders/by-user/', '');
+        const parts = pathname.split('/');
+        const userId = parts[4]; // /api/breeders/by-user/{userId}
         console.log('Full pathname:', pathname);
+        console.log('URL parts:', parts);
         console.log('Extracted user ID:', userId);
         
         if (!userId || userId.length < 10) {
