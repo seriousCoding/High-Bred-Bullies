@@ -350,32 +350,75 @@ async function startServer() {
       // High Table social feed posts endpoint
       if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
         try {
-          const result = await pool.query(`
-            SELECT sp.*
-            FROM social_posts sp
-            ORDER BY sp.created_at DESC
-            LIMIT 50
+          // First check for media-related tables
+          const mediaTablesResult = await pool.query(`
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND (table_name LIKE '%media%' OR table_name LIKE '%attachment%' OR table_name LIKE '%file%' OR table_name LIKE '%image%' OR table_name LIKE '%photo%')
           `);
           
+          console.log('Media tables found:', mediaTablesResult.rows.map(r => r.table_name));
+          
+          // Check for post_media or similar junction tables
+          const postMediaResult = await pool.query(`
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name LIKE '%post%'
+          `);
+          
+          console.log('Post-related tables:', postMediaResult.rows.map(r => r.table_name));
+
+          // Get social posts with potential media joins
+          let result;
+          try {
+            // Try to join with media attachments if they exist
+            result = await pool.query(`
+              SELECT sp.*, 
+                     array_agg(DISTINCT ma.file_url) FILTER (WHERE ma.file_url IS NOT NULL) as media_attachments,
+                     array_agg(DISTINCT ma.file_type) FILTER (WHERE ma.file_type IS NOT NULL) as media_types
+              FROM social_posts sp
+              LEFT JOIN media_attachments ma ON sp.id = ma.post_id
+              GROUP BY sp.id, sp.user_id, sp.title, sp.content, sp.image_url, sp.visibility, sp.moderation_status, sp.is_testimonial, sp.created_at, sp.updated_at
+              ORDER BY sp.created_at DESC
+              LIMIT 50
+            `);
+          } catch (joinError) {
+            console.log('Media join failed, trying basic query:', joinError.message);
+            // Fallback to basic query
+            result = await pool.query(`
+              SELECT sp.*
+              FROM social_posts sp
+              ORDER BY sp.created_at DESC
+              LIMIT 50
+            `);
+          }
+          
+          console.log('Sample row structure:', result.rows[0] ? Object.keys(result.rows[0]) : 'No rows');
+          
           const posts = result.rows.map(row => {
-            // Properly handle media from database - check for various possible column names
             let images = [];
             let videos = [];
             
-            // Handle different possible media column formats
-            if (row.images && Array.isArray(row.images)) {
-              images = row.images;
-            } else if (row.image_urls && Array.isArray(row.image_urls)) {
-              images = row.image_urls;
-            } else if (row.media_urls && Array.isArray(row.media_urls)) {
-              // Filter for image types
-              images = row.media_urls.filter(url => 
-                url && (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif'))
-              );
-              // Filter for video types
-              videos = row.media_urls.filter(url => 
-                url && (url.includes('.mp4') || url.includes('.webm') || url.includes('.mov'))
-              );
+            // Check for single image_url
+            if (row.image_url && row.image_url !== null) {
+              images.push(row.image_url);
+            }
+            
+            // Check for media_attachments array from join
+            if (row.media_attachments && Array.isArray(row.media_attachments)) {
+              row.media_attachments.forEach((url, index) => {
+                if (url && url !== null) {
+                  const type = row.media_types && row.media_types[index] ? row.media_types[index] : '';
+                  if (type.includes('image') || url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                    images.push(url);
+                  } else if (type.includes('video') || url.match(/\.(mp4|webm|mov|avi)$/i)) {
+                    videos.push(url);
+                  } else {
+                    // Default to image if type unclear
+                    images.push(url);
+                  }
+                }
+              });
             }
 
             return {
@@ -384,7 +427,7 @@ async function startServer() {
               content: row.content || 'Social post content',
               images: images,
               videos: videos,
-              media_urls: row.media_urls || [],
+              media_urls: images.concat(videos),
               likes_count: row.likes_count || 0,
               comments_count: row.comments_count || 0,
               created_at: row.created_at,
