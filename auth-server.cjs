@@ -9,6 +9,7 @@ const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
@@ -1447,6 +1448,113 @@ async function startServer() {
           console.error('Error handling contact form:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Failed to submit contact form' }));
+        }
+        return;
+      }
+
+      // OpenAI API test endpoint
+      if (pathname === '/api/openai/test' && req.method === 'POST') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
+        try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ 
+              error: 'OpenAI API key not configured',
+              configured: false,
+              key_present: false
+            }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { prompt = 'Say hello and confirm you are working!' } = data;
+          
+          // Make a simple OpenAI API call to test the key
+          const https = require('https');
+          const postData = JSON.stringify({
+            model: 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 100
+          });
+
+          const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const openaiReq = https.request(options, (openaiRes) => {
+            let responseData = '';
+            openaiRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            openaiRes.on('end', () => {
+              try {
+                const response = JSON.parse(responseData);
+                if (openaiRes.statusCode === 200) {
+                  res.writeHead(200);
+                  res.end(JSON.stringify({
+                    success: true,
+                    configured: true,
+                    key_present: true,
+                    response: response.choices[0].message.content
+                  }));
+                } else {
+                  res.writeHead(400);
+                  res.end(JSON.stringify({
+                    success: false,
+                    configured: true,
+                    key_present: true,
+                    error: response.error?.message || 'OpenAI API error'
+                  }));
+                }
+              } catch (parseError) {
+                res.writeHead(500);
+                res.end(JSON.stringify({
+                  success: false,
+                  error: 'Failed to parse OpenAI response'
+                }));
+              }
+            });
+          });
+
+          openaiReq.on('error', (error) => {
+            res.writeHead(500);
+            res.end(JSON.stringify({
+              success: false,
+              configured: true,
+              key_present: true,
+              error: `OpenAI API request failed: ${error.message}`
+            }));
+          });
+
+          openaiReq.write(postData);
+          openaiReq.end();
+        } catch (error) {
+          console.error('Error testing OpenAI:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to test OpenAI API' }));
         }
         return;
       }

@@ -71,6 +71,11 @@ function App() {
                 <ManageLitterPage />
               </ProtectedRoute>
             } />
+            <Route path="/admin/litter/:id" element={
+              <ProtectedRoute requireBreeder={true}>
+                <ManageLitterPage />
+              </ProtectedRoute>
+            } />
             <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
             <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
             <Route path="/schedule-pickup/:orderId" element={
