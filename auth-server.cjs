@@ -114,9 +114,13 @@ function parseBody(req) {
     });
     req.on('end', () => {
       clearTimeout(timeout);
+      console.log('Raw body received:', body);
       try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch {
+        const parsed = body ? JSON.parse(body) : {};
+        console.log('Parsed body:', parsed);
+        resolve(parsed);
+      } catch (error) {
+        console.log('Parse error:', error.message);
         resolve({});
       }
     });
@@ -164,8 +168,7 @@ async function startServer() {
   const server = createHttpServer(async (req, res) => {
     const { pathname } = parse(req.url, true);
     
-    // Parse request body for all requests
-    req.body = await parseBody(req);
+
     
     setHeaders(res);
 
@@ -180,7 +183,7 @@ async function startServer() {
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
         try {
-          const data = await parseBody(req).catch(() => ({}));
+          const data = await parseBody(req);
           const { username, password } = data;
 
           if (!username || !password) {
@@ -253,7 +256,7 @@ async function startServer() {
       // Registration endpoint
       if (pathname === '/api/register' && req.method === 'POST') {
         try {
-          const data = await parseBody(req).catch(() => ({}));
+          const data = await parseBody(req);
           const { username, password, email } = data;
 
           if (!username || !password) {
