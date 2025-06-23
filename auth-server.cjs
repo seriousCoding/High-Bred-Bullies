@@ -1533,14 +1533,14 @@ async function startServer() {
             return;
           }
 
-          // Store inquiry in database
+          // Store inquiry in database first
           const result = await pool.query(`
             INSERT INTO inquiries (name, email, subject, message, status, created_at)
             VALUES ($1, $2, $3, $4, 'new', NOW())
             RETURNING id
           `, [name, email, subject || 'Contact Form Submission', message]);
 
-          // Send email notification
+          // Send email notification asynchronously (don't wait for it)
           const html = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h1 style="color: #2563eb;">New Contact Form Submission</h1>
@@ -1554,12 +1554,16 @@ async function startServer() {
             </div>
           `;
 
-          await sendEmail({
+          // Fire and forget email - don't wait for it to complete
+          sendEmail({
             to: 'support@highbredbullies.com',
             subject: `Contact Form: ${subject || 'New Inquiry'}`,
             html
+          }).catch(error => {
+            console.error('Email sending failed (non-blocking):', error);
           });
 
+          // Respond immediately after database insertion
           res.writeHead(200);
           res.end(JSON.stringify({ success: true, id: result.rows[0].id }));
         } catch (error) {

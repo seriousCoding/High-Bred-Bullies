@@ -38,14 +38,9 @@ const fetchContactInfo = async () => {
 
       const data = await response.json();
       
-      const settings = data.reduce((acc: Record<string, string>, { key, value }: { key: string; value: string }) => {
-          if (key && value) {
-              acc[key] = value;
-          }
-          return acc;
-      }, {} as Record<string, string>);
-      
-      return settings;
+      // The server returns data as an object with key-value pairs directly
+      // No need to transform it since it's already in the correct format
+      return data;
     } catch (error) {
       console.error('Error fetching contact info:', error);
       return {};
@@ -70,7 +65,7 @@ const ContactPage = () => {
 
   const submitInquiry = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
+      const response = await fetch(`${API_BASE_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,8 +74,7 @@ const ContactPage = () => {
           name: values.name,
           email: values.email,
           subject: values.subject,
-          message: values.message,
-          status: 'pending'
+          message: values.message
         }),
       });
 
