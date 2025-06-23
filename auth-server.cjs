@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const SeasonalEmailService = require('./server/seasonal-email-service.js');
 // Initialize Stripe with error handling
 let stripe = null;
 try {
