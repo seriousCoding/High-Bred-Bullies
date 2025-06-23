@@ -21,8 +21,13 @@ const fetchLitters = async (): Promise<Litter[]> => {
     const featuredData = featuredResponse.ok ? await featuredResponse.json() : [];
     const upcomingData = upcomingResponse.ok ? await upcomingResponse.json() : [];
 
-    // Combine both arrays
-    return [...featuredData, ...upcomingData] as Litter[];
+    // Combine arrays and remove duplicates by ID
+    const allLitters = [...featuredData, ...upcomingData];
+    const uniqueLitters = allLitters.filter((litter, index, self) => 
+      index === self.findIndex(l => l.id === litter.id)
+    );
+    
+    return uniqueLitters as Litter[];
   } catch (error) {
     console.error('Error fetching litters:', error);
     return [];

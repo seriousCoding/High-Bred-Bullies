@@ -639,41 +639,61 @@ async function startServer() {
         }
 
         // Individual litter endpoint
-        if (pathname.startsWith('/api/litters/') && !pathname.includes('/breeder/') && !pathname.includes('/puppies') && !pathname.includes('/upcoming') && req.method === 'GET') {
+        if (pathname.startsWith('/api/litters/') && !pathname.includes('/breeder/') && !pathname.includes('/puppies') && !pathname.includes('/upcoming') && !pathname.includes('/featured') && req.method === 'GET') {
           try {
             const litterId = pathname.split('/')[3];
-            const result = await pool.query(`
+            
+            // Fetch litter details
+            const litterResult = await pool.query(`
               SELECT l.*, b.business_name as breeder_name 
               FROM litters l
               LEFT JOIN breeders b ON l.breeder_id = b.id
               WHERE l.id = $1
             `, [litterId]);
             
-            if (result.rows.length === 0) {
+            if (litterResult.rows.length === 0) {
               res.writeHead(404);
               res.end(JSON.stringify({ error: 'Litter not found' }));
               return;
             }
 
-            const litter = result.rows[0];
+            // Fetch puppies for this litter
+            const puppiesResult = await pool.query(`
+              SELECT * FROM puppies 
+              WHERE litter_id = $1 
+              ORDER BY name ASC
+            `, [litterId]);
+
+            const litter = litterResult.rows[0];
+            const puppies = puppiesResult.rows.map(puppy => ({
+              id: puppy.id.toString(),
+              litter_id: puppy.litter_id.toString(),
+              name: puppy.name,
+              gender: puppy.gender,
+              color: puppy.color,
+              is_available: puppy.is_available,
+              image_url: puppy.image_url,
+              created_at: puppy.created_at,
+              updated_at: puppy.updated_at
+            }));
+
             res.writeHead(200);
             res.end(JSON.stringify({
               id: litter.id.toString(),
-              name: `${litter.dam_name} x ${litter.sire_name}`,
+              name: litter.name || `${litter.dam_name} x ${litter.sire_name}`,
               breed: litter.breed,
               birth_date: litter.birth_date,
               available_puppies: litter.available_puppies,
               total_puppies: litter.total_puppies,
-              price_per_male: litter.male_price * 100,
-              price_per_female: litter.female_price * 100,
+              price_per_male: litter.price_per_male,
+              price_per_female: litter.price_per_female,
               dam_name: litter.dam_name,
               sire_name: litter.sire_name,
-              dam_pedigree: litter.dam_pedigree,
-              sire_pedigree: litter.sire_pedigree,
               description: litter.description,
-              image_url: litter.images && litter.images.length > 0 ? litter.images[0] : null,
-              status: litter.is_active ? 'active' : 'archived',
+              image_url: litter.image_url,
+              status: litter.status,
               breeder_id: litter.breeder_id?.toString(),
+              puppies: puppies,
               breeders: {
                 business_name: litter.breeder_name,
                 delivery_fee: 250,
