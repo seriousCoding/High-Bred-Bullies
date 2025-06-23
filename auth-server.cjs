@@ -380,40 +380,23 @@ async function startServer() {
           `);
           
           const posts = result.rows.map(row => {
-            let images = [];
-            let videos = [];
-            
-            // Handle authentic media from database columns
-            if (row.image_url && row.image_url !== null && row.image_url.trim() !== '') {
-              const mediaType = row.media_type || '';
-              
-              // Determine if it's an image or video based on media_type column
-              if (mediaType.toLowerCase().includes('video') || 
-                  row.image_url.match(/\.(mp4|webm|mov|avi)$/i)) {
-                videos.push(row.image_url);
-              } else {
-                // Default to image for most content
-                images.push(row.image_url);
-              }
-            }
-
             return {
               id: row.id,
-              author_id: row.user_id || row.id,
-              content: row.content || row.title || 'Social post content',
-              images: images,
-              videos: videos,
-              media_urls: images.concat(videos),
+              user_id: row.user_id || row.id,
+              title: row.title || 'Community Post',
+              content: row.content || 'Social post content',
+              image_url: row.image_url,
               likes_count: row.likes_count || 0,
               comments_count: row.comments_count || 0,
+              is_liked_by_user: false,
               created_at: row.created_at,
-              updated_at: row.updated_at || row.created_at,
-              author: {
-                username: row.username || 'Community Member',
-                first_name: row.first_name || 'User',
-                last_name: row.last_name || '',
-                avatar_url: row.avatar_url || null
-              }
+              username: row.username || 'Community Member',
+              first_name: row.first_name || 'User',
+              last_name: row.last_name || '',
+              avatar_url: row.avatar_url || null,
+              is_testimonial: row.is_testimonial || false,
+              moderation_status: row.moderation_status || 'approved',
+              visibility: row.visibility || 'public'
             };
           });
           
