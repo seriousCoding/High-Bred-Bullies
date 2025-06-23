@@ -15,7 +15,7 @@ export function useUserOnboarding() {
     
     try {
       // Check if profile exists
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -60,7 +60,7 @@ export function useUserOnboarding() {
       console.log('Checking pet owner status for user:', user.id);
       
       // First check if user already has a pet owner profile
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const petOwnerResponse = await fetch(`${API_BASE_URL}/api/user/pet-owner-status`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -154,6 +154,16 @@ export function useUserOnboarding() {
       console.log('Triggering user initialization');
       initializeUser();
     }
+    // Add timeout fallback to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (user && !isReady && !isOnboarding) {
+        console.log('Timeout reached, setting ready state to prevent infinite loading');
+        setIsReady(true);
+        setIsOnboarding(false);
+      }
+    }, 10000); // 10 second timeout
+    
+    return () => clearTimeout(timeout);
   }, [user, isReady, isOnboarding]);
 
   console.log('useUserOnboarding state:', {
