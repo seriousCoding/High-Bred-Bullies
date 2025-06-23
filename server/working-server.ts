@@ -9,6 +9,9 @@ import jwt from 'jsonwebtoken';
 // Load environment variables
 dotenv.config();
 
+// Force override DATABASE_URL to use external PostgreSQL
+process.env.DATABASE_URL = 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable';
+
 const app = express();
 
 // Basic middleware
