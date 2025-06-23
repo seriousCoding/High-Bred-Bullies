@@ -173,6 +173,23 @@ function authenticateToken(req, res, next) {
   }
 }
 
+// Helper function for direct authentication without middleware
+function authenticateTokenDirect(req) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return { success: false, error: 'Access token required' };
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return { success: true, user: decoded };
+  } catch (error) {
+    return { success: false, error: 'Invalid token' };
+  }
+}
+
 async function startServer() {
   console.log('🚀 Starting Vite development server...');
   
@@ -501,7 +518,7 @@ async function startServer() {
       
       // Get friends list
       if (pathname === '/api/friends' && req.method === 'GET') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -549,7 +566,7 @@ async function startServer() {
 
       // Get friend requests
       if (pathname === '/api/friend-requests' && req.method === 'GET') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -584,7 +601,7 @@ async function startServer() {
 
       // Send friend request
       if (pathname === '/api/friend-requests' && req.method === 'POST') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -635,7 +652,7 @@ async function startServer() {
 
       // Accept/decline friend request
       if (pathname.startsWith('/api/friend-requests/') && req.method === 'PUT') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -682,7 +699,7 @@ async function startServer() {
 
       // Get messages for a conversation
       if (pathname.startsWith('/api/messages/') && req.method === 'GET') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -720,7 +737,7 @@ async function startServer() {
 
       // Send message
       if (pathname === '/api/messages' && req.method === 'POST') {
-        const authResult = authenticateRequest(req);
+        const authResult = authenticateToken(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
