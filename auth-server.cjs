@@ -1594,52 +1594,43 @@ async function startServer() {
           const basePrice = litter.male_price || litter.female_price || 250000; // Default $2500 in cents
           const totalAmount = puppiesResult.rows.length * basePrice;
 
-          if (stripe) {
-            // Create Stripe checkout session
-            const session = await stripe.checkout.sessions.create({
-              payment_method_types: ['card'],
-              line_items: puppiesResult.rows.map(puppy => ({
-                price_data: {
-                  currency: 'usd',
-                  product_data: {
-                    name: `${puppy.name || 'Puppy'} - ${litter.name || 'Premium Litter'}`,
-                    description: `${puppy.color} ${puppy.gender} American Bully puppy`,
-                    images: ['https://placehold.co/400x300/e2e8f0/64748b?text=American+Bully'],
-                  },
-                  unit_amount: basePrice,
-                },
-                quantity: 1,
-              })),
-              mode: 'payment',
-              success_url: `${req.headers.origin}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-              cancel_url: `${req.headers.origin}/litter/${litterId}`,
-              metadata: {
-                userId: userId,
-                litterId: litterId,
-                puppyIds: puppyIds.join(','),
-                deliveryOption: deliveryOption,
-                deliveryZipCode: deliveryZipCode || ''
-              }
-            });
+          // Initialize Stripe with secret key
+          const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-            res.writeHead(200);
-            res.end(JSON.stringify({ 
-              url: session.url,
-              sessionId: session.id,
-              success: true 
-            }));
-          } else {
-            // Mock response when Stripe is not configured
-            const mockCheckoutUrl = `${req.headers.origin}/purchase-success?mock=true&amount=${totalAmount}&puppies=${puppiesResult.rows.length}`;
-            
-            res.writeHead(200);
-            res.end(JSON.stringify({ 
-              url: mockCheckoutUrl,
-              sessionId: 'mock_session_' + Date.now(),
-              success: true,
-              message: 'Mock checkout - Stripe not configured'
-            }));
-          }
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: puppiesResult.rows.map(puppy => ({
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: `${puppy.name || 'Puppy'} - ${litter.name || 'Premium Litter'}`,
+                  description: `${puppy.color} ${puppy.gender} American Bully puppy`,
+                  images: ['https://placehold.co/400x300/e2e8f0/64748b?text=American+Bully'],
+                },
+                unit_amount: basePrice,
+              },
+              quantity: 1,
+            })),
+            mode: 'payment',
+            success_url: `${req.headers.origin}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${req.headers.origin}/litter/${litterId}`,
+            metadata: {
+              userId: userId,
+              litterId: litterId,
+              puppyIds: puppyIds.join(','),
+              deliveryOption: deliveryOption,
+              deliveryZipCode: deliveryZipCode || ''
+            }
+          });
+
+          console.log('✅ Stripe checkout session created:', session.id);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            url: session.url,
+            sessionId: session.id,
+            success: true 
+          }));
 
         } catch (error) {
           console.error('Checkout creation error:', error);
