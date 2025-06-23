@@ -350,81 +350,57 @@ async function startServer() {
       // High Table social feed posts endpoint
       if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
         try {
-          // First check for media-related tables
-          const mediaTablesResult = await pool.query(`
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND (table_name LIKE '%media%' OR table_name LIKE '%attachment%' OR table_name LIKE '%file%' OR table_name LIKE '%image%' OR table_name LIKE '%photo%')
+          // First check what media content exists in the database
+          const mediaCheckResult = await pool.query(`
+            SELECT COUNT(*) as total_posts, 
+                   COUNT(image_url) as posts_with_image_url,
+                   COUNT(media_type) as posts_with_media_type
+            FROM social_posts
           `);
           
-          console.log('Media tables found:', mediaTablesResult.rows.map(r => r.table_name));
+          console.log('Media content check:', mediaCheckResult.rows[0]);
           
-          // Check for post_media or similar junction tables
-          const postMediaResult = await pool.query(`
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name LIKE '%post%'
+          // Sample some actual image_url values to see what's stored
+          const sampleResult = await pool.query(`
+            SELECT id, image_url, media_type 
+            FROM social_posts 
+            WHERE image_url IS NOT NULL 
+            LIMIT 5
           `);
           
-          console.log('Post-related tables:', postMediaResult.rows.map(r => r.table_name));
-
-          // Get social posts with potential media joins
-          let result;
-          try {
-            // Try to join with media attachments if they exist
-            result = await pool.query(`
-              SELECT sp.*, 
-                     array_agg(DISTINCT ma.file_url) FILTER (WHERE ma.file_url IS NOT NULL) as media_attachments,
-                     array_agg(DISTINCT ma.file_type) FILTER (WHERE ma.file_type IS NOT NULL) as media_types
-              FROM social_posts sp
-              LEFT JOIN media_attachments ma ON sp.id = ma.post_id
-              GROUP BY sp.id, sp.user_id, sp.title, sp.content, sp.image_url, sp.visibility, sp.moderation_status, sp.is_testimonial, sp.created_at, sp.updated_at
-              ORDER BY sp.created_at DESC
-              LIMIT 50
-            `);
-          } catch (joinError) {
-            console.log('Media join failed, trying basic query:', joinError.message);
-            // Fallback to basic query
-            result = await pool.query(`
-              SELECT sp.*
-              FROM social_posts sp
-              ORDER BY sp.created_at DESC
-              LIMIT 50
-            `);
-          }
+          console.log('Sample image URLs:', sampleResult.rows);
           
-          console.log('Sample row structure:', result.rows[0] ? Object.keys(result.rows[0]) : 'No rows');
+          // Get social posts with authentic media from image_url and media_type columns
+          const result = await pool.query(`
+            SELECT sp.*, up.username, up.first_name, up.last_name, up.avatar_url
+            FROM social_posts sp
+            LEFT JOIN user_profiles up ON sp.user_id::text = up.user_id::text
+            ORDER BY sp.created_at DESC
+            LIMIT 50
+          `);
           
           const posts = result.rows.map(row => {
             let images = [];
             let videos = [];
             
-            // Check for single image_url
-            if (row.image_url && row.image_url !== null) {
-              images.push(row.image_url);
-            }
-            
-            // Check for media_attachments array from join
-            if (row.media_attachments && Array.isArray(row.media_attachments)) {
-              row.media_attachments.forEach((url, index) => {
-                if (url && url !== null) {
-                  const type = row.media_types && row.media_types[index] ? row.media_types[index] : '';
-                  if (type.includes('image') || url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-                    images.push(url);
-                  } else if (type.includes('video') || url.match(/\.(mp4|webm|mov|avi)$/i)) {
-                    videos.push(url);
-                  } else {
-                    // Default to image if type unclear
-                    images.push(url);
-                  }
-                }
-              });
+            // Handle authentic media from database columns
+            if (row.image_url && row.image_url !== null && row.image_url.trim() !== '') {
+              const mediaType = row.media_type || '';
+              
+              // Determine if it's an image or video based on media_type column
+              if (mediaType.toLowerCase().includes('video') || 
+                  row.image_url.match(/\.(mp4|webm|mov|avi)$/i)) {
+                videos.push(row.image_url);
+              } else {
+                // Default to image for most content
+                images.push(row.image_url);
+              }
             }
 
             return {
               id: row.id,
               author_id: row.user_id || row.id,
-              content: row.content || 'Social post content',
+              content: row.content || row.title || 'Social post content',
               images: images,
               videos: videos,
               media_urls: images.concat(videos),
@@ -433,10 +409,10 @@ async function startServer() {
               created_at: row.created_at,
               updated_at: row.updated_at || row.created_at,
               author: {
-                username: 'Community Member',
-                first_name: 'User',
-                last_name: '',
-                avatar_url: null
+                username: row.username || 'Community Member',
+                first_name: row.first_name || 'User',
+                last_name: row.last_name || '',
+                avatar_url: row.avatar_url || null
               }
             };
           });
