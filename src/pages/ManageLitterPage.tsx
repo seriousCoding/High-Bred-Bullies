@@ -88,7 +88,7 @@ const ManageLitterPage = () => {
     const [malePriceId, setMalePriceId] = useState('');
     const [femalePriceId, setFemalePriceId] = useState('');
     const [activeTab, setActiveTab] = useState("puppies");
-    const [puppyPrices, setPuppyPrices] = useState<{[key: string]: {price: number | null, currency: string}}>({});
+    const [puppyPrices, setPuppyPrices] = useState<{[key: string]: {price: number | null, currency: string, stripe_price_id?: string}}>({});
 
     const fetchLitterWithPuppies = async (): Promise<LitterWithPuppies> => {
         if (!litterId) throw new Error('No litter ID provided');
@@ -116,7 +116,7 @@ const ManageLitterPage = () => {
     });
 
     // Fetch Stripe pricing data for all puppies
-    const fetchPuppyPrices = async (puppyIds: string[]): Promise<{[key: string]: {price: number | null, currency: string}}> => {
+    const fetchPuppyPrices = async (puppyIds: string[]): Promise<{[key: string]: {price: number | null, currency: string, stripe_price_id?: string}}> => {
         if (puppyIds.length === 0) return {};
         
         const response = await fetch(`${API_BASE_URL}/api/puppies/stripe-prices`, {
@@ -362,7 +362,7 @@ const ManageLitterPage = () => {
                                                         </div>
                                                         <p className="text-sm text-muted-foreground capitalize mt-2">Status: {status}</p>
                                                         {puppy.stripe_price_id && <p className="text-xs text-muted-foreground mt-1 truncate">Stripe ID: {puppy.stripe_price_id}</p>}
-                                                        {stripePrices && stripePrices[puppy.id] && stripePrices[puppy.id].stripe_price_id && (
+                                                        {stripePrices?.[puppy.id]?.stripe_price_id && (
                                                             <p className="text-xs text-green-600 mt-1">
                                                                 ✓ Real-time Stripe pricing
                                                             </p>

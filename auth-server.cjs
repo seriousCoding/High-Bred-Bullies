@@ -2394,6 +2394,65 @@ async function startServer() {
         return;
       }
 
+      // Bulk get puppy prices endpoint for Stripe pricing
+      if (pathname === '/api/puppies/stripe-prices' && req.method === 'POST') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const body = await parseBody(req);
+          const { puppyIds } = body;
+          
+          if (!Array.isArray(puppyIds) || puppyIds.length === 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify({}));
+            return;
+          }
+          
+          const placeholders = puppyIds.map((_, index) => `$${index + 1}`).join(', ');
+          const result = await pool.query(`
+            SELECT p.id, p.stripe_price_id, l.price_per_male, l.price_per_female, p.gender
+            FROM puppies p
+            JOIN litters l ON p.litter_id = l.id
+            WHERE p.id IN (${placeholders})
+          `, puppyIds);
+          
+          const priceData = {};
+          
+          for (const puppy of result.rows) {
+            let price = null;
+            let currency = 'usd';
+            let stripe_price_id = null;
+            
+            if (puppy.stripe_price_id && stripe) {
+              try {
+                const stripePrice = await stripe.prices.retrieve(puppy.stripe_price_id);
+                price = stripePrice.unit_amount || 0;
+                currency = stripePrice.currency || 'usd';
+                stripe_price_id = puppy.stripe_price_id;
+              } catch (error) {
+                console.error(`Stripe price fetch error for puppy ${puppy.id}:`, error.message);
+                // Don't set fallback here - let frontend handle it
+              }
+            }
+            
+            priceData[puppy.id] = { price, currency, stripe_price_id };
+          }
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(priceData));
+        } catch (error) {
+          console.error('Error fetching bulk puppy prices:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch puppy prices' }));
+        }
+        return;
+      }
+
       // Litters by breeder endpoint for admin
       if (pathname.startsWith('/api/litters/by-breeder/') && req.method === 'GET') {
         const authHeader = req.headers.authorization;
