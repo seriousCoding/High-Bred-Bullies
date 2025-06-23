@@ -347,6 +347,119 @@ async function startServer() {
         return;
       }
 
+      // Admin blog posts endpoint
+      if (pathname === '/api/admin/blog-posts' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT bp.*
+            FROM blog_posts bp
+            ORDER BY bp.created_at DESC
+          `);
+          
+          const posts = result.rows.map(post => ({
+            id: post.id.toString(),
+            title: post.title,
+            slug: post.slug,
+            content: post.content,
+            excerpt: post.excerpt,
+            category: post.category,
+            tags: post.tags || [],
+            is_published: post.is_published || false,
+            published_at: post.published_at,
+            created_at: post.created_at,
+            updated_at: post.updated_at,
+            author_id: post.author_id,
+            author_name: 'High Bred Bullies',
+            image_url: post.image_url
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(posts));
+        } catch (error) {
+          console.error('Error fetching blog posts:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch blog posts' }));
+        }
+        return;
+      }
+
+      // Business settings endpoint
+      if (pathname === '/api/business/settings' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT * FROM breeders 
+            ORDER BY created_at DESC
+            LIMIT 1
+          `);
+          
+          const breeder = result.rows[0];
+          if (breeder) {
+            const settings = {
+              id: breeder.id.toString(),
+              business_name: breeder.business_name,
+              contact_email: breeder.contact_email,
+              contact_phone: breeder.contact_phone,
+              address: breeder.address,
+              city: breeder.city,
+              state: breeder.state,
+              zip_code: breeder.zip_code,
+              website: breeder.website,
+              instagram: breeder.instagram,
+              facebook: breeder.facebook,
+              description: breeder.description,
+              specializations: breeder.specializations || [],
+              years_experience: breeder.years_experience,
+              kennel_size: breeder.kennel_size,
+              breeding_philosophy: breeder.breeding_philosophy,
+              health_testing: breeder.health_testing,
+              delivery_fee: breeder.delivery_fee || 250,
+              delivery_areas: breeder.delivery_areas || ["Texas", "Oklahoma", "Arkansas", "Louisiana"],
+              is_active: breeder.is_active
+            };
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(settings));
+          } else {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Business settings not found' }));
+          }
+        } catch (error) {
+          console.error('Error fetching business settings:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch business settings' }));
+        }
+        return;
+      }
+
+      // User profiles batch endpoint for social posts
+      if (pathname === '/api/user-profiles/batch' && req.method === 'POST') {
+        try {
+          const body = await parseBody(req);
+          const { userIds } = body;
+          
+          if (!userIds || !Array.isArray(userIds)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid userIds array' }));
+            return;
+          }
+
+          const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+          const result = await pool.query(`
+            SELECT id, user_id, first_name, last_name, username, avatar_url
+            FROM user_profiles 
+            WHERE user_id = ANY($1)
+          `, [userIds]);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows));
+        } catch (error) {
+          console.error('Error fetching user profiles batch:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch user profiles' }));
+        }
+        return;
+      }
+
       // Health check endpoint
       if (pathname === '/api/health' && req.method === 'GET') {
         res.writeHead(200);
