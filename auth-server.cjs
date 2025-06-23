@@ -275,8 +275,8 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.is_active = false
-            ORDER BY l.created_at DESC
+            WHERE l.birth_date > NOW() OR l.expected_delivery_date > NOW()
+            ORDER BY COALESCE(l.expected_delivery_date, l.birth_date) ASC, l.created_at DESC
             LIMIT 10
           `);
           
