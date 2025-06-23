@@ -144,9 +144,18 @@ async function startServer() {
             return;
           }
 
-          // Get user profile to check breeder status
-          const profileResult = await pool.query('SELECT is_breeder FROM user_profiles WHERE user_id = $1', [user.id]);
-          const isBreeder = profileResult.rows[0]?.is_breeder || false;
+          // Get user profile to check breeder status - simplified query
+          let isBreeder = false;
+          try {
+            const profileResult = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [user.id]);
+            if (profileResult.rows.length > 0) {
+              isBreeder = profileResult.rows[0].is_breeder === true || profileResult.rows[0].is_breeder === 't';
+            }
+          } catch (profileError) {
+            console.error('Profile query error:', profileError);
+            // Default to false if profile query fails
+            isBreeder = false;
+          }
 
           const token = jwt.sign(
             { 
