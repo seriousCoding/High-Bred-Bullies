@@ -323,8 +323,92 @@ async function startServer() {
             VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
           `, [user.id, resetToken]);
 
-          // Send email (mock for now)
-          console.log(`Password reset token for ${user.username}: ${resetToken}`);
+          // Send password reset email
+          if (emailTransporter) {
+            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+            
+            const emailHtml = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Reset Your Password - High Bred Bullies</title>
+                <style>
+                  body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+                  .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+                  .header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 40px 30px; text-align: center; color: white; }
+                  .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+                  .season-msg { font-size: 14px; opacity: 0.9; margin-top: 10px; }
+                  .content { padding: 40px 30px; }
+                  .greeting { font-size: 24px; color: #2a5298; margin-bottom: 20px; font-weight: 600; }
+                  .message { font-size: 16px; line-height: 1.6; color: #444; margin-bottom: 30px; }
+                  .btn { display: inline-block; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 16px; margin: 20px 0; box-shadow: 0 10px 20px rgba(238, 90, 36, 0.3); transition: transform 0.2s; }
+                  .btn:hover { transform: translateY(-2px); }
+                  .security-note { background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745; margin: 20px 0; }
+                  .footer { background: #f8f9fa; padding: 30px; text-align: center; color: #666; font-size: 14px; }
+                  .paw-print { color: #ff6b6b; font-size: 18px; margin: 0 5px; }
+                </style>
+              </head>
+              <body>
+                <div style="padding: 20px;">
+                  <div class="container">
+                    <div class="header">
+                      <div class="logo">🐕 High Bred Bullies</div>
+                      <p>Premium Bulldog Community</p>
+                      <div class="season-msg">Spreading holiday cheer to our beloved pet families ✨</div>
+                    </div>
+                    
+                    <div class="content">
+                      <div class="greeting">Password Reset Request</div>
+                      
+                      <div class="message">
+                        Hello ${user.first_name || 'Fellow Dog Lover'},<br><br>
+                        
+                        We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
+                        
+                        Click the button below to create a new password and rejoin our amazing community of bulldog enthusiasts.
+                      </div>
+                      
+                      <div style="text-align: center;">
+                        <a href="${resetLink}" class="btn">Reset My Password 🔑</a>
+                      </div>
+                      
+                      <div class="security-note">
+                        <strong>🛡️ Security Notice:</strong><br>
+                        This link will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                      </div>
+                      
+                      <div class="message">
+                        During this festive season, we're grateful for amazing members like you who make our bulldog community so special. <span class="paw-print">🐾</span>
+                      </div>
+                    </div>
+                    
+                    <div class="footer">
+                      <p><strong>High Bred Bullies</strong> <span class="paw-print">🐾</span> Premium Bulldog Breeding Community</p>
+                      <p>Connecting bulldog lovers worldwide, one paw at a time</p>
+                      <p style="font-size: 12px; color: #999;">This email was sent because you requested a password reset. If this wasn't you, please contact our support team.</p>
+                    </div>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `;
+
+            try {
+              await emailTransporter.sendMail({
+                from: process.env.SMTP_FROM || 'High Bred Bullies <noreply@highbredbullies.com>',
+                to: user.username,
+                subject: '🔑 Reset Your High Bred Bullies Password',
+                html: emailHtml
+              });
+              console.log(`Password reset email sent to ${user.username}`);
+            } catch (emailError) {
+              console.error('Failed to send password reset email:', emailError);
+            }
+          } else {
+            console.log(`Password reset token for ${user.username}: ${resetToken}`);
+          }
           
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
@@ -725,7 +809,134 @@ async function startServer() {
 
           const user = result.rows[0];
           
-          // Create JWT token
+          // Generate email verification token
+          const verificationToken = jwt.sign(
+            { userId: user.id, type: 'email_verification' },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+          );
+
+          // Store verification token in database
+          await pool.query(`
+            INSERT INTO email_verification_tokens (user_id, token, expires_at)
+            VALUES ($1, $2, NOW() + INTERVAL '24 hours')
+          `, [user.id, verificationToken]);
+
+          // Send welcome email with verification link
+          if (emailTransporter) {
+            const verificationLink = `${req.headers.origin || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+            
+            const welcomeEmailHtml = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Welcome to High Bred Bullies!</title>
+                <style>
+                  body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+                  .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+                  .header { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); padding: 40px 30px; text-align: center; color: white; position: relative; }
+                  .header::before { content: '❄️'; position: absolute; top: 20px; left: 30px; font-size: 24px; opacity: 0.8; }
+                  .header::after { content: '🎄'; position: absolute; top: 20px; right: 30px; font-size: 24px; opacity: 0.8; }
+                  .logo { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+                  .holiday-msg { font-size: 16px; opacity: 0.95; margin-top: 15px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 20px; }
+                  .content { padding: 40px 30px; }
+                  .greeting { font-size: 28px; color: #ff6b6b; margin-bottom: 25px; font-weight: 700; text-align: center; }
+                  .message { font-size: 16px; line-height: 1.7; color: #444; margin-bottom: 25px; }
+                  .welcome-box { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 25px; border-radius: 15px; margin: 25px 0; border-left: 5px solid #ff6b6b; }
+                  .btn { display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 18px 35px; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 18px; margin: 25px 0; box-shadow: 0 15px 25px rgba(40, 167, 69, 0.3); transition: transform 0.3s; }
+                  .btn:hover { transform: translateY(-3px); }
+                  .features { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 30px 0; }
+                  .feature { background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; }
+                  .feature-icon { font-size: 24px; margin-bottom: 10px; }
+                  .footer { background: #2c3e50; padding: 30px; text-align: center; color: white; }
+                  .paw-print { color: #ff6b6b; font-size: 20px; margin: 0 8px; }
+                  .snow { position: absolute; color: white; opacity: 0.6; animation: snowfall 3s infinite; }
+                  @keyframes snowfall { 0% { transform: translateY(-10px); } 100% { transform: translateY(10px); } }
+                </style>
+              </head>
+              <body>
+                <div style="padding: 20px;">
+                  <div class="container">
+                    <div class="header">
+                      <div class="snow" style="top: 10%; left: 20%;">❄️</div>
+                      <div class="snow" style="top: 30%; right: 25%; animation-delay: 1s;">❄️</div>
+                      <div class="logo">🐕 High Bred Bullies</div>
+                      <p style="font-size: 18px; margin: 10px 0;">Premium American Bully Community</p>
+                      <div class="holiday-msg">🎊 Welcome to our festive family of bulldog enthusiasts! 🎊</div>
+                    </div>
+                    
+                    <div class="content">
+                      <div class="greeting">Welcome to the Pack! 🐾</div>
+                      
+                      <div class="message">
+                        Hello ${user.first_name || 'New Member'},<br><br>
+                        
+                        We're absolutely thrilled to welcome you to High Bred Bullies, the premier community for American Bully enthusiasts! Just like the holiday season brings families together, you've now joined our special family of passionate bulldog lovers.
+                      </div>
+                      
+                      <div class="welcome-box">
+                        <strong>🎁 Your membership includes:</strong><br>
+                        • Access to premium breeding information<br>
+                        • Connect with fellow bulldog enthusiasts<br>
+                        • Browse available puppies from top breeders<br>
+                        • Educational resources and breeding guides<br>
+                        • Exclusive community events and updates
+                      </div>
+                      
+                      <div style="text-align: center;">
+                        <a href="${verificationLink}" class="btn">Verify Your Email & Start Exploring! 🚀</a>
+                      </div>
+                      
+                      <div class="features">
+                        <div class="feature">
+                          <div class="feature-icon">🏆</div>
+                          <strong>Premium Genetics</strong><br>
+                          <small>Champion bloodlines & health testing</small>
+                        </div>
+                        <div class="feature">
+                          <div class="feature-icon">👥</div>
+                          <strong>Expert Community</strong><br>
+                          <small>Connect with experienced breeders</small>
+                        </div>
+                      </div>
+                      
+                      <div class="message">
+                        During this magical holiday season, we're especially grateful for new members like you who share our passion for these amazing dogs. Your journey with High Bred Bullies starts now!
+                      </div>
+                      
+                      <div style="background: #e8f5e8; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745; margin: 20px 0;">
+                        <strong>📧 Email Verification:</strong><br>
+                        Please verify your email address within 24 hours to unlock all community features. Don't worry - you can still browse and login without verification!
+                      </div>
+                    </div>
+                    
+                    <div class="footer">
+                      <p><strong>High Bred Bullies</strong> <span class="paw-print">🐾</span> Premium American Bully Community</p>
+                      <p>Building connections, one paw at a time</p>
+                      <p style="font-size: 14px; margin-top: 20px; opacity: 0.8;">🎄 Wishing you and your furry family a wonderful holiday season! 🎄</p>
+                    </div>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `;
+
+            try {
+              await emailTransporter.sendMail({
+                from: process.env.SMTP_FROM || 'High Bred Bullies <welcome@highbredbullies.com>',
+                to: user.username,
+                subject: '🎉 Welcome to High Bred Bullies - Verify Your Email!',
+                html: welcomeEmailHtml
+              });
+              console.log(`Welcome email sent to ${user.username}`);
+            } catch (emailError) {
+              console.error('Failed to send welcome email:', emailError);
+            }
+          }
+          
+          // Create JWT token for immediate login (verification optional)
           const token = jwt.sign(
             { 
               userId: user.id, 
@@ -743,13 +954,91 @@ async function startServer() {
               id: user.id,
               username: user.username,
               isBreeder: false,
-              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
-            }
+              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+              emailVerified: false
+            },
+            message: 'Registration successful! Please check your email to verify your account.'
           }));
         } catch (error) {
           console.error('Registration error:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Registration failed' }));
+        }
+        return;
+      }
+
+      // Email verification endpoint
+      if (pathname === '/api/verify-email' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { token } = data;
+
+          if (!token) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Verification token required' }));
+            return;
+          }
+
+          // Verify and decode the token
+          let decoded;
+          try {
+            decoded = jwt.verify(token, JWT_SECRET);
+          } catch (error) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid or expired verification token' }));
+            return;
+          }
+
+          if (decoded.type !== 'email_verification') {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid token type' }));
+            return;
+          }
+
+          // Check if token exists and hasn't been used
+          const tokenResult = await pool.query(`
+            SELECT id, user_id, expires_at, verified_at 
+            FROM email_verification_tokens 
+            WHERE token = $1 AND verified_at IS NULL
+          `, [token]);
+
+          if (tokenResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Token not found or already used' }));
+            return;
+          }
+
+          const tokenData = tokenResult.rows[0];
+
+          // Check if token has expired
+          if (new Date() > new Date(tokenData.expires_at)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Verification token has expired' }));
+            return;
+          }
+
+          // Mark token as used and update user's verification status
+          await pool.query(`
+            UPDATE email_verification_tokens 
+            SET verified_at = NOW() 
+            WHERE id = $1
+          `, [tokenData.id]);
+
+          await pool.query(`
+            UPDATE user_profiles 
+            SET email_verified = TRUE 
+            WHERE id = $1
+          `, [tokenData.user_id]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            message: 'Email verified successfully!',
+            verified: true 
+          }));
+        } catch (error) {
+          console.error('Email verification error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Email verification failed' }));
         }
         return;
       }
@@ -3970,9 +4259,29 @@ async function startServer() {
           used_at TIMESTAMP NULL
         )
       `);
-      console.log('🔑 Password reset table initialized');
+      
+      // Create email verification tokens table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS email_verification_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          token TEXT NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          verified_at TIMESTAMP NULL
+        )
+      `);
+      
+      // Add email verification columns to users table if they don't exist
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMP NULL
+      `);
+      
+      console.log('🔑 Password reset and email verification tables initialized');
     } catch (error) {
-      console.warn('⚠️ Password reset table creation skipped (may already exist)');
+      console.warn('⚠️ Database table creation skipped (may already exist)');
     }
     
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
