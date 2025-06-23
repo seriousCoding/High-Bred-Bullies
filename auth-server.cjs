@@ -953,14 +953,10 @@ async function startServer() {
           const litterId = pathname.split('/')[3];
           console.log('Fetching litter management data for ID:', litterId);
 
-          // Use a single optimized query with better timeout handling
-          const client = await pool.connect();
+          // Use simplified queries without transactions to avoid timeouts
           try {
-            // Set a shorter statement timeout for this specific query
-            await client.query('SET statement_timeout = 8000'); // 8 seconds
-            
             // Fetch litter details with breeder info
-            const litterResult = await client.query(`
+            const litterResult = await pool.query(`
               SELECT l.*, b.business_name as breeder_name 
               FROM litters l
               LEFT JOIN breeders b ON l.breeder_id = b.id
@@ -973,8 +969,8 @@ async function startServer() {
               return;
             }
 
-            // Fetch all puppies for this litter with a simplified query
-            const puppiesResult = await client.query(`
+            // Fetch all puppies for this litter
+            const puppiesResult = await pool.query(`
               SELECT id, litter_id, name, gender, color, markings, 
                      weight_at_birth, notes, is_available, image_url, 
                      stripe_price_id, reserved_by, sold_to, created_at, updated_at
@@ -982,8 +978,6 @@ async function startServer() {
               WHERE litter_id = $1 
               ORDER BY created_at ASC
             `, [litterId]);
-
-            await client.query('COMMIT');
 
             const litter = litterResult.rows[0];
             const puppies = puppiesResult.rows;
@@ -1035,12 +1029,9 @@ async function startServer() {
             res.end(JSON.stringify(responseData));
 
           } catch (dbError) {
-            await client.query('ROLLBACK');
-            console.error('Error fetching litter management data:', dbError);
+            console.error('Error in manage endpoint:', dbError);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to fetch litter management data' }));
-          } finally {
-            client.release();
+            res.end(JSON.stringify({ error: 'Internal server error' }));
           }
 
         } catch (error) {
