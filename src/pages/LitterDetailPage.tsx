@@ -294,7 +294,7 @@ const LitterDetailPage = () => {
     day: 'numeric',
   }) : null;
 
-  const availablePuppies = litter?.puppies.filter(p => p.is_available).length || 0;
+  const availablePuppies = litter?.puppies?.filter(p => p.is_available).length || 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -340,7 +340,7 @@ const LitterDetailPage = () => {
                            <p className="text-muted-foreground">{litter.description || "No description provided."}</p>
                            <div className="mt-6 grid grid-cols-2 gap-4">
                                <div className="flex items-center"><Calendar className="mr-2 h-5 w-5 text-primary" /> <span>Born: {birthDate}</span></div>
-                               <div className="flex items-center"><Users className="mr-2 h-5 w-5 text-primary" /> <span>{litter.puppies.length} Puppies Total</span></div>
+                               <div className="flex items-center"><Users className="mr-2 h-5 w-5 text-primary" /> <span>{litter.puppies?.length || 0} Puppies Total</span></div>
                            </div>
                            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                <div className="flex flex-col items-center">
@@ -362,7 +362,7 @@ const LitterDetailPage = () => {
                         </CardHeader>
                         <CardContent className="space-y-2">
                            <div className="flex items-center text-lg"><Heart className="mr-2 h-5 w-5 text-green-600" /> <span>{availablePuppies} puppies available</span></div>
-                           <div className="flex items-center text-lg"><XCircle className="mr-2 h-5 w-5 text-red-600" /> <span>{litter.puppies.length - availablePuppies} puppies reserved</span></div>
+                           <div className="flex items-center text-lg"><XCircle className="mr-2 h-5 w-5 text-red-600" /> <span>{(litter.puppies?.length || 0) - availablePuppies} puppies reserved</span></div>
                         </CardContent>
                      </Card>
                      <Card>
@@ -454,7 +454,7 @@ const LitterDetailPage = () => {
 
             <div>
                 <h2 className="text-3xl font-bold text-center mb-8 font-['Playfair_Display']">Available Puppies</h2>
-                 {litter.puppies.length > 0 ? (
+                 {litter.puppies && litter.puppies.length > 0 ? (
                     <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
                         {litter.puppies.map(puppy => (
                             <PuppyCard 
