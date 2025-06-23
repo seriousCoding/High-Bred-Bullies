@@ -2415,16 +2415,15 @@ async function startServer() {
                         imageUrl = imageResponse.data[0].url;
                       }
 
-                      // Save social post to database
+                      // Save social post to database (using correct column names)
                       const insertResult = await pool.query(`
-                        INSERT INTO social_posts (title, content, image_url, author_id, user_id, is_public, moderation_status, created_at, updated_at)
-                        VALUES ($1, $2, $3, $4, $5, true, 'approved', NOW(), NOW())
+                        INSERT INTO social_posts (title, content, image_url, user_id, is_public, moderation_status, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, true, 'approved', NOW(), NOW())
                         RETURNING *
                       `, [
                         postData.title,
                         postData.content,
                         imageUrl,
-                        1, // Default author ID
                         1  // Default user ID
                       ]);
 
