@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // JWT secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'savvai_jwt_secret_key_2025';
 
 // Auth middleware
 function authenticateToken(req: any, res: express.Response, next: express.NextFunction): void {
