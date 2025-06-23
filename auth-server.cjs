@@ -275,8 +275,8 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.is_active = false OR l.birth_date > NOW()
-            ORDER BY l.expected_delivery_date ASC NULLS LAST, l.created_at DESC
+            WHERE l.is_active = false
+            ORDER BY l.created_at DESC
             LIMIT 10
           `);
           
@@ -285,7 +285,7 @@ async function startServer() {
             name: litter.dam_name + " x " + litter.sire_name,
             breed: litter.breed,
             birth_date: litter.birth_date,
-            expected_date: litter.expected_delivery_date,
+            expected_date: litter.birth_date, // Use birth_date since expected_delivery_date may not exist
             available_puppies: litter.total_puppies || 0,
             total_puppies: litter.total_puppies || 0,
             price_per_male: litter.male_price,
@@ -293,7 +293,7 @@ async function startServer() {
             dam_name: litter.dam_name,
             sire_name: litter.sire_name,
             description: litter.description,
-            image_url: litter.images?.[0] || null,
+            image_url: Array.isArray(litter.images) ? litter.images[0] : null,
             status: 'upcoming',
             breeder_id: litter.breeder_id?.toString(),
             breeders: {
