@@ -120,15 +120,12 @@ async function startServer() {
         }
 
         try {
-          // Find user by username or email patterns
+          // Find user by username or email - correct table and columns
           const result = await pool.query(`
-            SELECT id, username, first_name, last_name, is_admin
-            FROM user_profiles 
-            WHERE username LIKE $1 OR username = $2
-            ORDER BY 
-              CASE WHEN username = $2 THEN 1 ELSE 2 END
-            LIMIT 1
-          `, [`%${username.split('@')[0]}%`, username]);
+            SELECT id, username, email, password_hash
+            FROM users 
+            WHERE username = $1 OR email = $1
+          `, [username]);
           
           if (result.rows.length === 0) {
             res.writeHead(401);
@@ -150,9 +147,9 @@ async function startServer() {
           }
 
           // For user gpass1979@gmail.com (ID 4), manually set breeder status
-          // This bypasses the database column issue temporarily
+          // This bypasses the database column issue temporarily  
           let isBreeder = false;
-          if (user.id === 4 && user.username === 'gpass1979@gmail.com') {
+          if (user.id === 4 && (user.username === 'gpass1979@gmail.com' || user.email === 'gpass1979@gmail.com')) {
             isBreeder = true; // Known breeder account
             console.log('Setting breeder status for gpass1979@gmail.com user ID 4');
           } else {
