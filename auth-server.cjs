@@ -55,6 +55,15 @@ function initializeEmailService() {
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
     emailTransporter = nodemailer.createTransport(smtpConfig);
     console.log('📧 Email service initialized with SMTP configuration');
+    
+    // Verify SMTP connection
+    emailTransporter.verify((error, success) => {
+      if (error) {
+        console.error('SMTP verification failed:', error.message);
+      } else {
+        console.log('✅ SMTP server connection verified successfully');
+      }
+    });
   } else {
     console.warn('⚠️ SMTP configuration incomplete - email functionality disabled');
   }
