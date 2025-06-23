@@ -18,6 +18,7 @@ import AdminPage from '@/pages/AdminPage';
 import ManageLitterPage from '@/pages/ManageLitterPage';
 import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
 import CheckoutCancelPage from '@/pages/CheckoutCancelPage';
+import { PurchaseSuccessPage } from '@/pages/PurchaseSuccessPage';
 import SchedulePickupPage from '@/pages/SchedulePickupPage';
 import HighTablePage from '@/pages/HighTablePage';
 import EmailVerificationPage from '@/pages/EmailVerificationPage';
@@ -79,6 +80,7 @@ function App() {
             } />
             <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
             <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
+            <Route path="/purchase-success" element={<PurchaseSuccessPage />} />
             <Route path="/schedule-pickup/:orderId" element={
               <ProtectedRoute>
                 <SchedulePickupPage />
