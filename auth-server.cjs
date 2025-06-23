@@ -6,7 +6,16 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Initialize Stripe with error handling
+let stripe = null;
+try {
+  const Stripe = require('stripe');
+  if (process.env.STRIPE_SECRET_KEY) {
+    stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+} catch (error) {
+  console.warn('⚠️ Stripe module not available. Install with: npm install stripe');
+}
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -3059,6 +3068,245 @@ async function startServer() {
           }));
         } catch (error) {
           console.error('Cancel order error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Create pet owner profile
+      if (pathname === '/api/profiles/create-pet-owner' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const data = await parseBody(req);
+          const { favorite_breeds, experience_level, location, budget_range } = data;
+
+          const result = await pool.query(`
+            INSERT INTO pet_owners (user_id, favorite_breeds, experience_level, location, budget_range, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              favorite_breeds = EXCLUDED.favorite_breeds,
+              experience_level = EXCLUDED.experience_level,
+              location = EXCLUDED.location,
+              budget_range = EXCLUDED.budget_range,
+              updated_at = NOW()
+            RETURNING *
+          `, [userId, favorite_breeds, experience_level, location, budget_range]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true, 
+            profile: result.rows[0],
+            message: 'Pet owner profile created successfully' 
+          }));
+        } catch (error) {
+          console.error('Create pet owner profile error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Cleanup Stripe test litters (admin only)
+      if (pathname === '/api/stripe/cleanup-test-litters' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
+          if (!stripe) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Stripe not configured' }));
+            return;
+          }
+
+          // Find test litters (those with 'test' in name or description)
+          const testLitters = await pool.query(`
+            SELECT * FROM litters 
+            WHERE LOWER(name) LIKE '%test%' 
+               OR LOWER(description) LIKE '%test%'
+               OR stripe_product_id IS NOT NULL
+          `);
+
+          let cleanedCount = 0;
+          const errors = [];
+
+          for (const litter of testLitters.rows) {
+            try {
+              // Clean up Stripe products
+              if (litter.stripe_product_id) {
+                const prices = await stripe.prices.list({ 
+                  product: litter.stripe_product_id, 
+                  active: true 
+                });
+                
+                for (const price of prices.data) {
+                  await stripe.prices.update(price.id, { active: false });
+                }
+                
+                await stripe.products.del(litter.stripe_product_id);
+              }
+
+              // Remove from database
+              await pool.query('DELETE FROM order_items WHERE puppy_id IN (SELECT id FROM puppies WHERE litter_id = $1)', [litter.id]);
+              await pool.query('DELETE FROM puppies WHERE litter_id = $1', [litter.id]);
+              await pool.query('DELETE FROM litters WHERE id = $1', [litter.id]);
+              
+              cleanedCount++;
+            } catch (error) {
+              errors.push(`Failed to clean litter ${litter.id}: ${error.message}`);
+            }
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true,
+            cleanedCount,
+            totalFound: testLitters.rows.length,
+            errors: errors.length > 0 ? errors : undefined,
+            message: `Cleaned up ${cleanedCount} test litters`
+          }));
+        } catch (error) {
+          console.error('Cleanup test litters error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Seed Stripe test litters (admin only)
+      if (pathname === '/api/stripe/seed-test-litters' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
+          if (!stripe) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Stripe not configured' }));
+            return;
+          }
+
+          // Get the admin's breeder profile
+          const breederResult = await pool.query(`
+            SELECT id FROM breeders WHERE user_id = $1
+          `, [decoded.userId]);
+
+          if (breederResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Breeder profile required' }));
+            return;
+          }
+
+          const breederId = breederResult.rows[0].id;
+
+          const testLitters = [
+            {
+              name: 'Test Litter Alpha',
+              breed: 'American Bully XL',
+              dam_name: 'Test Dam A',
+              sire_name: 'Test Sire A',
+              price_per_male: 250000, // $2500
+              price_per_female: 300000, // $3000
+              description: 'Test litter for platform testing purposes'
+            },
+            {
+              name: 'Test Litter Beta',
+              breed: 'American Bully Standard',
+              dam_name: 'Test Dam B',
+              sire_name: 'Test Sire B',
+              price_per_male: 200000, // $2000
+              price_per_female: 250000, // $2500
+              description: 'Another test litter for development'
+            }
+          ];
+
+          const createdLitters = [];
+
+          for (const litterData of testLitters) {
+            // Create Stripe product
+            const product = await stripe.products.create({
+              name: litterData.name,
+              description: litterData.description,
+              metadata: { app_managed: 'true', entity: 'litter', test: 'true' }
+            });
+
+            const malePrice = await stripe.prices.create({
+              product: product.id,
+              unit_amount: litterData.price_per_male,
+              currency: 'usd',
+              metadata: { gender: 'male' }
+            });
+
+            const femalePrice = await stripe.prices.create({
+              product: product.id,
+              unit_amount: litterData.price_per_female,
+              currency: 'usd',
+              metadata: { gender: 'female' }
+            });
+
+            // Create litter in database
+            const litterResult = await pool.query(`
+              INSERT INTO litters (
+                breeder_id, name, breed, dam_name, sire_name,
+                price_per_male, price_per_female, description,
+                stripe_product_id, stripe_male_price_id, stripe_female_price_id,
+                birth_date, total_puppies, available_puppies, status,
+                created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+              RETURNING *
+            `, [
+              breederId, litterData.name, litterData.breed, litterData.dam_name, litterData.sire_name,
+              litterData.price_per_male, litterData.price_per_female, litterData.description,
+              product.id, malePrice.id, femalePrice.id,
+              new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+              5, 5, 'upcoming'
+            ]);
+
+            createdLitters.push(litterResult.rows[0]);
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true,
+            createdCount: createdLitters.length,
+            litters: createdLitters,
+            message: `Created ${createdLitters.length} test litters with Stripe integration`
+          }));
+        } catch (error) {
+          console.error('Seed test litters error:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: error.message }));
         }
