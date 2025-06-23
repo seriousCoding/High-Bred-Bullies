@@ -1539,32 +1539,24 @@ async function startServer() {
       // Contact form submission endpoint
       if (pathname === '/api/contact' && req.method === 'POST') {
         setHeaders(res);
+        console.log('Contact form API endpoint hit');
         
         try {
           const data = await parseBody(req);
+          console.log('Contact form data parsed:', { name: data.name, email: data.email, subject: data.subject });
           const { name, email, subject, message } = data;
           
           if (!name || !email || !message) {
+            console.log('Contact form validation failed');
             res.writeHead(400);
             res.end(JSON.stringify({ error: 'Name, email, and message are required' }));
             return;
           }
 
-          // Store inquiry in database first
-          let result;
-          try {
-            result = await pool.query(`
-              INSERT INTO inquiries (name, email, subject, message, status, created_at)
-              VALUES ($1, $2, $3, $4, 'new', NOW())
-              RETURNING id
-            `, [name, email, subject || 'Contact Form Submission', message]);
-          } catch (dbError) {
-            console.error('Database insert failed:', dbError.message);
-            // Continue without database storage - just respond success for contact form
-            result = { rows: [{ id: 'temp_' + Date.now() }] };
-          }
-
           console.log(`Contact form submitted: ${name} (${email}) - ${subject || 'No subject'}`);
+
+          // Skip database storage for now - respond immediately
+          const result = { rows: [{ id: 'temp_' + Date.now() }] };
 
           // Send email asynchronously without blocking response
           const emailHtml = `
