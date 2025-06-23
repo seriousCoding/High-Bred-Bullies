@@ -145,9 +145,10 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000
-    const port = 5000;
-    server.listen(port, "0.0.0.0", () => {
+    // Start server on configured port
+    const port = parseInt(process.env.PORT) || 5000;
+    const host = process.env.HOST || "0.0.0.0";
+    server.listen(port, host, () => {
       log(`🚀 Server running on http://0.0.0.0:${port}`);
       log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
       log(`🔐 JWT Authentication: Enabled`);
