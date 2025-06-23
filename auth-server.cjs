@@ -281,6 +281,412 @@ async function startServer() {
         return;
       }
 
+      // Password reset request endpoint
+      if (pathname === '/api/password-reset/request' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { email } = data;
+
+          if (!email) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Email required' }));
+            return;
+          }
+
+          // Find user by email
+          const result = await pool.query(`
+            SELECT id, username, first_name, last_name
+            FROM user_profiles 
+            WHERE username = $1 OR username LIKE $2
+            LIMIT 1
+          `, [email, `%${email.split('@')[0]}%`]);
+
+          if (result.rows.length === 0) {
+            // Don't reveal if user exists - return success anyway
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+            return;
+          }
+
+          const user = result.rows[0];
+          
+          // Generate reset token
+          const resetToken = jwt.sign(
+            { userId: user.id, email: user.username, type: 'password_reset' },
+            JWT_SECRET,
+            { expiresIn: '1h' }
+          );
+
+          // Store reset token in database
+          await pool.query(`
+            INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+            VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
+          `, [user.id, resetToken]);
+
+          // Send email (mock for now)
+          console.log(`Password reset token for ${user.username}: ${resetToken}`);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+        } catch (error) {
+          console.error('Password reset request error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Password reset request failed' }));
+        }
+        return;
+      }
+
+      // Password reset confirmation endpoint
+      if (pathname === '/api/password-reset/confirm' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { token, newPassword } = data;
+
+          if (!token || !newPassword) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Token and new password required' }));
+            return;
+          }
+
+          // Verify token
+          let decoded;
+          try {
+            decoded = jwt.verify(token, JWT_SECRET);
+          } catch (error) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+            return;
+          }
+
+          if (decoded.type !== 'password_reset') {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid token type' }));
+            return;
+          }
+
+          // Check if token exists and is not used
+          const tokenResult = await pool.query(`
+            SELECT id, user_id, used_at
+            FROM password_reset_tokens 
+            WHERE token = $1 AND expires_at > NOW()
+            LIMIT 1
+          `, [token]);
+
+          if (tokenResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+            return;
+          }
+
+          const tokenRecord = tokenResult.rows[0];
+          
+          if (tokenRecord.used_at) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Token already used' }));
+            return;
+          }
+
+          // Hash new password
+          const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+          // Update user password in user_profiles
+          await pool.query(`
+            UPDATE user_profiles 
+            SET password_hash = $1, updated_at = NOW()
+            WHERE id = $2
+          `, [hashedPassword, tokenRecord.user_id]);
+
+          // Mark token as used
+          await pool.query(`
+            UPDATE password_reset_tokens 
+            SET used_at = NOW()
+            WHERE id = $1
+          `, [tokenRecord.id]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'Password updated successfully' }));
+        } catch (error) {
+          console.error('Password reset confirm error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Password reset failed' }));
+        }
+        return;
+      }
+
+      // Friends and messaging endpoints
+      
+      // Get friends list
+      if (pathname === '/api/friends' && req.method === 'GET') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const result = await pool.query(`
+            SELECT 
+              uf.id,
+              uf.status,
+              uf.created_at,
+              CASE 
+                WHEN uf.sender_id = $1 THEN receiver_profile.id
+                ELSE sender_profile.id
+              END as friend_id,
+              CASE 
+                WHEN uf.sender_id = $1 THEN receiver_profile.username
+                ELSE sender_profile.username
+              END as friend_username,
+              CASE 
+                WHEN uf.sender_id = $1 THEN receiver_profile.first_name
+                ELSE sender_profile.first_name
+              END as friend_first_name,
+              CASE 
+                WHEN uf.sender_id = $1 THEN receiver_profile.last_name
+                ELSE sender_profile.last_name
+              END as friend_last_name
+            FROM user_follows uf
+            JOIN user_profiles sender_profile ON uf.sender_id = sender_profile.id
+            JOIN user_profiles receiver_profile ON uf.receiver_id = receiver_profile.id
+            WHERE (uf.sender_id = $1 OR uf.receiver_id = $1) AND uf.status = 'accepted'
+            ORDER BY uf.created_at DESC
+          `, [authResult.userId]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ friends: result.rows }));
+        } catch (error) {
+          console.error('Get friends error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to get friends' }));
+        }
+        return;
+      }
+
+      // Get friend requests
+      if (pathname === '/api/friend-requests' && req.method === 'GET') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const result = await pool.query(`
+            SELECT 
+              uf.id,
+              uf.status,
+              uf.created_at,
+              sender_profile.id as sender_id,
+              sender_profile.username as sender_username,
+              sender_profile.first_name as sender_first_name,
+              sender_profile.last_name as sender_last_name
+            FROM user_follows uf
+            JOIN user_profiles sender_profile ON uf.sender_id = sender_profile.id
+            WHERE uf.receiver_id = $1 AND uf.status = 'pending'
+            ORDER BY uf.created_at DESC
+          `, [authResult.userId]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ requests: result.rows }));
+        } catch (error) {
+          console.error('Get friend requests error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to get friend requests' }));
+        }
+        return;
+      }
+
+      // Send friend request
+      if (pathname === '/api/friend-requests' && req.method === 'POST') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const data = await parseBody(req);
+          const { userId: targetUserId } = data;
+
+          if (!targetUserId) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Target user ID required' }));
+            return;
+          }
+
+          // Check if request already exists
+          const existingResult = await pool.query(`
+            SELECT id FROM user_follows 
+            WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+          `, [authResult.userId, targetUserId]);
+
+          if (existingResult.rows.length > 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Friend request already exists' }));
+            return;
+          }
+
+          // Create friend request
+          const result = await pool.query(`
+            INSERT INTO user_follows (sender_id, receiver_id, status, created_at)
+            VALUES ($1, $2, 'pending', NOW())
+            RETURNING id
+          `, [authResult.userId, targetUserId]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            message: 'Friend request sent',
+            id: result.rows[0].id 
+          }));
+        } catch (error) {
+          console.error('Send friend request error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to send friend request' }));
+        }
+        return;
+      }
+
+      // Accept/decline friend request
+      if (pathname.startsWith('/api/friend-requests/') && req.method === 'PUT') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const requestId = pathname.split('/')[3];
+          const data = await parseBody(req);
+          const { status } = data; // 'accepted' or 'declined'
+
+          if (!['accepted', 'declined'].includes(status)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid status' }));
+            return;
+          }
+
+          // Update friend request
+          const result = await pool.query(`
+            UPDATE user_follows 
+            SET status = $1, updated_at = NOW()
+            WHERE id = $2 AND receiver_id = $3
+            RETURNING *
+          `, [status, requestId, authResult.userId]);
+
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Friend request not found' }));
+            return;
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            message: `Friend request ${status}`,
+            request: result.rows[0]
+          }));
+        } catch (error) {
+          console.error('Update friend request error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to update friend request' }));
+        }
+        return;
+      }
+
+      // Get messages for a conversation
+      if (pathname.startsWith('/api/messages/') && req.method === 'GET') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const otherUserId = pathname.split('/')[3];
+          
+          const result = await pool.query(`
+            SELECT 
+              m.id,
+              m.content,
+              m.created_at,
+              m.sender_id,
+              sender.username as sender_username,
+              sender.first_name as sender_first_name
+            FROM messages m
+            JOIN user_profiles sender ON m.sender_id = sender.id
+            WHERE (m.sender_id = $1 AND m.receiver_id = $2) 
+               OR (m.sender_id = $2 AND m.receiver_id = $1)
+            ORDER BY m.created_at ASC
+            LIMIT 50
+          `, [authResult.userId, otherUserId]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ messages: result.rows }));
+        } catch (error) {
+          console.error('Get messages error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to get messages' }));
+        }
+        return;
+      }
+
+      // Send message
+      if (pathname === '/api/messages' && req.method === 'POST') {
+        const authResult = authenticateRequest(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        try {
+          const data = await parseBody(req);
+          const { receiverId, content } = data;
+
+          if (!receiverId || !content) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Receiver ID and content required' }));
+            return;
+          }
+
+          // Check if users are friends
+          const friendResult = await pool.query(`
+            SELECT id FROM user_follows 
+            WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+              AND status = 'accepted'
+          `, [authResult.userId, receiverId]);
+
+          if (friendResult.rows.length === 0) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Can only message friends' }));
+            return;
+          }
+
+          // Create message
+          const result = await pool.query(`
+            INSERT INTO messages (sender_id, receiver_id, content, created_at)
+            VALUES ($1, $2, $3, NOW())
+            RETURNING id, created_at
+          `, [authResult.userId, receiverId, content]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            message: 'Message sent',
+            id: result.rows[0].id,
+            created_at: result.rows[0].created_at
+          }));
+        } catch (error) {
+          console.error('Send message error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to send message' }));
+        }
+        return;
+      }
+
       // Registration endpoint
       if (pathname === '/api/register' && req.method === 'POST') {
         try {

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from '@/hooks/use-toast';
 import { PasswordInput } from '@/components/PasswordInput';
 import { useAuth } from '@/hooks/useAuth';
+import PasswordResetModal from '@/components/PasswordResetModal';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,6 +15,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const navigate = useNavigate();
   const { user, signIn, signUp } = useAuth();
 
