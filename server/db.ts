@@ -9,8 +9,12 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  host: '50.193.77.237',
+  port: 5432,
+  database: 'high_bred',
+  user: 'rtownsend',
+  password: 'rTowns402',
+  ssl: false
 });
 
 export const db = drizzle(pool, { schema });
