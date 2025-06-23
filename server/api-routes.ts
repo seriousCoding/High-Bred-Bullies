@@ -80,6 +80,56 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
 
+  // Puppy pricing endpoint
+  app.get('/api/litters/:id/puppy-prices', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      // Fetch actual puppy prices from database
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        // Get puppies for this litter with their pricing
+        const puppiesResult = await pool.query(
+          'SELECT id, gender FROM puppies WHERE litter_id = $1 AND is_available = true',
+          [id]
+        );
+        
+        // Get litter pricing information
+        const litterResult = await pool.query(
+          'SELECT price_per_male, price_per_female FROM litters WHERE id = $1',
+          [id]
+        );
+        
+        if (litterResult.rows.length === 0) {
+          await pool.end();
+          return res.status(404).json({ error: 'Litter not found' });
+        }
+        
+        const litter = litterResult.rows[0];
+        const puppyPrices: Record<string, number> = {};
+        
+        // Build pricing for each puppy
+        puppiesResult.rows.forEach((puppy: any) => {
+          const price = puppy.gender === 'male' ? litter.price_per_male : litter.price_per_female;
+          puppyPrices[puppy.id] = price || 250000; // Default $2500 if no price set
+        });
+        
+        await pool.end();
+        res.json(puppyPrices);
+        
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+
+    } catch (error) {
+      console.error('Puppy pricing error:', error);
+      res.status(500).json({ error: 'Failed to fetch puppy prices' });
+    }
+  });
+
   // Stripe Checkout endpoint for puppy purchases
   app.post('/api/checkout/create-litter-checkout', authenticateToken, async (req: Request, res: Response) => {
     try {
