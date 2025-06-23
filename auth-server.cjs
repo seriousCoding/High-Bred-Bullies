@@ -326,13 +326,15 @@ async function startServer() {
           
           const posts = result.rows.map(post => ({
             id: post.id.toString(),
+            title: post.title || 'Social Post',
             content: post.content,
-            images: post.images || [],
-            author_id: post.user_id || 1,
-            author_name: 'High Bred Bullies',
-            is_public: post.is_public || true,
+            image_url: Array.isArray(post.images) ? post.images[0] : null,
+            visibility: post.is_public ? 'public' : 'private',
+            moderation_status: post.moderation_status || 'approved',
+            is_testimonial: post.is_testimonial || false,
             created_at: post.created_at,
-            updated_at: post.updated_at
+            user_id: post.user_id || '1',
+            user_profiles: null
           }));
 
           res.writeHead(200);
