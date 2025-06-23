@@ -1242,9 +1242,17 @@ async function startServer() {
           return;
         }
 
-        const userId = pathname.split('/').pop(); // Get last part of URL path
+        // Extract userId from URL path: /api/breeders/by-user/{userId}
+        const userId = pathname.replace('/api/breeders/by-user/', '');
+        console.log('Full pathname:', pathname);
+        console.log('Extracted user ID:', userId);
+        
+        if (!userId || userId.length < 10) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Invalid user ID' }));
+          return;
+        }
         try {
-          // First try to find existing breeder
           const result = await pool.query(`
             SELECT b.* 
             FROM breeders b
@@ -1252,15 +1260,8 @@ async function startServer() {
           `, [userId]);
           
           if (result.rows.length === 0) {
-            // Create default breeder profile if none exists
-            const insertResult = await pool.query(`
-              INSERT INTO breeders (user_id, business_name, contact_email, contact_phone, address, delivery_areas, delivery_fee)
-              VALUES ($1, 'High Bred Bullies', 'gpass1979@gmail.com', '', '', '{}', 0)
-              RETURNING *
-            `, [userId]);
-            
-            res.writeHead(200);
-            res.end(JSON.stringify(insertResult.rows[0]));
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'No breeder profile found for user' }));
             return;
           }
           
