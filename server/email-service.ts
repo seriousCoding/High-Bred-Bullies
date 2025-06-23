@@ -8,7 +8,7 @@ interface EmailTemplate {
 }
 
 class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: any = null;
   private fromEmail = 'High Bred Bullies <noreply@highbredbullies.com>';
 
   constructor() {
@@ -27,7 +27,7 @@ class EmailService {
     };
 
     if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
-      this.transporter = nodemailer.createTransporter(smtpConfig);
+      this.transporter = nodemailer.createTransport(smtpConfig);
       console.log('Email service initialized with SMTP configuration');
     } else {
       console.warn('SMTP configuration incomplete - email functionality disabled');

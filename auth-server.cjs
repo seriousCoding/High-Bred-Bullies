@@ -5,6 +5,7 @@ const { parse } = require('url');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -23,6 +24,46 @@ const pool = new Pool({
 });
 
 console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
+
+// Initialize Email Service
+let emailTransporter = null;
+function initializeEmailService() {
+  const smtpConfig = {
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  };
+
+  if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
+    emailTransporter = nodemailer.createTransport(smtpConfig);
+    console.log('📧 Email service initialized with SMTP configuration');
+  } else {
+    console.warn('⚠️ SMTP configuration incomplete - email functionality disabled');
+  }
+}
+
+// Email sending function
+async function sendEmail({ to, subject, html, from = 'High Bred Bullies <noreply@highbredbullies.com>' }) {
+  if (!emailTransporter) {
+    console.warn('Email service not configured - skipping email send');
+    return false;
+  }
+
+  try {
+    const info = await emailTransporter.sendMail({ from, to, subject, html });
+    console.log('Email sent successfully:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Failed to send email:', error);
+    return false;
+  }
+}
+
+initializeEmailService();
 
 // Verify connection with actual database schema
 pool.connect()
@@ -1344,7 +1385,109 @@ async function startServer() {
         return;
       }
 
+      // Email API Endpoints
+      
+      // Contact form submission endpoint
+      if (pathname === '/api/contact' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { name, email, subject, message } = data;
+          
+          if (!name || !email || !message) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Name, email, and message are required' }));
+            return;
+          }
 
+          // Store inquiry in database
+          const result = await pool.query(`
+            INSERT INTO inquiries (name, email, subject, message, status, created_at)
+            VALUES ($1, $2, $3, $4, 'new', NOW())
+            RETURNING id
+          `, [name, email, subject || 'Contact Form Submission', message]);
+
+          // Send email notification
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">New Contact Form Submission</h1>
+              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Name:</strong> ${name}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
+                <p><strong>Message:</strong></p>
+                <p style="white-space: pre-wrap;">${message}</p>
+              </div>
+            </div>
+          `;
+
+          await sendEmail({
+            to: 'support@highbredbullies.com',
+            subject: `Contact Form: ${subject || 'New Inquiry'}`,
+            html
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, id: result.rows[0].id }));
+        } catch (error) {
+          console.error('Error handling contact form:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to submit contact form' }));
+        }
+        return;
+      }
+
+      // Test email endpoint
+      if (pathname === '/api/emails/test' && req.method === 'POST') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
+        try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { to, subject = 'Test Email from High Bred Bullies' } = data;
+          
+          if (!to) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Recipient email is required' }));
+            return;
+          }
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">Test Email</h1>
+              <p>This is a test email from High Bred Bullies platform.</p>
+              <p>If you receive this, the email service is working correctly!</p>
+              <p>Sent at: ${new Date().toISOString()}</p>
+            </div>
+          `;
+
+          const success = await sendEmail({ to, subject, html });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success, 
+            message: success ? 'Test email sent successfully' : 'Failed to send test email',
+            configured: !!emailTransporter
+          }));
+        } catch (error) {
+          console.error('Error sending test email:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to send test email' }));
+        }
+        return;
+      }
 
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
