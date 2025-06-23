@@ -1097,6 +1097,98 @@ async function startServer() {
         return;
       }
 
+      // Breeder profile endpoint
+      if (pathname.startsWith('/api/breeders/') && req.method === 'GET') {
+        try {
+          const breederId = pathname.split('/')[3];
+          const result = await pool.query(`
+            SELECT * FROM breeders 
+            WHERE id = $1
+          `, [breederId]);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows[0] || null));
+        } catch (error) {
+          console.error('Error fetching breeder:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch breeder' }));
+        }
+        return;
+      }
+
+      // Update breeder profile endpoint
+      if (pathname.startsWith('/api/breeders/') && req.method === 'PUT') {
+        try {
+          const breederId = pathname.split('/')[3];
+          const body = await parseBody(req);
+          
+          const result = await pool.query(`
+            UPDATE breeders 
+            SET business_name = $1, contact_phone = $2, contact_email = $3, 
+                address = $4, delivery_areas = $5, delivery_fee = $6, updated_at = NOW()
+            WHERE id = $7
+            RETURNING *
+          `, [
+            body.business_name, body.contact_phone, body.contact_email,
+            body.address, body.delivery_areas, body.delivery_fee, breederId
+          ]);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(result.rows[0]));
+        } catch (error) {
+          console.error('Error updating breeder:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to update breeder' }));
+        }
+        return;
+      }
+
+      // Site config endpoint
+      if (pathname === '/api/site-config' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT key, value FROM site_config
+          `);
+          
+          const config = {};
+          result.rows.forEach(row => {
+            config[row.key] = row.value;
+          });
+          
+          res.writeHead(200);
+          res.end(JSON.stringify(config));
+        } catch (error) {
+          console.error('Error fetching site config:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch site config' }));
+        }
+        return;
+      }
+
+      // Update site config endpoint
+      if (pathname === '/api/site-config' && req.method === 'PUT') {
+        try {
+          const body = await parseBody(req);
+          
+          for (const update of body) {
+            await pool.query(`
+              INSERT INTO site_config (key, value, updated_at) 
+              VALUES ($1, $2, NOW())
+              ON CONFLICT (key) 
+              DO UPDATE SET value = $2, updated_at = NOW()
+            `, [update.key, update.value]);
+          }
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true }));
+        } catch (error) {
+          console.error('Error updating site config:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to update site config' }));
+        }
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {
