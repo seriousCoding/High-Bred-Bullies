@@ -315,37 +315,7 @@ async function startServer() {
         return;
       }
 
-      // Admin social posts endpoint
-      if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
-        try {
-          const result = await pool.query(`
-            SELECT sp.*
-            FROM social_posts sp
-            ORDER BY sp.created_at DESC
-          `);
-          
-          const posts = result.rows.map(post => ({
-            id: post.id.toString(),
-            title: post.title || 'Social Post',
-            content: post.content,
-            image_url: Array.isArray(post.images) ? post.images[0] : null,
-            visibility: post.is_public ? 'public' : 'private',
-            moderation_status: post.moderation_status || 'approved',
-            is_testimonial: post.is_testimonial || false,
-            created_at: post.created_at,
-            user_id: post.user_id || '1',
-            user_profiles: null
-          }));
 
-          res.writeHead(200);
-          res.end(JSON.stringify(posts));
-        } catch (error) {
-          console.error('Error fetching social posts:', error);
-          res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Failed to fetch social posts' }));
-        }
-        return;
-      }
 
       // High Table social feed posts endpoint
       if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
