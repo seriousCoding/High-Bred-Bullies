@@ -39,7 +39,7 @@ export function useAuth() {
 
   const fetchCurrentUser = async (token: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
