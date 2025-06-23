@@ -1849,6 +1849,13 @@ async function startServer() {
         return;
       }
 
+      // 404 for unhandled API routes
+      if (pathname.startsWith('/api/')) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {
