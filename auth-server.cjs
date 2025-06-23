@@ -238,18 +238,11 @@ async function startServer() {
 
           const user = result.rows[0];
           
-          // Database-driven authentication - flexible password matching
-          // Try different password patterns based on the username format
-          const usernameBase = username.split('@')[0]; // e.g. "rtownsend.appdesign.dev"
-          const usernameOnly = user.username; // e.g. "rtownsend.appdesign.dev_db87"
-          const usernamePart = user.username.split('_')[0]; // e.g. "rtownsend.appdesign.dev"
-          
-          const isValidPassword = 
-            password === usernameBase || // Original email part
-            password === usernameOnly || // Full username from DB
-            password === usernamePart || // Username without suffix
-            password === user.first_name || // First name
-            password === 'demo'; // Demo password
+          // Database-driven authentication - no hardcoded passwords
+          // For demo purposes, accept the username part before @ as password
+          // In production, this would check against actual password hashes
+          const usernameBase = username.split('@')[0];
+          const isValidPassword = password === usernameBase;
 
           if (!isValidPassword) {
             res.writeHead(401);
