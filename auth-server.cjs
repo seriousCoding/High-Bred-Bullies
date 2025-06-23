@@ -103,17 +103,26 @@ pool.connect()
 
 // Helper functions
 function parseBody(req) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let body = '';
+    const timeout = setTimeout(() => {
+      reject(new Error('Request timeout'));
+    }, 5000);
+    
     req.on('data', chunk => {
       body += chunk.toString();
     });
     req.on('end', () => {
+      clearTimeout(timeout);
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch {
         resolve({});
       }
+    });
+    req.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
     });
   });
 }
@@ -171,7 +180,7 @@ async function startServer() {
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
         try {
-          const data = await parseBody(req);
+          const data = await parseBody(req).catch(() => ({}));
           const { username, password } = data;
 
           if (!username || !password) {
@@ -244,7 +253,7 @@ async function startServer() {
       // Registration endpoint
       if (pathname === '/api/register' && req.method === 'POST') {
         try {
-          const data = await parseBody(req);
+          const data = await parseBody(req).catch(() => ({}));
           const { username, password, email } = data;
 
           if (!username || !password) {
