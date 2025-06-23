@@ -412,7 +412,7 @@ async function startServer() {
         if (pathname === '/api/social_feed_posts' && req.method === 'GET') {
           try {
             const result = await pool.query(`
-              SELECT sp.*, up.full_name as author_name, up.avatar_url as author_avatar
+              SELECT sp.*, up.full_name as author_name, up.profile_picture as author_avatar
               FROM social_posts sp
               LEFT JOIN user_profiles up ON sp.author_id = up.user_id
               WHERE sp.is_public = true
@@ -505,6 +505,92 @@ async function startServer() {
             console.error('Error fetching blog posts:', error);
             res.writeHead(500);
             res.end(JSON.stringify({ error: 'Failed to fetch blog posts' }));
+          }
+          return;
+        }
+
+        // Individual litter endpoint
+        if (pathname.startsWith('/api/litters/') && !pathname.includes('/breeder/') && req.method === 'GET') {
+          try {
+            const litterId = pathname.split('/')[3];
+            const result = await pool.query(`
+              SELECT l.*, b.business_name as breeder_name 
+              FROM litters l
+              LEFT JOIN breeders b ON l.breeder_id = b.id
+              WHERE l.id = $1
+            `, [litterId]);
+            
+            if (result.rows.length === 0) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Litter not found' }));
+              return;
+            }
+
+            const litter = result.rows[0];
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              id: litter.id,
+              breederId: litter.breeder_id,
+              damName: litter.dam_name,
+              sireName: litter.sire_name,
+              damPedigree: litter.dam_pedigree,
+              sirePedigree: litter.sire_pedigree,
+              breed: litter.breed,
+              birthDate: litter.birth_date,
+              expectedDeliveryDate: litter.expected_delivery_date,
+              totalPuppies: litter.total_puppies,
+              availablePuppies: litter.available_puppies,
+              malePrice: litter.male_price,
+              femalePrice: litter.female_price,
+              description: litter.description,
+              images: litter.images || [],
+              healthCertificates: litter.health_certificates || [],
+              breederName: litter.breeder_name,
+              isActive: litter.is_active,
+              createdAt: litter.created_at,
+              updatedAt: litter.updated_at
+            }));
+          } catch (error) {
+            console.error('Error fetching litter:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch litter' }));
+          }
+          return;
+        }
+
+        // Puppies for a specific litter
+        if (pathname.startsWith('/api/litters/') && pathname.includes('/puppies') && req.method === 'GET') {
+          try {
+            const litterId = pathname.split('/')[3];
+            const result = await pool.query(`
+              SELECT * FROM puppies 
+              WHERE litter_id = $1 
+              ORDER BY name ASC
+            `, [litterId]);
+            
+            const puppies = result.rows.map(row => ({
+              id: row.id,
+              litterId: row.litter_id,
+              name: row.name,
+              gender: row.gender,
+              color: row.color,
+              markings: row.markings,
+              weight: row.weight,
+              price: row.price,
+              images: row.images || [],
+              description: row.description,
+              isAvailable: row.is_available,
+              reservedAt: row.reserved_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(puppies));
+          } catch (error) {
+            console.error('Error fetching puppies:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch puppies' }));
           }
           return;
         }
