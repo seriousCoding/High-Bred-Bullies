@@ -19,13 +19,13 @@ interface JwtPayload {
   username: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'savvai_jwt_secret_key_2025';
+const JWT_SECRET = process.env.JWT_SECRET || 'high-bred-bullies-secret-key';
 
 function generateToken(user: { id: number; username: string }): string {
   return jwt.sign(
     { userId: user.id, username: user.username },
     JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRATION || '24h' }
+    { expiresIn: '7d' }
   );
 }
 
@@ -38,8 +38,7 @@ function verifyToken(token: string): JwtPayload | null {
 }
 
 async function hashPassword(password: string): Promise<string> {
-  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 10;
-  return bcrypt.hash(password, saltRounds);
+  return bcrypt.hash(password, 10);
 }
 
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {

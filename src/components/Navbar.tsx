@@ -6,7 +6,7 @@ import { APP_NAME } from "@/constants/app";
 import { Users } from "lucide-react";
 
 const Navbar = () => {
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const navigate = useNavigate();
   
   // Get breeder status directly from JWT token
@@ -55,7 +55,7 @@ const Navbar = () => {
               Admin
             </Link>
           )}
-          {user ? (
+          {session ? (
             <>
               <Link to="/profile" className="text-muted-foreground hover:text-foreground">
                 Profile

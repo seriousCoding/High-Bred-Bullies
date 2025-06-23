@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // JWT secret
-const JWT_SECRET = process.env.JWT_SECRET || 'savvai_jwt_secret_key_2025';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Auth middleware
 function authenticateToken(req: any, res: express.Response, next: express.NextFunction): void {
@@ -145,10 +145,9 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on configured port
-    const port = parseInt(process.env.PORT) || 5000;
-    const host = process.env.HOST || "0.0.0.0";
-    server.listen(port, host, () => {
+    // Start server on port 5000
+    const port = 5000;
+    server.listen(port, "0.0.0.0", () => {
       log(`🚀 Server running on http://0.0.0.0:${port}`);
       log(`📊 Database: ${process.env.DATABASE_URL ? 'PostgreSQL connected' : 'Not configured'}`);
       log(`🔐 JWT Authentication: Enabled`);

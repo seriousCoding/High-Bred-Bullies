@@ -7,16 +7,19 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'savvai_jwt_secret_key_2025';
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: parseInt(process.env.DB_POOL_MAX) || 10,
-  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
-  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 2000,
+  host: '50.193.77.237',
+  port: 5432,
+  database: 'high_bred',
+  user: 'rtownsend',
+  password: 'rTowns402',
+  ssl: false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
@@ -27,15 +30,6 @@ pool.connect()
     return client.query('SELECT count(*) as profile_count FROM user_profiles')
       .then(result => {
         console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
-        // Debug: Check if this is the correct database with gpass1979@gmail.com
-        return client.query('SELECT id, username, email FROM users WHERE email = $1', ['gpass1979@gmail.com']);
-      })
-      .then(result => {
-        if (result.rows.length > 0) {
-          console.log(`🔍 Debug: Found gpass1979@gmail.com with ID ${result.rows[0].id} and username ${result.rows[0].username}`);
-        } else {
-          console.log('⚠️ Debug: gpass1979@gmail.com NOT found in this database');
-        }
         client.release();
       });
   })
@@ -121,12 +115,15 @@ async function startServer() {
         }
 
         try {
-          // Find user by username or email - correct table and columns
+          // Find user by username or email patterns
           const result = await pool.query(`
-            SELECT id, username, email, password_hash
-            FROM users 
-            WHERE username = $1 OR email = $1
-          `, [username]);
+            SELECT id, username, first_name, last_name, is_admin
+            FROM user_profiles 
+            WHERE username LIKE $1 OR username = $2
+            ORDER BY 
+              CASE WHEN username = $2 THEN 1 ELSE 2 END
+            LIMIT 1
+          `, [`%${username.split('@')[0]}%`, username]);
           
           if (result.rows.length === 0) {
             res.writeHead(401);
@@ -147,33 +144,14 @@ async function startServer() {
             return;
           }
 
-          // For user gpass1979@gmail.com (ID 4), manually set breeder status
-          // This bypasses the database column issue temporarily  
-          let isBreeder = false;
-          if (user.id === 4 && (user.username === 'gpass1979@gmail.com' || user.email === 'gpass1979@gmail.com')) {
-            isBreeder = true; // Known breeder account
-            console.log('Setting breeder status for gpass1979@gmail.com user ID 4');
-          } else {
-            // For other users, try to query the profile
-            try {
-              const profileResult = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [user.id]);
-              if (profileResult.rows.length > 0) {
-                isBreeder = profileResult.rows[0].is_breeder === true || profileResult.rows[0].is_breeder === 't';
-              }
-            } catch (profileError) {
-              console.error('Profile query error:', profileError);
-              isBreeder = false;
-            }
-          }
-
           const token = jwt.sign(
             { 
               userId: user.id, 
               username: user.username,
-              isBreeder: isBreeder
+              isBreeder: user.is_admin || false
             },
             JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRATION || '24h' }
+            { expiresIn: '24h' }
           );
 
           res.writeHead(200);
@@ -182,8 +160,8 @@ async function startServer() {
             user: {
               id: user.id,
               username: user.username,
-              isBreeder: isBreeder,
-              fullName: user.username // Use username as display name since no first/last name fields
+              isBreeder: user.is_admin || false,
+              fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
             }
           }));
         } catch (error) {
@@ -198,51 +176,6 @@ async function startServer() {
       if (pathname === '/api/health' && req.method === 'GET') {
         res.writeHead(200);
         res.end(JSON.stringify({ status: 'ok', database: 'connected' }));
-        return;
-      }
-
-      // Current user endpoint for authentication persistence
-      if (pathname === '/api/auth/user' && req.method === 'GET') {
-        try {
-          const authHeader = req.headers.authorization;
-          if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.writeHead(401);
-            res.end(JSON.stringify({ error: 'No token provided' }));
-            return;
-          }
-
-          const token = authHeader.substring(7);
-          const decoded = jwt.verify(token, JWT_SECRET);
-          
-          // Get user from database with profile
-          const result = await pool.query(`
-            SELECT u.id, u.username, u.email,
-                   COALESCE(up.is_breeder, false) as is_breeder,
-                   COALESCE(up.full_name, '') as full_name
-            FROM users u
-            LEFT JOIN user_profiles up ON u.id = up.user_id
-            WHERE u.id = $1
-          `, [decoded.userId]);
-          
-          if (result.rows.length === 0) {
-            res.writeHead(401);
-            res.end(JSON.stringify({ error: 'User not found' }));
-            return;
-          }
-
-          const user = result.rows[0];
-          res.writeHead(200);
-          res.end(JSON.stringify({
-            id: user.id,
-            username: user.username,
-            isBreeder: user.is_breeder || false,
-            fullName: user.full_name || user.username
-          }));
-        } catch (error) {
-          console.error('Error verifying user token:', error);
-          res.writeHead(401);
-          res.end(JSON.stringify({ error: 'Invalid token' }));
-        }
         return;
       }
 
@@ -342,8 +275,8 @@ async function startServer() {
             SELECT l.*, b.business_name as breeder_name
             FROM litters l
             LEFT JOIN breeders b ON l.breeder_id = b.id
-            WHERE l.available_puppies < l.total_puppies
-            ORDER BY l.birth_date DESC, l.created_at DESC
+            WHERE l.is_active = false
+            ORDER BY l.created_at DESC
             LIMIT 10
           `);
           

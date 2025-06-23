@@ -39,27 +39,21 @@ export function useAuth() {
 
   const fetchCurrentUser = async (token: string) => {
     try {
-      console.log('fetchCurrentUser: Fetching user with token:', token.substring(0, 20) + '...');
-      const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
+      const response = await fetch(`${API_BASE_URL}/api/user`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
-      console.log('fetchCurrentUser: Response status:', response.status);
-      
       if (response.ok) {
         const user = await response.json();
-        console.log('fetchCurrentUser: User data received:', user);
         setAuthState({
           user,
           token,
           loading: false
         });
-        console.log('fetchCurrentUser: Auth state updated with user');
       } else {
-        console.log('fetchCurrentUser: Invalid token, removing from storage');
         // Invalid token, remove it
         localStorage.removeItem('auth_token');
         setAuthState({
@@ -128,11 +122,6 @@ export function useAuth() {
         token: data.token,
         loading: false
       });
-
-      // Immediately fetch current user to ensure state persistence
-      setTimeout(() => {
-        fetchCurrentUser(data.token);
-      }, 100);
 
       toast.success('Successfully signed in!');
       return { data, error: null };
