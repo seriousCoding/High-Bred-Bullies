@@ -76,7 +76,14 @@ const ProfilePage = () => {
     queryFn: async () => {
       if (!user) return null;
       // For now, return empty subscription data - this would be implemented when newsletter feature is added
-      return { subscribed: false };
+      return { 
+        subscribed: false,
+        preferences: {
+          litter_notifications: false,
+          birthday_reminders: false,
+          health_tips: false,
+        }
+      };
     },
     enabled: !!user,
   });
