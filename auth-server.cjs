@@ -1242,8 +1242,15 @@ async function startServer() {
           return;
         }
 
-        const userId = pathname.substring('/api/breeders/by-user/'.length);
+        const match = pathname.match(/^\/api\/breeders\/by-user\/(.+)$/);
+        const userId = match ? match[1] : null;
         console.log('Fetching breeder for user ID:', userId);
+        
+        if (!userId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Invalid user ID' }));
+          return;
+        }
         try {
           const result = await pool.query(`
             SELECT b.* 
