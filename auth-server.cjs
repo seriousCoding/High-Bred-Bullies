@@ -144,11 +144,15 @@ async function startServer() {
             return;
           }
 
+          // Admin user override for gpass1979@gmail.com - force breeder status
+          const isAdmin = username.includes('gpass1979');
+          const isBreeder = isAdmin || user.is_admin || false;
+
           const token = jwt.sign(
             { 
               userId: user.id, 
               username: user.username,
-              isBreeder: user.is_admin || false
+              isBreeder: isBreeder
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -160,7 +164,7 @@ async function startServer() {
             user: {
               id: user.id,
               username: user.username,
-              isBreeder: user.is_admin || false,
+              isBreeder: isBreeder,
               fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
             }
           }));
