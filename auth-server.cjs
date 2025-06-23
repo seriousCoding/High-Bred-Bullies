@@ -268,6 +268,51 @@ async function startServer() {
         return;
       }
 
+      // Upcoming litters endpoint
+      if (pathname === '/api/litters/upcoming' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT l.*, b.business_name as breeder_name
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.is_active = false OR l.birth_date > NOW()
+            ORDER BY l.expected_delivery_date ASC NULLS LAST, l.created_at DESC
+            LIMIT 10
+          `);
+          
+          const litters = result.rows.map(litter => ({
+            id: litter.id.toString(),
+            name: litter.dam_name + " x " + litter.sire_name,
+            breed: litter.breed,
+            birth_date: litter.birth_date,
+            expected_date: litter.expected_delivery_date,
+            available_puppies: litter.total_puppies || 0,
+            total_puppies: litter.total_puppies || 0,
+            price_per_male: litter.male_price,
+            price_per_female: litter.female_price,
+            dam_name: litter.dam_name,
+            sire_name: litter.sire_name,
+            description: litter.description,
+            image_url: litter.images?.[0] || null,
+            status: 'upcoming',
+            breeder_id: litter.breeder_id?.toString(),
+            breeders: {
+              business_name: litter.breeder_name || 'High Bred Bullies',
+              delivery_fee: 250,
+              delivery_areas: ["Texas", "Oklahoma", "Arkansas", "Louisiana"]
+            }
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(litters));
+        } catch (error) {
+          console.error('Error fetching upcoming litters:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch upcoming litters' }));
+        }
+        return;
+      }
+
       // Individual litter endpoint with puppies
       if (pathname.startsWith('/api/litters/') && !pathname.includes('/featured') && !pathname.includes('/upcoming') && req.method === 'GET') {
         try {
