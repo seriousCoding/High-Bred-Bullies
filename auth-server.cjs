@@ -218,6 +218,135 @@ async function startServer() {
         return;
       }
 
+      // Admin orders endpoint
+      if (pathname === '/api/admin/orders' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT o.*
+            FROM orders o
+            WHERE o.status != 'archived'
+            ORDER BY o.created_at DESC
+          `);
+          
+          const orders = result.rows.map(order => ({
+            id: order.id.toString(),
+            user_id: order.user_id,
+            breeder_id: order.breeder_id,
+            status: order.status || 'pending',
+            total_amount: order.total_amount || 0,
+            delivery_method: order.delivery_method,
+            delivery_address: order.delivery_address,
+            delivery_zip_code: order.delivery_zip_code,
+            created_at: order.created_at,
+            customer_name: `${order.first_name || ''} ${order.last_name || ''}`.trim(),
+            customer_email: order.email
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(orders));
+        } catch (error) {
+          console.error('Error fetching orders:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
+        }
+        return;
+      }
+
+      // Admin archived orders endpoint
+      if (pathname === '/api/admin/archived-orders' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT o.*, up.first_name, up.last_name, up.email
+            FROM orders o
+            LEFT JOIN user_profiles up ON o.user_id = up.id
+            WHERE o.status = 'archived' OR o.status = 'completed'
+            ORDER BY o.created_at DESC
+          `);
+          
+          const orders = result.rows.map(order => ({
+            id: order.id.toString(),
+            user_id: order.user_id,
+            breeder_id: order.breeder_id,
+            status: order.status,
+            total_amount: order.total_amount || 0,
+            delivery_method: order.delivery_method,
+            delivery_address: order.delivery_address,
+            delivery_zip_code: order.delivery_zip_code,
+            created_at: order.created_at,
+            customer_name: `${order.first_name || ''} ${order.last_name || ''}`.trim(),
+            customer_email: order.email
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(orders));
+        } catch (error) {
+          console.error('Error fetching archived orders:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch archived orders' }));
+        }
+        return;
+      }
+
+      // Admin inquiries endpoint
+      if (pathname === '/api/admin/inquiries' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT * FROM inquiries 
+            ORDER BY created_at DESC
+          `);
+          
+          const inquiries = result.rows.map(inquiry => ({
+            id: inquiry.id.toString(),
+            name: inquiry.name,
+            email: inquiry.email,
+            phone: inquiry.phone,
+            subject: inquiry.subject,
+            message: inquiry.message,
+            status: inquiry.status || 'pending',
+            created_at: inquiry.created_at
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(inquiries));
+        } catch (error) {
+          console.error('Error fetching inquiries:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch inquiries' }));
+        }
+        return;
+      }
+
+      // Admin social posts endpoint
+      if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT sp.*, up.first_name, up.last_name
+            FROM social_posts sp
+            LEFT JOIN user_profiles up ON sp.author_id = up.id
+            ORDER BY sp.created_at DESC
+          `);
+          
+          const posts = result.rows.map(post => ({
+            id: post.id.toString(),
+            content: post.content,
+            images: post.images || [],
+            author_id: post.author_id,
+            author_name: `${post.first_name || ''} ${post.last_name || ''}`.trim(),
+            is_public: post.is_public,
+            created_at: post.created_at,
+            updated_at: post.updated_at
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(posts));
+        } catch (error) {
+          console.error('Error fetching social posts:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch social posts' }));
+        }
+        return;
+      }
+
       // Health check endpoint
       if (pathname === '/api/health' && req.method === 'GET') {
         res.writeHead(200);
@@ -359,8 +488,42 @@ async function startServer() {
         return;
       }
 
-      // Individual litter endpoint with puppies
-      if (pathname.startsWith('/api/litters/') && !pathname.includes('/featured') && !pathname.includes('/upcoming') && req.method === 'GET') {
+      // Litters by breeder endpoint for Admin page (exact match)
+      if (pathname === '/api/litters/by-breeder/1' && req.method === 'GET') {
+        try {
+          const result = await pool.query(`
+            SELECT l.*, b.business_name as breeder_name
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.is_active = true
+            ORDER BY l.created_at DESC
+          `);
+          
+          const litters = result.rows.map(litter => ({
+            id: litter.id.toString(),
+            name: litter.name || `${litter.dam_name} x ${litter.sire_name}`,
+            breed: litter.breed,
+            birth_date: litter.birth_date,
+            available_puppies: litter.available_puppies || 0,
+            total_puppies: litter.total_puppies || 0,
+            dam_name: litter.dam_name,
+            sire_name: litter.sire_name,
+            status: litter.status || 'active',
+            breeder_name: litter.breeder_name || 'High Bred Bullies'
+          }));
+
+          res.writeHead(200);
+          res.end(JSON.stringify(litters));
+        } catch (error) {
+          console.error('Error fetching breeder litters:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to fetch litters' }));
+        }
+        return;
+      }
+
+      // Individual litter endpoint with puppies (must come after specific routes)
+      if (pathname.startsWith('/api/litters/') && pathname.split('/').length === 4 && !pathname.includes('/featured') && !pathname.includes('/upcoming') && !pathname.includes('/by-breeder') && req.method === 'GET') {
         try {
           const litterId = pathname.split('/')[3];
           
