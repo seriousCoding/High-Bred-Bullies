@@ -114,13 +114,9 @@ function parseBody(req) {
     });
     req.on('end', () => {
       clearTimeout(timeout);
-      console.log('Raw body received:', body);
       try {
-        const parsed = body ? JSON.parse(body) : {};
-        console.log('Parsed body:', parsed);
-        resolve(parsed);
-      } catch (error) {
-        console.log('Parse error:', error.message);
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
         resolve({});
       }
     });
@@ -277,7 +273,7 @@ async function startServer() {
             return;
           }
 
-          // Create new user profile
+          // Create new user profile (matching login query structure)
           const result = await pool.query(`
             INSERT INTO user_profiles (username, first_name, last_name, is_admin, created_at, updated_at)
             VALUES ($1, $2, $3, $4, NOW(), NOW())
