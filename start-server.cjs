@@ -486,9 +486,9 @@ async function startServer() {
               SELECT bp.*, up.full_name as author_name
               FROM blog_posts bp
               LEFT JOIN user_profiles up ON bp.author_id = up.user_id
-              WHERE bp.published_at IS NOT NULL
-              ORDER BY bp.published_at DESC
-              LIMIT 10
+              WHERE bp.is_published = true
+              ORDER BY bp.published_at DESC, bp.created_at DESC
+              LIMIT 50
             `);
             
             const posts = result.rows.map(row => ({
@@ -549,8 +549,52 @@ async function startServer() {
           return;
         }
 
+        // Upcoming litters endpoint
+        if (pathname === '/api/litters/upcoming' && req.method === 'GET') {
+          try {
+            const result = await pool.query(`
+              SELECT l.*, b.business_name as breeder_name 
+              FROM litters l
+              LEFT JOIN breeders b ON l.breeder_id = b.id
+              WHERE l.is_active = true AND l.expected_delivery_date > NOW()
+              ORDER BY l.expected_delivery_date ASC
+              LIMIT 10
+            `);
+            
+            const litters = result.rows.map(row => ({
+              id: row.id.toString(),
+              name: `${row.dam_name} x ${row.sire_name}`,
+              breed: row.breed,
+              birth_date: row.birth_date,
+              available_puppies: row.available_puppies,
+              total_puppies: row.total_puppies,
+              price_per_male: row.male_price * 100,
+              price_per_female: row.female_price * 100,
+              dam_name: row.dam_name,
+              sire_name: row.sire_name,
+              description: row.description,
+              image_url: row.images && row.images.length > 0 ? row.images[0] : null,
+              status: 'upcoming',
+              breeder_id: row.breeder_id?.toString(),
+              breeders: {
+                business_name: row.breeder_name,
+                delivery_fee: 250,
+                delivery_areas: ["Texas", "Oklahoma", "Arkansas", "Louisiana"]
+              }
+            }));
+            
+            res.writeHead(200);
+            res.end(JSON.stringify(litters));
+          } catch (error) {
+            console.error('Error fetching upcoming litters:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to fetch upcoming litters' }));
+          }
+          return;
+        }
+
         // Individual litter endpoint
-        if (pathname.startsWith('/api/litters/') && !pathname.includes('/breeder/') && !pathname.includes('/puppies') && req.method === 'GET') {
+        if (pathname.startsWith('/api/litters/') && !pathname.includes('/breeder/') && !pathname.includes('/puppies') && !pathname.includes('/upcoming') && req.method === 'GET') {
           try {
             const litterId = pathname.split('/')[3];
             const result = await pool.query(`
