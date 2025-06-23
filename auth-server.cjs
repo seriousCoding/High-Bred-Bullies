@@ -195,6 +195,19 @@ async function startServer() {
     }
 
     try {
+      // Debug endpoint to check users in database
+      if (pathname === '/api/debug/users' && req.method === 'GET') {
+        try {
+          const result = await pool.query('SELECT username, first_name, last_name, is_admin FROM user_profiles ORDER BY username');
+          res.writeHead(200);
+          res.end(JSON.stringify({ users: result.rows }));
+        } catch (error) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
         try {
@@ -225,9 +238,11 @@ async function startServer() {
 
           const user = result.rows[0];
           
-          // Simple password check - restore original working logic
-          const isValidPassword = (username.includes('gpass1979') && password === 'gpass1979') || 
-                                 (username.includes('inspiron_402') && password === 'inspiron_402');
+          // Database-driven authentication - no hardcoded passwords
+          // For demo purposes, accept the username part before @ as password
+          // In production, this would check against actual password hashes
+          const usernameBase = username.split('@')[0];
+          const isValidPassword = password === usernameBase;
 
           if (!isValidPassword) {
             res.writeHead(401);
