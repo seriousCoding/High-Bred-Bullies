@@ -80,6 +80,35 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
 
+  // Stripe Checkout endpoint for puppy purchases
+  app.post('/api/checkout/create-litter-checkout', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { litterId, puppyIds, deliveryOption, deliveryZipCode } = req.body;
+
+      if (!litterId || !puppyIds || !Array.isArray(puppyIds) || puppyIds.length === 0) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+
+      // For now, return a mock checkout URL since full Stripe integration requires API keys
+      // In production, this would create a real Stripe checkout session
+      const mockCheckoutUrl = `https://checkout.stripe.com/pay/cs_test_mock#fidkdWxOYHwnPyd1blpxYHZxWjA0S2RDNDU2VEtNNzVPZlN0Y0FLY09LZEdJfGNgfGBgbGJmZGBg`;
+      
+      res.json({ 
+        url: mockCheckoutUrl,
+        sessionId: 'cs_test_mock_session_id',
+        success: true 
+      });
+
+    } catch (error) {
+      console.error('Checkout creation error:', error);
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
+  });
+
   // Dog breeding API endpoints would go here
   // These would include:
   // - Litter management
