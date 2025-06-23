@@ -1100,14 +1100,31 @@ async function startServer() {
       // Breeder profile endpoint
       if (pathname.startsWith('/api/breeders/') && req.method === 'GET') {
         try {
-          const breederId = pathname.split('/')[3];
+          const userId = pathname.split('/')[3];
+          console.log('Fetching breeder for user ID:', userId);
+          
+          // First try to find existing breeder record
           const result = await pool.query(`
             SELECT * FROM breeders 
-            WHERE id = $1
-          `, [breederId]);
+            WHERE user_id = $1
+          `, [userId]);
           
-          res.writeHead(200);
-          res.end(JSON.stringify(result.rows[0] || null));
+          if (result.rows.length > 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify(result.rows[0]));
+          } else {
+            // No breeder record found, return empty structure
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              user_id: userId,
+              business_name: '',
+              contact_phone: '',
+              contact_email: '',
+              address: '',
+              delivery_areas: [],
+              delivery_fee: 0
+            }));
+          }
         } catch (error) {
           console.error('Error fetching breeder:', error);
           res.writeHead(500);
@@ -1119,18 +1136,18 @@ async function startServer() {
       // Update breeder profile endpoint
       if (pathname.startsWith('/api/breeders/') && req.method === 'PUT') {
         try {
-          const breederId = pathname.split('/')[3];
+          const userId = pathname.split('/')[3];
           const body = await parseBody(req);
           
           const result = await pool.query(`
             UPDATE breeders 
             SET business_name = $1, contact_phone = $2, contact_email = $3, 
                 address = $4, delivery_areas = $5, delivery_fee = $6, updated_at = NOW()
-            WHERE id = $7
+            WHERE user_id = $7
             RETURNING *
           `, [
             body.business_name, body.contact_phone, body.contact_email,
-            body.address, body.delivery_areas, body.delivery_fee, breederId
+            body.address, body.delivery_areas, body.delivery_fee, userId
           ]);
           
           res.writeHead(200);

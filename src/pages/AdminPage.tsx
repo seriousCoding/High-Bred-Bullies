@@ -26,9 +26,8 @@ const AdminPage = () => {
   // Check if user is a breeder based on the isBreeder flag from JWT auth
   const isBreeder = user?.isBreeder || false;
   
-  // For now, we'll show the breeder setup if user is marked as breeder but has no profile yet
-  // This will be handled by the BreederSetup component when needed
-  const breederId = isBreeder ? "1" : null; // Simplified for now
+  // Get the actual breeder ID from the database using user ID
+  const breederId = isBreeder ? user.id?.toString() : null;
 
   if (!user) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-16 w-16 animate-spin" /></div>;

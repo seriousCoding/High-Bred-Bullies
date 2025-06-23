@@ -59,6 +59,17 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
       });
       
       if (!response.ok) {
+        if (response.status === 404) {
+          // Return empty breeder object if not found
+          return {
+            business_name: '',
+            contact_phone: '',
+            contact_email: '',
+            address: '',
+            delivery_areas: [],
+            delivery_fee: 0
+          };
+        }
         throw new Error(`Failed to fetch breeder: ${response.statusText}`);
       }
       
