@@ -1594,8 +1594,110 @@ async function startServer() {
           const basePrice = litter.male_price || litter.female_price || 250000; // Default $2500 in cents
           const totalAmount = puppiesResult.rows.length * basePrice;
 
-          // Initialize Stripe with secret key
-          const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+          // Initialize Stripe with secret key - dynamically require
+          let stripe;
+          try {
+            stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+          } catch (error) {
+            console.error('Stripe package not found - using direct API calls');
+            // Fall back to direct HTTP API calls to Stripe
+            const https = require('https');
+            const querystring = require('querystring');
+            
+            const createStripeSession = async (sessionData) => {
+              return new Promise((resolve, reject) => {
+                const postData = querystring.stringify({
+                  'payment_method_types[]': 'card',
+                  'mode': 'payment',
+                  'success_url': sessionData.success_url,
+                  'cancel_url': sessionData.cancel_url,
+                  'line_items[0][price_data][currency]': 'usd',
+                  'line_items[0][price_data][product_data][name]': sessionData.line_items[0].price_data.product_data.name,
+                  'line_items[0][price_data][product_data][description]': sessionData.line_items[0].price_data.product_data.description,
+                  'line_items[0][price_data][unit_amount]': sessionData.line_items[0].price_data.unit_amount,
+                  'line_items[0][quantity]': 1,
+                  'metadata[userId]': sessionData.metadata.userId,
+                  'metadata[litterId]': sessionData.metadata.litterId,
+                  'metadata[puppyIds]': sessionData.metadata.puppyIds,
+                  'metadata[deliveryOption]': sessionData.metadata.deliveryOption
+                });
+
+                const options = {
+                  hostname: 'api.stripe.com',
+                  port: 443,
+                  path: '/v1/checkout/sessions',
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': Buffer.byteLength(postData)
+                  }
+                };
+
+                const req = https.request(options, (res) => {
+                  let data = '';
+                  res.on('data', (chunk) => data += chunk);
+                  res.on('end', () => {
+                    try {
+                      const response = JSON.parse(data);
+                      if (response.error) {
+                        reject(new Error(response.error.message));
+                      } else {
+                        resolve(response);
+                      }
+                    } catch (e) {
+                      reject(e);
+                    }
+                  });
+                });
+
+                req.on('error', reject);
+                req.write(postData);
+                req.end();
+              });
+            };
+
+            // Create session using direct API
+            const sessionData = {
+              line_items: [{
+                price_data: {
+                  currency: 'usd',
+                  product_data: {
+                    name: `${puppiesResult.rows[0].name || 'Puppy'} - ${litter.name || 'Premium Litter'}`,
+                    description: `${puppiesResult.rows[0].color} ${puppiesResult.rows[0].gender} American Bully puppy`
+                  },
+                  unit_amount: basePrice
+                }
+              }],
+              success_url: `https://${req.headers.host}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+              cancel_url: `https://${req.headers.host}/litter/${litterId}`,
+              metadata: {
+                userId: userId,
+                litterId: litterId,
+                puppyIds: puppyIds.join(','),
+                deliveryOption: deliveryOption,
+                deliveryZipCode: deliveryZipCode || ''
+              }
+            };
+
+            try {
+              const session = await createStripeSession(sessionData);
+              console.log('✅ Stripe checkout session created via API:', session.id);
+              
+              res.writeHead(200);
+              res.end(JSON.stringify({ 
+                url: session.url,
+                sessionId: session.id,
+                success: true 
+              }));
+              return;
+            } catch (apiError) {
+              console.error('Direct Stripe API error:', apiError);
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: 'Failed to create Stripe session: ' + apiError.message }));
+              return;
+            }
+          }
 
           const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
