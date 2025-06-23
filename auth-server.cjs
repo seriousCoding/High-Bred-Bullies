@@ -10,6 +10,8 @@ const nodemailer = require('nodemailer');
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
 
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
