@@ -35,7 +35,9 @@ export function useLitterPuppiesRealtime(litterId: string) {
 
         const data = await response.json();
         if (isMounted && data) {
-          setPuppies(data as Puppy[]);
+          // Ensure data is an array before setting
+          const puppiesArray = Array.isArray(data) ? data : [];
+          setPuppies(puppiesArray as Puppy[]);
         }
       } catch (error) {
         console.error('Error fetching puppies:', error);
@@ -55,9 +57,9 @@ export function useLitterPuppiesRealtime(litterId: string) {
     };
   }, [litterId]);
 
-  // Convenience
-  const availableCount = puppies.filter(p => p.is_available).length;
-  const reservedCount = puppies.length - availableCount;
+  // Convenience with null safety
+  const availableCount = puppies?.filter(p => p.is_available).length || 0;
+  const reservedCount = (puppies?.length || 0) - availableCount;
 
   return { puppies, availableCount, reservedCount, isLoading };
 }
