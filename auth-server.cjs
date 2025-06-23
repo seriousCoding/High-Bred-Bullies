@@ -26,6 +26,13 @@ const pool = new Pool({
 
 console.log('🔗 Connecting to user database: 50.193.77.237:5432/high_bred');
 
+// Initialize OpenAI API configuration
+if (OPENAI_API_KEY) {
+  console.log('🤖 OpenAI API key loaded successfully');
+} else {
+  console.warn('⚠️ OpenAI API key not found in environment variables');
+}
+
 // Initialize Email Service
 let emailTransporter = null;
 function initializeEmailService() {
