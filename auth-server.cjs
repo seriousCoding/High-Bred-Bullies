@@ -319,9 +319,9 @@ async function startServer() {
       if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
         try {
           const result = await pool.query(`
-            SELECT sp.*
-            FROM social_posts sp
-            ORDER BY sp.created_at DESC
+            SELECT *
+            FROM social_posts
+            ORDER BY created_at DESC
           `);
           
           const posts = result.rows.map(post => ({
