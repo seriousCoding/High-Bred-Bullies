@@ -518,7 +518,7 @@ async function startServer() {
       
       // Get friends list
       if (pathname === '/api/friends' && req.method === 'GET') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -566,7 +566,7 @@ async function startServer() {
 
       // Get friend requests
       if (pathname === '/api/friend-requests' && req.method === 'GET') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -601,7 +601,7 @@ async function startServer() {
 
       // Send friend request
       if (pathname === '/api/friend-requests' && req.method === 'POST') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -652,7 +652,7 @@ async function startServer() {
 
       // Accept/decline friend request
       if (pathname.startsWith('/api/friend-requests/') && req.method === 'PUT') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -699,7 +699,7 @@ async function startServer() {
 
       // Get messages for a conversation
       if (pathname.startsWith('/api/messages/') && req.method === 'GET') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -737,7 +737,7 @@ async function startServer() {
 
       // Send message
       if (pathname === '/api/messages' && req.method === 'POST') {
-        const authResult = authenticateToken(req);
+        const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
