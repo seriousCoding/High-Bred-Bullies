@@ -144,11 +144,15 @@ async function startServer() {
             return;
           }
 
+          // Get user profile to check breeder status
+          const profileResult = await pool.query('SELECT is_breeder FROM user_profiles WHERE user_id = $1', [user.id]);
+          const isBreeder = profileResult.rows[0]?.is_breeder || false;
+
           const token = jwt.sign(
             { 
               userId: user.id, 
               username: user.username,
-              isBreeder: user.is_admin || false
+              isBreeder: isBreeder
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -160,7 +164,7 @@ async function startServer() {
             user: {
               id: user.id,
               username: user.username,
-              isBreeder: user.is_admin || false,
+              isBreeder: isBreeder,
               fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
             }
           }));
@@ -192,11 +196,13 @@ async function startServer() {
           const token = authHeader.substring(7);
           const decoded = jwt.verify(token, JWT_SECRET);
           
-          // Get user from database
+          // Get user from database with profile
           const result = await pool.query(`
-            SELECT id, username, first_name, last_name, is_admin
-            FROM user_profiles 
-            WHERE id = $1
+            SELECT u.id, u.username, u.first_name, u.last_name, 
+                   COALESCE(up.is_breeder, false) as is_breeder
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = $1
           `, [decoded.userId]);
           
           if (result.rows.length === 0) {
@@ -210,7 +216,7 @@ async function startServer() {
           res.end(JSON.stringify({
             id: user.id,
             username: user.username,
-            isBreeder: user.is_admin || false,
+            isBreeder: user.is_breeder || false,
             fullName: `${user.first_name || ''} ${user.last_name || ''}`.trim()
           }));
         } catch (error) {
