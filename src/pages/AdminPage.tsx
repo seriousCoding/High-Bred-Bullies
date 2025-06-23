@@ -12,6 +12,7 @@ import { AdminInquiries } from "@/components/admin/AdminInquiries";
 import { AdminOrders } from "@/components/admin/AdminOrders";
 import { AdminSocialPosts } from "@/components/admin/AdminSocialPosts";
 import { BusinessSettings } from "@/components/admin/BusinessSettings";
+import EmailManager from "@/components/admin/EmailManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -62,6 +63,7 @@ const AdminPage = () => {
               <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
               <TabsTrigger value="orders">Orders</TabsTrigger>
               <TabsTrigger value="archived-orders">Archived Orders</TabsTrigger>
+              <TabsTrigger value="email">Email Manager</TabsTrigger>
               <TabsTrigger value="settings">Business Settings</TabsTrigger>
             </TabsList>
             <TabsContent value="litters">
@@ -81,6 +83,7 @@ const AdminPage = () => {
             <TabsContent value="inquiries"><AdminInquiries /></TabsContent>
             <TabsContent value="orders"><AdminOrders /></TabsContent>
             <TabsContent value="archived-orders"><ArchivedOrders /></TabsContent>
+            <TabsContent value="email"><EmailManager /></TabsContent>
             <TabsContent value="settings">
                 <BusinessSettings 
                     breederId={breederId} 
