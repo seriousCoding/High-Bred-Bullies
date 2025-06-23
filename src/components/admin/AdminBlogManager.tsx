@@ -36,7 +36,7 @@ interface BlogPost {
 }
 
 const fetchBlogPosts = async () => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/api/blog/posts`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -47,7 +47,7 @@ const fetchBlogPosts = async () => {
 };
 
 const addBlogPost = async (newPost: Omit<BlogPost, 'id' | 'created_at' | 'published_at' | 'content' | 'excerpt'> & { content: string, excerpt?: string, image_url?: string, author_name?: string }) => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/api/blog/posts`, {
     method: 'POST',
     headers: {
@@ -61,7 +61,7 @@ const addBlogPost = async (newPost: Omit<BlogPost, 'id' | 'created_at' | 'publis
 };
 
 const publishBlogPost = async (postId: string) => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/api/blog/posts/${postId}/publish`, {
     method: 'PATCH',
     headers: {
@@ -73,7 +73,7 @@ const publishBlogPost = async (postId: string) => {
 };
 
 const deleteBlogPost = async (postId: string) => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/api/blog/posts/${postId}`, {
     method: 'DELETE',
     headers: {
@@ -85,8 +85,8 @@ const deleteBlogPost = async (postId: string) => {
 };
 
 const generateBlogPost = async () => {
-  const token = localStorage.getItem('auth_token');
-  const response = await fetch(`${API_BASE_URL}/api/generate-blog-post`, {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/ai/generate-blog-post`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -97,8 +97,8 @@ const generateBlogPost = async () => {
 };
 
 const generateSocialPosts = async () => {
-  const token = localStorage.getItem('auth_token');
-  const response = await fetch(`${API_BASE_URL}/api/generate-social-posts`, {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/api/ai/generate-social-posts`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
