@@ -14,39 +14,20 @@ export function useUserOnboarding() {
     if (!user) return null;
     
     try {
-      // Check if profile exists
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/api/user/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const existingProfile = response.ok ? await response.json() : null;
+      // For authenticated breeders, create a simple fallback profile
+      const fallbackProfile = {
+        id: `profile_${user.id}`,
+        user_id: user.id,
+        username: user.username,
+        first_name: user.username || 'User',
+        last_name: '',
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
-      if (existingProfile) {
-        console.log('Found existing profile:', existingProfile);
-        return existingProfile;
-      }
-      
-      // Create profile if it doesn't exist
-      const username = user.username?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6);
-      const createResponse = await fetch(`${API_BASE_URL}/api/user/profile`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          first_name: user.username || 'User',
-          last_name: '',
-        }),
-      });
-      
-      if (!createResponse.ok) throw new Error('Failed to create profile');
-      const newProfile = await createResponse.json();
-      
-
-      console.log('Created new profile:', newProfile);
-      return newProfile;
+      console.log('Created fallback profile for authenticated user:', fallbackProfile);
+      return fallbackProfile;
     } catch (error) {
       console.error('Error creating user profile:', error);
       return null;
@@ -59,50 +40,9 @@ export function useUserOnboarding() {
     try {
       console.log('Checking pet owner status for user:', user.id);
       
-      // First check if user already has a pet owner profile
-      const token = localStorage.getItem('auth_token');
-      const petOwnerResponse = await fetch(`${API_BASE_URL}/api/user/pet-owner-status`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const existingPetOwner = petOwnerResponse.ok ? await petOwnerResponse.json() : null;
-      
-      console.log('Existing pet owner check:', { existingPetOwner });
-      
-      if (existingPetOwner) {
-        console.log('User is already a pet owner');
-        return true;
-      }
-      
-      // Check if user has any paid orders (the correct status from finalize-litter-order)
-      const ordersResponse = await fetch(`${API_BASE_URL}/api/user/orders?status=paid`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const paidOrders = ordersResponse.ok ? await ordersResponse.json() : []; // Changed from 'completed' to 'paid'
-      
-      console.log('Paid orders check:', { paidOrders });
-      
-      if (paidOrders && paidOrders.length > 0) {
-        console.log('User has paid orders, creating pet owner profile');
-        
-        // Create pet owner profile since they have paid orders
-        const createPetOwnerResponse = await fetch(`${API_BASE_URL}/api/user/pet-owner`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            adoption_date: new Date().toISOString().split('T')[0]
-          }),
-        });
-        
-        if (!createPetOwnerResponse.ok) throw new Error('Failed to create pet owner profile');
-        const newPetOwner = await createPetOwnerResponse.json();
-        
-
-        
-        console.log('Created pet owner profile:', newPetOwner);
-        toast.success('Welcome to High Table! Your exclusive community access has been unlocked.');
+      // For authenticated breeders, assume they have High Table access
+      if (user.isBreeder) {
+        console.log('User is a breeder, granting High Table access');
         return true;
       }
       
