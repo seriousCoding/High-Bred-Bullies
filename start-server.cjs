@@ -9,11 +9,14 @@ const bcrypt = require('bcryptjs');
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Database connection - Force connection to user's actual database
+// Database connection - Force connection to user's actual database (ignore Replit's DATABASE_URL override)
+const USER_DATABASE_URL = 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable';
 const pool = new Pool({
-  connectionString: 'postgresql://rtownsend:rTowns402@50.193.77.237:5432/high_bred?sslmode=disable',
+  connectionString: USER_DATABASE_URL,
   ssl: false
 });
+
+console.log('🔗 Connecting to user database:', USER_DATABASE_URL.replace(/:[^:@]*@/, ':****@'));
 
 // Helper functions
 function parseBody(req) {
