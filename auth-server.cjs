@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -33,6 +34,13 @@ if (OPENAI_API_KEY) {
   console.log('🤖 OpenAI API key loaded successfully');
 } else {
   console.warn('⚠️ OpenAI API key not found in environment variables');
+}
+
+// Initialize Stripe API configuration
+if (STRIPE_SECRET_KEY) {
+  console.log('💳 Stripe API key loaded successfully');
+} else {
+  console.warn('⚠️ Stripe API key not found in environment variables');
 }
 
 // Initialize Email Service
@@ -1845,6 +1853,1417 @@ async function startServer() {
           console.error('Error sending test email:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Failed to send test email' }));
+        }
+        return;
+      }
+
+      // =================================================================
+      // STRIPE INTEGRATION ENDPOINTS
+      // =================================================================
+
+      // Create Stripe litter products and prices
+      if (pathname === '/api/stripe/create-litter' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { name, description, price_per_male, price_per_female, stripe_product_id, stripe_male_price_id, stripe_female_price_id } = data;
+
+          let productId = stripe_product_id;
+          const productPayload = {
+            name,
+            description: description || `Litter of ${name}`,
+            metadata: { app_managed: 'true', entity: 'litter' }
+          };
+
+          if (productId) {
+            await stripe.products.update(productId, productPayload);
+          } else {
+            const product = await stripe.products.create(productPayload);
+            productId = product.id;
+          }
+
+          if (stripe_male_price_id) {
+            await stripe.prices.update(stripe_male_price_id, { active: false });
+          }
+          if (stripe_female_price_id) {
+            await stripe.prices.update(stripe_female_price_id, { active: false });
+          }
+
+          const malePrice = await stripe.prices.create({
+            product: productId,
+            unit_amount: price_per_male,
+            currency: "usd",
+            metadata: { gender: 'male' },
+          });
+
+          const femalePrice = await stripe.prices.create({
+            product: productId,
+            unit_amount: price_per_female,
+            currency: "usd",
+            metadata: { gender: 'female' },
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            stripe_product_id: productId,
+            stripe_male_price_id: malePrice.id,
+            stripe_female_price_id: femalePrice.id,
+          }));
+        } catch (error) {
+          console.error('Stripe create litter error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Delete Stripe litter products
+      if (pathname === '/api/stripe/delete-litter' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { stripe_product_id } = data;
+
+          if (!stripe_product_id) {
+            throw new Error("Stripe product ID is required.");
+          }
+
+          const prices = await stripe.prices.list({ product: stripe_product_id, active: true });
+          for (const price of prices.data) {
+            await stripe.prices.update(price.id, { active: false });
+          }
+
+          const deletedProduct = await stripe.products.del(stripe_product_id);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, deletedProduct }));
+        } catch (error) {
+          console.error('Stripe delete litter error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Get puppy prices from Stripe
+      if (pathname === '/api/stripe/get-puppy-prices' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { litterId } = data;
+          if (!litterId) throw new Error("Litter ID is required.");
+
+          const puppiesResult = await pool.query(`
+            SELECT id, stripe_price_id FROM puppies WHERE litter_id = $1
+          `, [litterId]);
+
+          const puppiesWithStripePrice = puppiesResult.rows.filter(p => p.stripe_price_id);
+          
+          if (puppiesWithStripePrice.length === 0) {
+            res.writeHead(200);
+            res.end(JSON.stringify({}));
+            return;
+          }
+
+          const pricePromises = puppiesWithStripePrice.map(p => stripe.prices.retrieve(p.stripe_price_id));
+          const stripePrices = await Promise.all(pricePromises);
+
+          const puppyPrices = {};
+          stripePrices.forEach((price, index) => {
+            const puppyId = puppiesWithStripePrice[index].id;
+            puppyPrices[puppyId] = price.unit_amount;
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify(puppyPrices));
+        } catch (error) {
+          console.error('Get puppy prices error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Create Stripe checkout session
+      if (pathname === '/api/stripe/create-checkout' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Missing auth header' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const data = await parseBody(req);
+          const { litterId, puppyIds, deliveryOption, deliveryZipCode } = data;
+          
+          if (!litterId || !puppyIds || puppyIds.length === 0 || !deliveryOption) {
+            throw new Error("Litter ID, puppy IDs, and delivery option are required.");
+          }
+
+          const litterResult = await pool.query(`
+            SELECT l.*, b.delivery_fee, b.delivery_areas 
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.id = $1
+          `, [litterId]);
+
+          if (litterResult.rows.length === 0) throw new Error("Litter not found.");
+          const litter = litterResult.rows[0];
+
+          const puppiesResult = await pool.query(`
+            SELECT * FROM puppies WHERE id = ANY($1)
+          `, [puppyIds]);
+
+          if (puppiesResult.rows.length !== puppyIds.length) {
+            throw new Error("One or more puppies could not be found.");
+          }
+
+          const puppies = puppiesResult.rows;
+          puppies.forEach(p => {
+            if (!p.is_available) throw new Error(`Puppy ${p.name || p.id} is no longer available.`);
+            if (p.litter_id !== parseInt(litterId)) throw new Error(`Puppy ${p.name || p.id} does not belong to this litter.`);
+          });
+
+          const line_items = puppies.map(puppy => {
+            let priceId = puppy.stripe_price_id;
+            if (!priceId) {
+              priceId = puppy.gender === 'male' ? litter.stripe_male_price_id : litter.stripe_female_price_id;
+            }
+            if (!priceId) {
+              throw new Error(`Could not determine Stripe price for puppy ${puppy.name || puppy.id}.`);
+            }
+            return { price: priceId, quantity: 1 };
+          });
+
+          let deliveryFee = 0;
+          if (deliveryOption === 'delivery') {
+            if (!deliveryZipCode) {
+              throw new Error("Delivery ZIP code is required for delivery.");
+            }
+            const deliveryAreas = litter.delivery_areas;
+            if (!deliveryAreas || !deliveryAreas.includes(deliveryZipCode)) {
+              throw new Error(`Delivery not available for ZIP code ${deliveryZipCode}.`);
+            }
+            deliveryFee = litter.delivery_fee || 0;
+            if (deliveryFee > 0) {
+              line_items.push({
+                price_data: {
+                  currency: 'usd',
+                  product_data: { name: 'Local Delivery Fee' },
+                  unit_amount: deliveryFee,
+                },
+                quantity: 1,
+              });
+            }
+          }
+
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items,
+            mode: 'payment',
+            success_url: `${req.headers.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${req.headers.origin}/litters/${litterId}`,
+            metadata: {
+              litterId,
+              puppyIds: puppyIds.join(','),
+              userId: userId.toString(),
+              deliveryOption,
+              deliveryFee: deliveryFee.toString(),
+              deliveryZipCode: deliveryZipCode || '',
+            },
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ sessionId: session.id, url: session.url }));
+        } catch (error) {
+          console.error('Create checkout error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Finalize Stripe order after successful payment
+      if (pathname === '/api/stripe/finalize-order' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Missing auth header' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const userId = decoded.userId;
+
+          const data = await parseBody(req);
+          const { session_id } = data;
+          if (!session_id) throw new Error("Stripe Session ID is required.");
+
+          const session = await stripe.checkout.sessions.retrieve(session_id, { expand: ['line_items'] });
+          if (session.payment_status !== 'paid') {
+            throw new Error("Payment not successful.");
+          }
+
+          const { litterId, puppyIds: puppyIdsString, userId: metaUserId, deliveryOption, deliveryFee, deliveryZipCode } = session.metadata;
+          if (metaUserId !== userId.toString()) throw new Error("User mismatch.");
+
+          const puppyIds = puppyIdsString.split(',');
+          
+          const scheduling_deadline = new Date();
+          scheduling_deadline.setDate(scheduling_deadline.getDate() + 15);
+
+          const newOrder = {
+            user_id: userId,
+            stripe_session_id: session_id,
+            stripe_payment_intent_id: session.payment_intent,
+            total_amount: session.amount_total,
+            subtotal_amount: session.amount_subtotal,
+            discount_amount: session.total_details?.amount_discount ?? 0,
+            status: 'paid',
+            delivery_type: deliveryOption === 'delivery' ? 'delivery' : 'pickup',
+            delivery_option: deliveryOption,
+            delivery_cost: deliveryFee ? parseInt(deliveryFee) : 0,
+            scheduling_deadline: scheduling_deadline.toISOString(),
+            delivery_zip_code: deliveryZipCode,
+          };
+
+          const orderResult = await pool.query(`
+            INSERT INTO orders (user_id, stripe_session_id, stripe_payment_intent_id, total_amount, subtotal_amount, discount_amount, status, delivery_type, delivery_option, delivery_cost, scheduling_deadline, delivery_zip_code, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+            RETURNING *
+          `, [newOrder.user_id, newOrder.stripe_session_id, newOrder.stripe_payment_intent_id, newOrder.total_amount, newOrder.subtotal_amount, newOrder.discount_amount, newOrder.status, newOrder.delivery_type, newOrder.delivery_option, newOrder.delivery_cost, newOrder.scheduling_deadline, newOrder.delivery_zip_code]);
+
+          const order = orderResult.rows[0];
+
+          for (const puppy_id of puppyIds) {
+            await pool.query(`
+              INSERT INTO order_items (order_id, puppy_id, price, created_at)
+              VALUES ($1, $2, $3, NOW())
+            `, [order.id, puppy_id, 0]);
+          }
+
+          await pool.query(`
+            UPDATE puppies SET is_available = false, sold_to = $1 WHERE id = ANY($2)
+          `, [userId, puppyIds]);
+          
+          const purchasedPuppiesResult = await pool.query(`
+            SELECT id, name FROM puppies WHERE id = ANY($1)
+          `, [puppyIds]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ order, puppies: purchasedPuppiesResult.rows, litterId }));
+        } catch (error) {
+          console.error('Finalize order error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Generate litter images with DALL-E
+      if (pathname === '/api/ai/generate-litter-images' && req.method === 'POST') {
+        try {
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { prompt, fileName } = data;
+          if (!prompt || !fileName) {
+            throw new Error("Missing 'prompt' or 'fileName' in request body");
+          }
+
+          const https = require('https');
+          const imagePostData = JSON.stringify({
+            model: 'dall-e-3',
+            prompt: prompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+            response_format: 'b64_json',
+          });
+
+          const imageOptions = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/images/generations',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(imagePostData)
+            }
+          };
+
+          const imageReq = https.request(imageOptions, (imageRes) => {
+            let responseData = '';
+            imageRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            imageRes.on('end', () => {
+              try {
+                if (imageRes.statusCode !== 200) {
+                  const error = JSON.parse(responseData);
+                  throw new Error(`OpenAI API request failed: ${error.error?.message || 'Unknown error'}`);
+                }
+
+                const response = JSON.parse(responseData);
+                const b64_json = response.data[0].b64_json;
+                
+                // Convert base64 to data URL
+                const imageUrl = `data:image/png;base64,${b64_json}`;
+
+                res.writeHead(200);
+                res.end(JSON.stringify({ publicUrl: imageUrl }));
+              } catch (error) {
+                console.error('Error processing image response:', error);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: error.message }));
+              }
+            });
+          });
+
+          imageReq.on('error', (error) => {
+            console.error('OpenAI image request error:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to connect to OpenAI API' }));
+          });
+
+          imageReq.write(imagePostData);
+          imageReq.end();
+        } catch (error) {
+          console.error('Generate litter images error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Generate social posts with AI
+      if (pathname === '/api/ai/generate-social-posts' && req.method === 'POST') {
+        try {
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
+            return;
+          }
+
+          const socialPostTopics = [
+            "My puppy's first training session success!",
+            "Best treats for positive reinforcement training",
+            "Puppy socialization tips from my experience", 
+            "How my dog changed my life for the better",
+            "Funny puppy behavior that made me laugh today",
+            "Training milestone: my dog learned a new trick!",
+            "Pet-friendly places I discovered recently",
+            "Health tip: keeping your dog's teeth clean",
+            "Rainy day activities for energetic puppies",
+            "The bond between my family and our new puppy"
+          ];
+
+          const randomTopic = socialPostTopics[Math.floor(Math.random() * socialPostTopics.length)];
+
+          const prompt = `Create an engaging social media post for a pet owner community about: "${randomTopic}". 
+            Make it personal, authentic, and helpful. Include relevant hashtags. Keep it under 200 words.
+            Return as JSON with keys: "content", "title"`;
+
+          const https = require('https');
+          const postData = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant that creates engaging social media content for pet owners.' },
+              { role: 'user', content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.7,
+          });
+
+          const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const openaiReq = https.request(options, (openaiRes) => {
+            let responseData = '';
+            openaiRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            openaiRes.on('end', async () => {
+              try {
+                if (openaiRes.statusCode !== 200) {
+                  const error = JSON.parse(responseData);
+                  throw new Error(error.error?.message || 'OpenAI API error');
+                }
+
+                const aiResponse = JSON.parse(responseData);
+                const postData = JSON.parse(aiResponse.choices[0].message.content);
+
+                // Generate an image for the post
+                let imageUrl = null;
+                const imagePrompt = `A happy, healthy dog in a loving home environment with their family, warm natural lighting, realistic photo style showing the bond between pet and owner`;
+
+                const imagePostData = JSON.stringify({
+                  model: 'dall-e-2',
+                  prompt: imagePrompt,
+                  n: 1,
+                  size: '1024x1024'
+                });
+
+                const imageOptions = {
+                  hostname: 'api.openai.com',
+                  port: 443,
+                  path: '/v1/images/generations',
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(imagePostData)
+                  }
+                };
+
+                const imageReq = https.request(imageOptions, (imageRes) => {
+                  let imageResponseData = '';
+                  imageRes.on('data', (chunk) => {
+                    imageResponseData += chunk;
+                  });
+                  imageRes.on('end', async () => {
+                    try {
+                      if (imageRes.statusCode === 200) {
+                        const imageResponse = JSON.parse(imageResponseData);
+                        imageUrl = imageResponse.data[0].url;
+                      }
+
+                      // Save social post to database
+                      const insertResult = await pool.query(`
+                        INSERT INTO social_posts (title, content, image_url, author_id, user_id, is_public, moderation_status, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, true, 'approved', NOW(), NOW())
+                        RETURNING *
+                      `, [
+                        postData.title,
+                        postData.content,
+                        imageUrl,
+                        1, // Default author ID
+                        1  // Default user ID
+                      ]);
+
+                      res.writeHead(200);
+                      res.end(JSON.stringify({
+                        success: true,
+                        social_post: insertResult.rows[0],
+                        image_url: imageUrl
+                      }));
+                    } catch (error) {
+                      console.error('Error saving social post:', error);
+                      res.writeHead(500);
+                      res.end(JSON.stringify({ error: 'Failed to save social post' }));
+                    }
+                  });
+                });
+
+                imageReq.on('error', async (error) => {
+                  console.error('Image generation failed:', error);
+                  // Save post without image
+                  try {
+                    const insertResult = await pool.query(`
+                      INSERT INTO social_posts (title, content, author_id, user_id, is_public, moderation_status, created_at, updated_at)
+                      VALUES ($1, $2, $3, $4, true, 'approved', NOW(), NOW())
+                      RETURNING *
+                    `, [
+                      postData.title,
+                      postData.content,
+                      1, // Default author ID
+                      1  // Default user ID
+                    ]);
+
+                    res.writeHead(200);
+                    res.end(JSON.stringify({
+                      success: true,
+                      social_post: insertResult.rows[0],
+                      image_url: null
+                    }));
+                  } catch (dbError) {
+                    console.error('Error saving social post:', dbError);
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ error: 'Failed to save social post' }));
+                  }
+                });
+
+                imageReq.write(imagePostData);
+                imageReq.end();
+
+              } catch (error) {
+                console.error('Error processing AI response:', error);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to process AI response' }));
+              }
+            });
+          });
+
+          openaiReq.on('error', (error) => {
+            console.error('OpenAI request error:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to connect to OpenAI API' }));
+          });
+
+          openaiReq.write(postData);
+          openaiReq.end();
+        } catch (error) {
+          console.error('Generate social posts error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Moderate content with AI
+      if (pathname === '/api/ai/moderate-content' && req.method === 'POST') {
+        try {
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { postId, content, title } = data;
+
+          const moderationPrompt = `
+            Analyze the following social media post content for a pet owner community. 
+            Determine if it should be approved for public posting.
+            
+            APPROVE if the content is:
+            - Pet-centric (about dogs, puppies, pet care, etc.)
+            - Positive testimonials or reviews
+            - Helpful pet-related information
+            - Family-friendly pet stories
+            
+            REJECT if the content contains:
+            - Derogatory language
+            - Defamatory statements
+            - Racially charged content
+            - Inappropriate language
+            - Non-pet related content
+            - Spam or promotional content
+            
+            Title: ${title}
+            Content: ${content}
+            
+            Respond with either "APPROVE" or "REJECT" followed by a brief reason.
+          `;
+
+          const https = require('https');
+          const postData = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a content moderator for a pet community platform.' },
+              { role: 'user', content: moderationPrompt }
+            ],
+            temperature: 0.1,
+          });
+
+          const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const openaiReq = https.request(options, (openaiRes) => {
+            let responseData = '';
+            openaiRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            openaiRes.on('end', async () => {
+              try {
+                if (openaiRes.statusCode !== 200) {
+                  const error = JSON.parse(responseData);
+                  throw new Error(error.error?.message || 'OpenAI API error');
+                }
+
+                const aiResult = JSON.parse(responseData);
+                const moderationResult = aiResult.choices[0].message.content;
+                
+                const isApproved = moderationResult.toUpperCase().startsWith('APPROVE');
+                const status = isApproved ? 'approved' : 'rejected';
+                const rejectionReason = isApproved ? null : moderationResult;
+
+                // Update the post with moderation result
+                await pool.query(`
+                  UPDATE social_posts 
+                  SET moderation_status = $1, rejection_reason = $2, updated_at = NOW()
+                  WHERE id = $3
+                `, [status, rejectionReason, postId]);
+
+                res.writeHead(200);
+                res.end(JSON.stringify({ 
+                  success: true, 
+                  status,
+                  reason: rejectionReason 
+                }));
+              } catch (error) {
+                console.error('Error processing moderation response:', error);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to process moderation response' }));
+              }
+            });
+          });
+
+          openaiReq.on('error', (error) => {
+            console.error('OpenAI moderation request error:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to connect to OpenAI API' }));
+          });
+
+          openaiReq.write(postData);
+          openaiReq.end();
+        } catch (error) {
+          console.error('Moderate content error:', error);
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // AI Assistant endpoint
+      if (pathname === '/api/ai/assistant' && req.method === 'POST') {
+        try {
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { userMessage, conversationHistory = [] } = data;
+
+          if (!userMessage) {
+            throw new Error("User message is required");
+          }
+
+          // Build conversation context
+          const messages = [
+            {
+              role: 'system',
+              content: `You are a helpful AI assistant for High Bred Bullies, a dog breeding platform. 
+                You help users with:
+                - General pet care questions
+                - Dog breeding information
+                - Platform navigation help
+                - Puppy care and training tips
+                - Health and nutrition advice
+                
+                Be friendly, informative, and concise. If users ask about specific medical issues, 
+                recommend consulting with a veterinarian.`
+            },
+            ...conversationHistory,
+            { role: 'user', content: userMessage }
+          ];
+
+          const https = require('https');
+          const postData = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 500
+          });
+
+          const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const openaiReq = https.request(options, (openaiRes) => {
+            let responseData = '';
+            openaiRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            openaiRes.on('end', () => {
+              try {
+                if (openaiRes.statusCode !== 200) {
+                  const error = JSON.parse(responseData);
+                  throw new Error(error.error?.message || 'OpenAI API error');
+                }
+
+                const aiResponse = JSON.parse(responseData);
+                const assistantMessage = aiResponse.choices[0].message.content;
+
+                // Check if user needs breeder contact
+                function checkIfNeedsBreederContact(userMessage, aiResponse) {
+                  const contactKeywords = [
+                    'buy', 'purchase', 'available', 'price', 'cost', 'reserve',
+                    'contact breeder', 'meet', 'visit', 'schedule', 'appointment'
+                  ];
+                  
+                  return contactKeywords.some(keyword => 
+                    userMessage.toLowerCase().includes(keyword) ||
+                    aiResponse.toLowerCase().includes(keyword)
+                  );
+                }
+
+                const needsBreederContact = checkIfNeedsBreederContact(userMessage, assistantMessage);
+
+                res.writeHead(200);
+                res.end(JSON.stringify({
+                  response: assistantMessage,
+                  needsBreederContact
+                }));
+              } catch (error) {
+                console.error('Error processing AI assistant response:', error);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to process AI response' }));
+              }
+            });
+          });
+
+          openaiReq.on('error', (error) => {
+            console.error('OpenAI assistant request error:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to connect to OpenAI API' }));
+          });
+
+          openaiReq.write(postData);
+          openaiReq.end();
+        } catch (error) {
+          console.error('AI assistant error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // =================================================================
+      // EMAIL NOTIFICATION ENDPOINTS
+      // =================================================================
+
+      // Send inquiry notification to breeder
+      if (pathname === '/api/email/send-inquiry-notification' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { inquiryId, breederEmail, customerName, customerEmail, subject, message } = data;
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">New Customer Inquiry</h1>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>Customer Information:</h3>
+                <p><strong>Name:</strong> ${customerName}</p>
+                <p><strong>Email:</strong> ${customerEmail}</p>
+                <p><strong>Subject:</strong> ${subject}</p>
+              </div>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>Message:</h3>
+                <p>${message}</p>
+              </div>
+              <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+                Please respond to this inquiry promptly to provide excellent customer service.
+              </p>
+            </div>
+          `;
+
+          const success = await sendEmail({
+            to: breederEmail,
+            subject: `New Inquiry: ${subject}`,
+            html
+          });
+
+          if (inquiryId) {
+            await pool.query(`
+              UPDATE inquiries SET notification_sent = true WHERE id = $1
+            `, [inquiryId]);
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success, 
+            message: success ? 'Inquiry notification sent successfully' : 'Failed to send notification' 
+          }));
+        } catch (error) {
+          console.error('Send inquiry notification error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Send inquiry response to customer
+      if (pathname === '/api/email/send-inquiry-response' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { customerEmail, customerName, breederName, responseMessage } = data;
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">Response from ${breederName}</h1>
+              <p>Dear ${customerName},</p>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                ${responseMessage}
+              </div>
+              <p>Thank you for your inquiry!</p>
+              <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+                High Bred Bullies - Connecting families with quality American Bully breeds
+              </p>
+            </div>
+          `;
+
+          const success = await sendEmail({
+            to: customerEmail,
+            subject: `Response from ${breederName} - High Bred Bullies`,
+            html
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success, 
+            message: success ? 'Response sent successfully' : 'Failed to send response' 
+          }));
+        } catch (error) {
+          console.error('Send inquiry response error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Send litter notification to interested customers
+      if (pathname === '/api/email/send-litter-notification' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { litter, recipientEmails } = data;
+
+          if (!litter || !recipientEmails || recipientEmails.length === 0) {
+            throw new Error("Litter information and recipient emails are required");
+          }
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #2563eb;">New Litter Available!</h1>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h2>${litter.name}</h2>
+                <p><strong>Breed:</strong> ${litter.breed}</p>
+                <p><strong>Expected Birth Date:</strong> ${new Date(litter.birth_date).toLocaleDateString()}</p>
+                <p><strong>Total Puppies:</strong> ${litter.total_puppies}</p>
+                <p><strong>Male Price:</strong> $${(litter.price_per_male / 100).toFixed(2)}</p>
+                <p><strong>Female Price:</strong> $${(litter.price_per_female / 100).toFixed(2)}</p>
+              </div>
+              ${litter.description ? `
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Description:</h3>
+                  <p>${litter.description}</p>
+                </div>
+              ` : ''}
+              <p>Visit our website to learn more about this litter and reserve your puppy!</p>
+              <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+                High Bred Bullies - Quality American Bully breeds
+              </p>
+            </div>
+          `;
+
+          let successCount = 0;
+          for (const email of recipientEmails) {
+            const success = await sendEmail({
+              to: email,
+              subject: `New Litter Available: ${litter.name}`,
+              html
+            });
+            if (success) successCount++;
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: successCount > 0,
+            sentCount: successCount,
+            totalRecipients: recipientEmails.length,
+            message: `Sent ${successCount} of ${recipientEmails.length} notifications`
+          }));
+        } catch (error) {
+          console.error('Send litter notification error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Send order update notification
+      if (pathname === '/api/email/send-order-update' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { orderId, customerEmail, customerName, status, message, deliveryDate } = data;
+
+          let statusColor = '#2563eb';
+          if (status === 'confirmed') statusColor = '#10b981';
+          else if (status === 'ready') statusColor = '#f59e0b';
+          else if (status === 'completed') statusColor = '#10b981';
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: ${statusColor};">Order Update</h1>
+              <p>Dear ${customerName},</p>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Order ID:</strong> ${orderId}</p>
+                <p><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold;">${status.toUpperCase()}</span></p>
+                ${deliveryDate ? `<p><strong>Delivery/Pickup Date:</strong> ${new Date(deliveryDate).toLocaleDateString()}</p>` : ''}
+              </div>
+              ${message ? `
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Update Details:</h3>
+                  <p>${message}</p>
+                </div>
+              ` : ''}
+              <p>Thank you for choosing High Bred Bullies!</p>
+              <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+                If you have any questions, please don't hesitate to contact us.
+              </p>
+            </div>
+          `;
+
+          const success = await sendEmail({
+            to: customerEmail,
+            subject: `Order Update: ${status.toUpperCase()} - Order #${orderId}`,
+            html
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success, 
+            message: success ? 'Order update notification sent successfully' : 'Failed to send notification' 
+          }));
+        } catch (error) {
+          console.error('Send order update error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Send pickup confirmation
+      if (pathname === '/api/email/send-pickup-confirmation' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { customerEmail, customerName, puppyNames, pickupDate, pickupTime, address, specialInstructions } = data;
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #10b981;">Pickup Confirmation</h1>
+              <p>Dear ${customerName},</p>
+              <p>Your puppy pickup has been confirmed! Here are the details:</p>
+              
+              <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+                <h3 style="color: #065f46; margin-top: 0;">Pickup Details</h3>
+                <p><strong>Puppy/Puppies:</strong> ${Array.isArray(puppyNames) ? puppyNames.join(', ') : puppyNames}</p>
+                <p><strong>Date:</strong> ${new Date(pickupDate).toLocaleDateString()}</p>
+                <p><strong>Time:</strong> ${pickupTime}</p>
+                <p><strong>Address:</strong> ${address}</p>
+              </div>
+
+              ${specialInstructions ? `
+                <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                  <h3 style="color: #92400e; margin-top: 0;">Special Instructions</h3>
+                  <p>${specialInstructions}</p>
+                </div>
+              ` : ''}
+
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>What to Bring:</h3>
+                <ul>
+                  <li>Valid government-issued ID</li>
+                  <li>Puppy carrier or leash</li>
+                  <li>Any remaining payment (if applicable)</li>
+                </ul>
+              </div>
+
+              <p>We're excited for you to meet your new family member!</p>
+              <p>If you need to reschedule or have any questions, please contact us immediately.</p>
+              
+              <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+                High Bred Bullies - Thank you for choosing us for your new companion!
+              </p>
+            </div>
+          `;
+
+          const success = await sendEmail({
+            to: customerEmail,
+            subject: `Pickup Confirmed - ${new Date(pickupDate).toLocaleDateString()}`,
+            html
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success, 
+            message: success ? 'Pickup confirmation sent successfully' : 'Failed to send confirmation' 
+          }));
+        } catch (error) {
+          console.error('Send pickup confirmation error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // =================================================================
+      // BUSINESS OPERATION ENDPOINTS
+      // =================================================================
+
+      // Delete litter
+      if (pathname === '/api/litters/delete' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Breeder access required' }));
+            return;
+          }
+
+          const data = await parseBody(req);
+          const { litterId } = data;
+
+          if (!litterId) {
+            throw new Error("Litter ID is required");
+          }
+
+          // Check if litter exists and belongs to the breeder
+          const litterResult = await pool.query(`
+            SELECT l.*, b.user_id as breeder_user_id 
+            FROM litters l
+            LEFT JOIN breeders b ON l.breeder_id = b.id
+            WHERE l.id = $1
+          `, [litterId]);
+
+          if (litterResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Litter not found' }));
+            return;
+          }
+
+          const litter = litterResult.rows[0];
+          if (litter.breeder_user_id !== decoded.userId) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Not authorized to delete this litter' }));
+            return;
+          }
+
+          // Delete related records first (puppies, order_items)
+          await pool.query('DELETE FROM order_items WHERE puppy_id IN (SELECT id FROM puppies WHERE litter_id = $1)', [litterId]);
+          await pool.query('DELETE FROM puppies WHERE litter_id = $1', [litterId]);
+          await pool.query('DELETE FROM litters WHERE id = $1', [litterId]);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true, 
+            message: 'Litter deleted successfully',
+            litterId 
+          }));
+        } catch (error) {
+          console.error('Delete litter error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // Cancel order
+      if (pathname === '/api/orders/cancel' && req.method === 'POST') {
+        try {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+
+          const data = await parseBody(req);
+          const { orderId, reason } = data;
+
+          if (!orderId) {
+            throw new Error("Order ID is required");
+          }
+
+          // Verify order ownership or breeder access
+          const orderResult = await pool.query(`
+            SELECT o.*, oi.puppy_id 
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.id = $1
+          `, [orderId]);
+
+          if (orderResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Order not found' }));
+            return;
+          }
+
+          const order = orderResult.rows[0];
+          if (order.user_id !== decoded.userId && !decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Not authorized to cancel this order' }));
+            return;
+          }
+
+          // Update order status
+          await pool.query(`
+            UPDATE orders 
+            SET status = 'cancelled', cancellation_reason = $1, updated_at = NOW()
+            WHERE id = $2
+          `, [reason, orderId]);
+
+          // Make puppies available again
+          const puppyIds = orderResult.rows.map(row => row.puppy_id).filter(Boolean);
+          if (puppyIds.length > 0) {
+            await pool.query(`
+              UPDATE puppies 
+              SET is_available = true, sold_to = NULL 
+              WHERE id = ANY($1)
+            `, [puppyIds]);
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true, 
+            message: 'Order cancelled successfully',
+            orderId 
+          }));
+        } catch (error) {
+          console.error('Cancel order error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+      }
+
+      // =================================================================
+      // AI CONTENT GENERATION ENDPOINTS
+      // =================================================================
+
+      // Generate blog post with AI
+      if (pathname === '/api/ai/generate-blog-post' && req.method === 'POST') {
+        try {
+          if (!OPENAI_API_KEY) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
+            return;
+          }
+
+          const blogTopics = [
+            "Common Pet Diseases and Their Treatments",
+            "The Importance of Regular Exercise for Your Dog",
+            "Effective Puppy Training Tips for New Owners",
+            "Choosing the Right Food for Your Pet's Breed and Age",
+            "How to Socialize Your New Puppy Safely",
+            "Understanding and Managing Pet Anxiety",
+            "The Benefits of Pet Adoption vs. Buying",
+            "Essential Grooming Practices for a Healthy Coat",
+            "Creating a Pet-Friendly Home Environment",
+            "Senior Pet Care: Keeping Your Older Companion Comfortable"
+          ];
+
+          const randomTopic = blogTopics[Math.floor(Math.random() * blogTopics.length)];
+
+          const prompt = `
+            You are an expert pet care blogger for "High Bred (Hybrid) Bullies".
+            Write a blog post about the topic: "${randomTopic}".
+            The tone should be informative, friendly, and helpful.
+            The article should be between 300 and 500 words.
+            
+            Please return the response as a single JSON object with the following keys:
+            - "title": A catchy and SEO-friendly title for the blog post.
+            - "content": The full blog post content in Markdown format.
+            - "excerpt": A short, compelling summary of the article (max 50 words).
+            - "category": The most relevant category from this list: "Health", "Training", "Nutrition", "General", "Lifestyle".
+            - "author_name": A plausible author name for a pet blog, like "Dr. Paws" or "The Pawsitive Team".
+            - "image_prompt": A detailed DALL-E prompt to generate a photorealistic and engaging image for this blog post.
+          `;
+
+          const https = require('https');
+          const postData = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant that generates pet-related blog content in a specific JSON format.' },
+              { role: 'user', content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.7,
+          });
+
+          const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const openaiReq = https.request(options, (openaiRes) => {
+            let responseData = '';
+            openaiRes.on('data', (chunk) => {
+              responseData += chunk;
+            });
+            openaiRes.on('end', async () => {
+              try {
+                const aiResponse = JSON.parse(responseData);
+                if (openaiRes.statusCode !== 200) {
+                  throw new Error(aiResponse.error?.message || 'OpenAI API error');
+                }
+
+                const blogData = JSON.parse(aiResponse.choices[0].message.content);
+
+                // Generate image with DALL-E
+                const imagePostData = JSON.stringify({
+                  model: 'dall-e-2',
+                  prompt: blogData.image_prompt,
+                  n: 1,
+                  size: '1024x1024'
+                });
+
+                const imageOptions = {
+                  hostname: 'api.openai.com',
+                  port: 443,
+                  path: '/v1/images/generations',
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(imagePostData)
+                  }
+                };
+
+                const imageReq = https.request(imageOptions, (imageRes) => {
+                  let imageResponseData = '';
+                  imageRes.on('data', (chunk) => {
+                    imageResponseData += chunk;
+                  });
+                  imageRes.on('end', async () => {
+                    try {
+                      let imageUrl = null;
+                      if (imageRes.statusCode === 200) {
+                        const imageResponse = JSON.parse(imageResponseData);
+                        imageUrl = imageResponse.data[0].url;
+                      }
+
+                      // Save blog post to database
+                      const slug = blogData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      
+                      const insertResult = await pool.query(`
+                        INSERT INTO blog_posts (title, slug, content, excerpt, category, image_url, author_name, is_published, published_at, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW(), NOW())
+                        RETURNING *
+                      `, [
+                        blogData.title,
+                        slug,
+                        blogData.content,
+                        blogData.excerpt,
+                        blogData.category,
+                        imageUrl,
+                        blogData.author_name
+                      ]);
+
+                      res.writeHead(200);
+                      res.end(JSON.stringify({
+                        success: true,
+                        blog_post: insertResult.rows[0],
+                        image_url: imageUrl
+                      }));
+                    } catch (error) {
+                      console.error('Error saving blog post:', error);
+                      res.writeHead(500);
+                      res.end(JSON.stringify({ error: 'Failed to save blog post' }));
+                    }
+                  });
+                });
+
+                imageReq.on('error', async (error) => {
+                  console.error('Image generation failed:', error);
+                  // Save blog post without image
+                  try {
+                    const slug = blogData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    
+                    const insertResult = await pool.query(`
+                      INSERT INTO blog_posts (title, slug, content, excerpt, category, author_name, is_published, published_at, created_at, updated_at)
+                      VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW(), NOW())
+                      RETURNING *
+                    `, [
+                      blogData.title,
+                      slug,
+                      blogData.content,
+                      blogData.excerpt,
+                      blogData.category,
+                      blogData.author_name
+                    ]);
+
+                    res.writeHead(200);
+                    res.end(JSON.stringify({
+                      success: true,
+                      blog_post: insertResult.rows[0],
+                      image_url: null
+                    }));
+                  } catch (dbError) {
+                    console.error('Error saving blog post:', dbError);
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ error: 'Failed to save blog post' }));
+                  }
+                });
+
+                imageReq.write(imagePostData);
+                imageReq.end();
+
+              } catch (error) {
+                console.error('Error processing AI response:', error);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to process AI response' }));
+              }
+            });
+          });
+
+          openaiReq.on('error', (error) => {
+            console.error('OpenAI request error:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to connect to OpenAI API' }));
+          });
+
+          openaiReq.write(postData);
+          openaiReq.end();
+        } catch (error) {
+          console.error('Generate blog post error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: error.message }));
         }
         return;
       }
