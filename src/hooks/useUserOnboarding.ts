@@ -143,7 +143,9 @@ export function useUserOnboarding() {
       setIsReady(true);
     } catch (error) {
       console.error('Error during user initialization:', error);
-      toast.error('Failed to initialize user profile');
+      // Don't show error toast for authentication failures, just log and continue
+      console.log('Setting ready state despite initialization error to prevent loading loop');
+      setIsReady(true);
     } finally {
       setIsOnboarding(false);
     }
