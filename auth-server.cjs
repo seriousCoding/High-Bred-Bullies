@@ -170,15 +170,16 @@ async function startServer() {
     try {
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
-        const { username, password } = req.body;
-
-        if (!username || !password) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Username and password required' }));
-          return;
-        }
-
         try {
+          const data = await parseBody(req);
+          const { username, password } = data;
+
+          if (!username || !password) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Username and password required' }));
+            return;
+          }
+
           // Find user by username or email patterns
           const result = await pool.query(`
             SELECT id, username, first_name, last_name, is_admin
@@ -242,8 +243,6 @@ async function startServer() {
 
       // Registration endpoint
       if (pathname === '/api/register' && req.method === 'POST') {
-        setHeaders(res);
-        
         try {
           const data = await parseBody(req);
           const { username, password, email } = data;
