@@ -4919,32 +4919,14 @@ async function startServer() {
       // AI CONTENT GENERATION ENDPOINTS
       // =================================================================
 
-      // Generate blog post with AI
+      // Generate blog post with AI  
       if (pathname === '/api/ai/generate-blog-post' && req.method === 'POST') {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          res.writeHead(401);
-          res.end(JSON.stringify({ error: 'No token provided' }));
-          return;
-        }
-
         try {
-          const token = authHeader.substring(7);
-          const decoded = jwt.verify(token, JWT_SECRET);
-          
-          if (!decoded.isBreeder) {
-            res.writeHead(403);
-            res.end(JSON.stringify({ error: 'Admin access required' }));
-            return;
-          }
-          
           if (!OPENAI_API_KEY) {
             res.writeHead(500);
             res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
             return;
           }
-
-          console.log('Starting AI blog post generation...');
 
           const blogTopics = [
             "Common Pet Diseases and Their Treatments",
@@ -4956,10 +4938,16 @@ async function startServer() {
             "The Benefits of Pet Adoption vs. Buying",
             "Essential Grooming Practices for a Healthy Coat",
             "Creating a Pet-Friendly Home Environment",
-            "Senior Pet Care: Keeping Your Older Companion Comfortable"
+            "Senior Pet Care: Keeping Your Older Companion Comfortable",
+            "The Role of Microchipping in Pet Safety",
+            "Dental Health for Pets: Why It Matters and How to Maintain It",
+            "Fun and Engaging DIY Pet Toys",
+            "Traveling with Your Pet: A Complete Guide",
+            "Decoding Your Cat's Body Language"
           ];
 
           const randomTopic = blogTopics[Math.floor(Math.random() * blogTopics.length)];
+          console.log(`Generating blog post for topic: ${randomTopic}`);
 
           const prompt = `
             You are an expert pet care blogger for "High Bred (Hybrid) Bullies".
@@ -5012,13 +5000,16 @@ async function startServer() {
                 }
 
                 const blogData = JSON.parse(aiResponse.choices[0].message.content);
+                console.log('Generated blog data from AI:', blogData.title);
+                console.log('Generating image with prompt:', blogData.image_prompt);
 
-                // Generate image with DALL-E
+                // Generate Image using DALL-E 3
                 const imagePostData = JSON.stringify({
-                  model: 'dall-e-2',
+                  model: 'dall-e-3',
                   prompt: blogData.image_prompt,
                   n: 1,
-                  size: '1024x1024'
+                  size: '1024x1024',
+                  quality: 'standard'
                 });
 
                 const imageOptions = {
@@ -5063,11 +5054,11 @@ async function startServer() {
                         blogData.author_name
                       ]);
 
+                      console.log('Successfully created blog post:', blogData.title);
                       res.writeHead(200);
-                      res.end(JSON.stringify({
-                        message: "Blog post generated successfully!",
-                        title: blogData.title,
-                        post: insertResult.rows[0]
+                      res.end(JSON.stringify({ 
+                        message: "Blog post generated successfully!", 
+                        title: blogData.title 
                       }));
                     } catch (error) {
                       console.error('Error saving blog post:', error);
@@ -5096,11 +5087,11 @@ async function startServer() {
                       blogData.author_name
                     ]);
 
+                    console.log('Successfully created blog post without image:', blogData.title);
                     res.writeHead(200);
                     res.end(JSON.stringify({
                       message: "Blog post generated successfully (without image)!",
-                      title: blogData.title,
-                      post: insertResult.rows[0]
+                      title: blogData.title
                     }));
                   } catch (dbError) {
                     console.error('Error saving blog post:', dbError);
@@ -5136,341 +5127,7 @@ async function startServer() {
         return;
       }
 
-      // Generate AI social posts
-      if (pathname === '/api/ai/generate-social-posts' && req.method === 'POST') {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          res.writeHead(401);
-          res.end(JSON.stringify({ error: 'No token provided' }));
-          return;
-        }
 
-        try {
-          const token = authHeader.substring(7);
-          const decoded = jwt.verify(token, JWT_SECRET);
-          
-          if (!decoded.isBreeder) {
-            res.writeHead(403);
-            res.end(JSON.stringify({ error: 'Admin access required' }));
-            return;
-          }
-          
-          if (!OPENAI_API_KEY) {
-            res.writeHead(500);
-            res.end(JSON.stringify({ error: 'OpenAI API key not configured' }));
-            return;
-          }
-
-          const socialPostTopics = [
-            "My puppy's first training session success!",
-            "Best treats for positive reinforcement training",
-            "Puppy socialization tips from my experience", 
-            "How my dog changed my life for the better",
-            "Funny puppy behavior that made me laugh today",
-            "Training milestone: my dog learned a new trick!",
-            "Pet-friendly places I discovered recently",
-            "Health tip: keeping your dog's teeth clean",
-            "Rainy day activities for energetic puppies",
-            "The bond between my family and our new puppy",
-            "Exercise routine that works for my breed",
-            "Grooming tips I learned the hard way",
-            "Why rescue dogs make amazing companions",
-            "Puppy-proofing your home: what I missed",
-            "Building confidence in shy or anxious dogs"
-          ];
-
-          // Generate 3-5 posts
-          const numPosts = Math.floor(Math.random() * 3) + 3;
-          const selectedTopics = socialPostTopics.sort(() => 0.5 - Math.random()).slice(0, numPosts);
-          
-          console.log(`Generating ${numPosts} AI social posts`);
-          
-          const posts = [];
-          let completedPosts = 0;
-
-          for (let i = 0; i < selectedTopics.length; i++) {
-            const topic = selectedTopics[i];
-            console.log(`Generating social post ${i + 1}: ${topic}`);
-            
-            const prompt = `
-              You are a pet owner in the "High Table" community sharing your experience.
-              Write a social media post about: "${topic}".
-              
-              The post should be:
-              - Personal and authentic (written in first person)
-              - 50-150 words
-              - Engaging and relatable to other pet owners
-              - Include practical tips or insights
-              - Warm and friendly tone
-              - Feel like a real social media post with some casual language
-              
-              Return ONLY the post content, no quotes or additional formatting.
-            `;
-
-            const https = require('https');
-            const postData = JSON.stringify({
-              model: 'gpt-4o-mini',
-              messages: [
-                { role: 'system', content: 'You are a helpful pet owner sharing experiences in a community.' },
-                { role: 'user', content: prompt }
-              ],
-              temperature: 0.8
-            });
-
-            const options = {
-              hostname: 'api.openai.com',
-              port: 443,
-              path: '/v1/chat/completions',
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(postData)
-              }
-            };
-
-            const openaiReq = https.request(options, (openaiRes) => {
-              let responseData = '';
-              openaiRes.on('data', (chunk) => {
-                responseData += chunk;
-              });
-              openaiRes.on('end', async () => {
-                try {
-                  if (openaiRes.statusCode === 200) {
-                    const response = JSON.parse(responseData);
-                    const content = response.choices[0].message.content;
-
-                    // Generate image for this post
-                    let imagePrompt = "";
-                    if (topic.includes("training")) {
-                      imagePrompt = "A happy dog during a training session with their owner in a backyard, showing positive reinforcement with treats, bright natural lighting, realistic photo style";
-                    } else if (topic.includes("puppy") || topic.includes("new")) {
-                      imagePrompt = "An adorable puppy playing with toys in a cozy home setting, natural lighting, heartwarming scene, realistic photo style";
-                    } else if (topic.includes("health") || topic.includes("teeth")) {
-                      imagePrompt = "A dog having their teeth brushed or examined, showing good dental care, clean bright setting, realistic photo style";
-                    } else if (topic.includes("exercise") || topic.includes("activities")) {
-                      imagePrompt = "A dog enjoying outdoor exercise or play time, running or playing fetch, beautiful outdoor setting, action shot, realistic photo style";
-                    } else if (topic.includes("grooming")) {
-                      imagePrompt = "A dog being groomed or freshly groomed looking happy and clean, professional grooming setting, realistic photo style";
-                    } else if (topic.includes("rescue") || topic.includes("companions")) {
-                      imagePrompt = "A rescued dog looking happy and loved with their new family, warm home environment, emotional connection, realistic photo style";
-                    } else {
-                      imagePrompt = "A happy, healthy dog in a loving home environment with their family, warm natural lighting, realistic photo style showing the bond between pet and owner";
-                    }
-
-                    const imageData = JSON.stringify({
-                      model: 'dall-e-2',
-                      prompt: imagePrompt,
-                      n: 1,
-                      size: '1024x1024'
-                    });
-
-                    const imageOptions = {
-                      hostname: 'api.openai.com',
-                      port: 443,
-                      path: '/v1/images/generations',
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                        'Content-Type': 'application/json',
-                        'Content-Length': Buffer.byteLength(imageData)
-                      }
-                    };
-
-                    const imageReq = https.request(imageOptions, async (imageRes) => {
-                      let imageResponseData = '';
-                      imageRes.on('data', (chunk) => {
-                        imageResponseData += chunk;
-                      });
-                      imageRes.on('end', async () => {
-                        let imageUrl = null;
-                        if (imageRes.statusCode === 200) {
-                          try {
-                            const imageResponse = JSON.parse(imageResponseData);
-                            imageUrl = imageResponse.data[0].url;
-                            console.log(`Generated image for post ${i + 1}`);
-                          } catch (e) {
-                            console.error('Error parsing image response:', e);
-                          }
-                        }
-
-                        posts.push({
-                          title: topic,
-                          content: content.trim(),
-                          image_url: imageUrl,
-                          visibility: 'public',
-                          moderation_status: 'approved',
-                          is_testimonial: Math.random() < 0.3
-                        });
-
-                        completedPosts++;
-                        if (completedPosts === selectedTopics.length) {
-                          // Insert all posts into database
-                          try {
-                            for (const post of posts) {
-                              await pool.query(`
-                                INSERT INTO social_posts (
-                                  user_id, title, content, image_url, visibility, 
-                                  moderation_status, is_testimonial, created_at, updated_at
-                                ) VALUES (NULL, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-                              `, [
-                                post.title,
-                                post.content,
-                                post.image_url,
-                                post.visibility,
-                                post.moderation_status,
-                                post.is_testimonial
-                              ]);
-                            }
-
-                            console.log(`Successfully created ${posts.length} AI social posts`);
-                            res.writeHead(200);
-                            res.end(JSON.stringify({ 
-                              message: "AI social posts generated successfully!", 
-                              count: posts.length 
-                            }));
-                          } catch (dbError) {
-                            console.error('Database error:', dbError);
-                            res.writeHead(500);
-                            res.end(JSON.stringify({ error: 'Failed to save social posts' }));
-                          }
-                        }
-                      });
-                    });
-
-                    imageReq.on('error', async () => {
-                      // Continue without image
-                      posts.push({
-                        title: topic,
-                        content: content.trim(),
-                        image_url: null,
-                        visibility: 'public',
-                        moderation_status: 'approved',
-                        is_testimonial: Math.random() < 0.3
-                      });
-
-                      completedPosts++;
-                      if (completedPosts === selectedTopics.length) {
-                        try {
-                          for (const post of posts) {
-                            await pool.query(`
-                              INSERT INTO social_posts (
-                                user_id, title, content, image_url, visibility, 
-                                moderation_status, is_testimonial, created_at, updated_at
-                              ) VALUES (NULL, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-                            `, [
-                              post.title,
-                              post.content,
-                              post.image_url,
-                              post.visibility,
-                              post.moderation_status,
-                              post.is_testimonial
-                            ]);
-                          }
-
-                          res.writeHead(200);
-                          res.end(JSON.stringify({ 
-                            message: "AI social posts generated successfully!", 
-                            count: posts.length 
-                          }));
-                        } catch (dbError) {
-                          console.error('Database error:', dbError);
-                          res.writeHead(500);
-                          res.end(JSON.stringify({ error: 'Failed to save social posts' }));
-                        }
-                      }
-                    });
-
-                    imageReq.write(imageData);
-                    imageReq.end();
-                  } else {
-                    console.error('OpenAI API error for post:', topic);
-                    completedPosts++;
-                    if (completedPosts === selectedTopics.length && posts.length > 0) {
-                      // Save any successful posts
-                      try {
-                        for (const post of posts) {
-                          await pool.query(`
-                            INSERT INTO social_posts (
-                              user_id, title, content, image_url, visibility, 
-                              moderation_status, is_testimonial, created_at, updated_at
-                            ) VALUES (NULL, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-                          `, [
-                            post.title,
-                            post.content,
-                            post.image_url,
-                            post.visibility,
-                            post.moderation_status,
-                            post.is_testimonial
-                          ]);
-                        }
-
-                        res.writeHead(200);
-                        res.end(JSON.stringify({ 
-                          message: `Generated ${posts.length} social posts successfully!`, 
-                          count: posts.length 
-                        }));
-                      } catch (dbError) {
-                        console.error('Database error:', dbError);
-                        res.writeHead(500);
-                        res.end(JSON.stringify({ error: 'Failed to save social posts' }));
-                      }
-                    }
-                  }
-                } catch (parseError) {
-                  console.error('Error parsing response for post:', topic, parseError);
-                  completedPosts++;
-                }
-              });
-            });
-
-            openaiReq.on('error', (error) => {
-              console.error('OpenAI request error for post:', topic, error);
-              completedPosts++;
-              if (completedPosts === selectedTopics.length && posts.length > 0) {
-                // Try to save any successful posts
-                setTimeout(async () => {
-                  try {
-                    for (const post of posts) {
-                      await pool.query(`
-                        INSERT INTO social_posts (
-                          user_id, title, content, image_url, visibility, 
-                          moderation_status, is_testimonial, created_at, updated_at
-                        ) VALUES (NULL, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-                      `, [
-                        post.title,
-                        post.content,
-                        post.image_url,
-                        post.visibility,
-                        post.moderation_status,
-                        post.is_testimonial
-                      ]);
-                    }
-
-                    res.writeHead(200);
-                    res.end(JSON.stringify({ 
-                      message: `Generated ${posts.length} social posts successfully!`, 
-                      count: posts.length 
-                    }));
-                  } catch (dbError) {
-                    console.error('Database error:', dbError);
-                    res.writeHead(500);
-                    res.end(JSON.stringify({ error: 'Failed to save social posts' }));
-                  }
-                }, 1000);
-              }
-            });
-
-            openaiReq.write(postData);
-            openaiReq.end();
-          }
-        } catch (error) {
-          console.error('Generate social posts error:', error);
-          res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Failed to generate social posts' }));
-        }
-        return;
-      }
 
       // 404 for unhandled API routes
       if (pathname.startsWith('/api/')) {
