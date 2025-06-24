@@ -702,9 +702,9 @@ async function startServer() {
             // Code-based reset
             console.log('🔑 Processing code-based reset for:', email);
             
-            // Find user first (note: user_profiles table doesn't have email column, only username)
+            // Find user and validate reset code
             const userResult = await pool.query(`
-              SELECT id, username FROM user_profiles 
+              SELECT id, username, reset_token, reset_token_expires FROM user_profiles 
               WHERE username = $1
               LIMIT 1
             `, [email]);
@@ -716,45 +716,30 @@ async function startServer() {
             }
 
             const user = userResult.rows[0];
-
-            // Verify code
-            const tokenResult = await pool.query(`
-              SELECT id, user_id, used_at
-              FROM password_reset_tokens 
-              WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
-              LIMIT 1
-            `, [user.id, code]);
-
-            if (tokenResult.rows.length === 0) {
+            
+            // Check if the provided code matches any recent valid token
+            if (!user.reset_token || user.reset_token !== code) {
               res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid or expired reset code' }));
+              res.end(JSON.stringify({ error: 'Invalid reset code' }));
               return;
             }
-
-            const tokenRecord = tokenResult.rows[0];
             
-            if (tokenRecord.used_at) {
+            // Check if token has expired
+            if (!user.reset_token_expires || new Date() > new Date(user.reset_token_expires)) {
               res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Reset code already used' }));
+              res.end(JSON.stringify({ error: 'Reset code has expired. Please request a new one.' }));
               return;
             }
 
             // Hash new password
             const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-            // Update user password
+            // Update user password and clear reset token
             await pool.query(`
               UPDATE user_profiles 
-              SET password_hash = $1, updated_at = NOW()
+              SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL
               WHERE id = $2
             `, [hashedPassword, user.id]);
-
-            // Mark code as used
-            await pool.query(`
-              UPDATE password_reset_tokens 
-              SET used_at = NOW() 
-              WHERE id = $1
-            `, [tokenRecord.id]);
 
             console.log('✅ Password reset completed successfully for:', email);
             res.writeHead(200);
