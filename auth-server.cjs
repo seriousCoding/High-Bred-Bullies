@@ -416,9 +416,14 @@ async function startServer() {
 
           if (userResult.rows.length === 0) {
             console.log(`❌ No user found with email: ${email}`);
-            // Don't reveal if user exists - return success anyway
-            res.writeHead(200);
-            res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+            // Provide clear feedback for non-existent users
+            const response = {
+              message: 'No account found with this email address',
+              error: 'USER_NOT_FOUND',
+              suggestion: 'Please check your email address or create a new account'
+            };
+            res.writeHead(404);
+            res.end(JSON.stringify(response));
             return;
           }
 
