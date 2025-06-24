@@ -45,8 +45,8 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
 
       if (response.ok) {
         toast({
-          title: 'Reset Link Sent',
-          description: data.message,
+          title: 'Reset Code Sent',
+          description: 'Check your email for a 6-digit reset code',
         });
         setStep('token');
       } else {
@@ -91,7 +91,7 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/password-reset/confirm', {
+      const response = await fetch('/api/password-reset/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,8 +137,8 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
           <DialogTitle>Reset Password</DialogTitle>
           <DialogDescription>
             {step === 'email'
-              ? 'Enter your email address to receive a reset link'
-              : 'Enter the reset token and your new password'}
+              ? 'Enter your email address to receive a reset code'
+              : 'Enter the 6-digit reset code from your email and your new password'}
           </DialogDescription>
         </DialogHeader>
 
@@ -165,20 +165,21 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? 'Sending...' : 'Send Reset Link'}
+                {isLoading ? 'Sending...' : 'Send Reset Code'}
               </Button>
             </div>
           </form>
         ) : (
           <form onSubmit={handleConfirmReset} className="space-y-4">
             <div>
-              <Label htmlFor="token">Reset Token</Label>
+              <Label htmlFor="token">Reset Code</Label>
               <Input
                 id="token"
                 type="text"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Enter reset token from console/email"
+                placeholder="Enter 6-digit code from email"
+                maxLength={6}
                 required
               />
             </div>
