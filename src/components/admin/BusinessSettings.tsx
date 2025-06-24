@@ -46,12 +46,12 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
     businessHoursLine3: '',
   });
 
-  const { data: breeder, isLoading: isLoadingBreeder } = useQuery({
-    queryKey: ['breederProfile', breederId],
+  // Use the combined business settings endpoint instead of separate calls
+  const { data: businessSettings, isLoading: isLoadingBusinessSettings } = useQuery({
+    queryKey: ['businessSettings'],
     queryFn: async () => {
-      if (!breederId) return null;
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/business/settings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -60,22 +60,21 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
       
       if (!response.ok) {
         if (response.status === 404) {
-          // Return empty breeder object if not found
+          // Return empty business settings if not found
           return {
             business_name: '',
             contact_phone: '',
             contact_email: '',
             address: '',
             delivery_areas: [],
-            delivery_fee: 0
+            delivery_fee: 250
           };
         }
-        throw new Error(`Failed to fetch breeder: ${response.statusText}`);
+        throw new Error(`Failed to fetch business settings: ${response.statusText}`);
       }
       
       return await response.json();
     },
-    enabled: !!breederId,
   });
 
   const { data: siteConfig, isLoading: isLoadingSiteConfig } = useQuery({
@@ -99,18 +98,18 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
   });
 
   useEffect(() => {
-    if (breeder || siteConfig) {
+    if (businessSettings || siteConfig) {
       setFormData(prev => ({
         ...prev,
-        businessName: breeder?.business_name || prev.businessName,
-        contactPhone: breeder?.contact_phone || prev.contactPhone,
-        contactEmail: breeder?.contact_email || prev.contactEmail,
-        address: breeder?.address || prev.address,
-        deliveryAreas: Array.isArray(breeder?.delivery_areas) 
-          ? breeder.delivery_areas.join(', ') 
-          : (typeof breeder?.delivery_areas === 'string' ? breeder.delivery_areas : prev.deliveryAreas),
-        deliveryFee: breeder?.delivery_fee 
-          ? (typeof breeder.delivery_fee === 'number' ? (breeder.delivery_fee / 100).toFixed(2) : breeder.delivery_fee.toString())
+        businessName: businessSettings?.business_name || prev.businessName,
+        contactPhone: businessSettings?.contact_phone || prev.contactPhone,
+        contactEmail: businessSettings?.contact_email || prev.contactEmail,
+        address: businessSettings?.address || prev.address,
+        deliveryAreas: Array.isArray(businessSettings?.delivery_areas) 
+          ? businessSettings.delivery_areas.join(', ') 
+          : (typeof businessSettings?.delivery_areas === 'string' ? businessSettings.delivery_areas : prev.deliveryAreas),
+        deliveryFee: businessSettings?.delivery_fee 
+          ? businessSettings.delivery_fee.toString()
           : prev.deliveryFee,
         contactLocation: siteConfig?.contact_location || prev.contactLocation,
         businessHoursLine1: siteConfig?.business_hours_line1 || prev.businessHoursLine1,
@@ -118,7 +117,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
         businessHoursLine3: siteConfig?.business_hours_line3 || prev.businessHoursLine3,
       }));
     }
-  }, [breeder, siteConfig]);
+  }, [businessSettings, siteConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +195,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (isLoadingBreeder || isLoadingSiteConfig) {
+  if (isLoadingBusinessSettings || isLoadingSiteConfig) {
     return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 

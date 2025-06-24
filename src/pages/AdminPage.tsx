@@ -78,7 +78,74 @@ const AdminPage = () => {
                 }} 
               />
             </TabsContent>
-            <TabsContent value="blog"><AdminBlogManager /></TabsContent>
+            <TabsContent value="blog">
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Blog Management</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem('token');
+                          const response = await fetch('/api/cleanup-stripe-test-litters', {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${token}`,
+                              'Content-Type': 'application/json',
+                            },
+                          });
+                          
+                          const result = await response.json();
+                          
+                          if (response.ok) {
+                            alert(`Success: ${result.message}`);
+                            queryClient.invalidateQueries({ queryKey: ['litters'] });
+                          } else {
+                            alert(`Error: ${result.message || 'Failed to cleanup test litters'}`);
+                          }
+                        } catch (error) {
+                          alert('Network error occurred');
+                          console.error('Cleanup error:', error);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Cleanup Test Litters
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem('token');
+                          const response = await fetch('/api/seed-stripe-test-litters', {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${token}`,
+                              'Content-Type': 'application/json',
+                            },
+                          });
+                          
+                          const result = await response.json();
+                          
+                          if (response.ok) {
+                            alert(`Success: ${result.message}`);
+                            queryClient.invalidateQueries({ queryKey: ['litters'] });
+                          } else {
+                            alert(`Error: ${result.message || 'Failed to seed test litters'}`);
+                          }
+                        } catch (error) {
+                          alert('Network error occurred');
+                          console.error('Seed error:', error);
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Seed Test Litters
+                    </button>
+                  </div>
+                </div>
+                <AdminBlogManager />
+              </div>
+            </TabsContent>
             <TabsContent value="social"><AdminSocialPosts /></TabsContent>
             <TabsContent value="inquiries"><AdminInquiries /></TabsContent>
             <TabsContent value="orders"><AdminOrders /></TabsContent>
