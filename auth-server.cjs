@@ -55,7 +55,6 @@ if (STRIPE_SECRET_KEY) {
 // Initialize Email Service
 let emailTransporter = null;
 function initializeEmailService() {
-  // Enhanced SMTP configuration for better deliverability
   const smtpConfig = {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -64,16 +63,11 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 30000,
-    greetingTimeout: 10000,
-    socketTimeout: 30000,
-    pool: true,
-    maxConnections: 5,
-    rateDelta: 20000,
-    rateLimit: 5,
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
     tls: {
-      rejectUnauthorized: false,
-      ciphers: 'SSLv3'
+      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false'
     }
   };
 
@@ -94,28 +88,16 @@ function initializeEmailService() {
   }
 }
 
-// Unified email sending function with enhanced deliverability
-async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@firsttolaunch.com>' }) {
+// Email sending function
+async function sendEmail({ to, subject, html, from = 'High Bred Bullies <noreply@highbredbullies.com>' }) {
   if (!emailTransporter) {
     console.warn('Email service not configured - skipping email send');
     return false;
   }
 
   try {
-    const info = await emailTransporter.sendMail({ 
-      from, 
-      to, 
-      subject, 
-      html,
-      text: html.replace(/<[^>]*>/g, ''), // Add plain text version
-      headers: {
-        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
-        'X-Priority': '1',
-        'Reply-To': 'gpass1979@gmail.com',
-        'X-Mailer': 'High Bred Bullies Platform'
-      }
-    });
-    console.log('Email sent successfully to', to, '- Message ID:', info.messageId);
+    const info = await emailTransporter.sendMail({ from, to, subject, html });
+    console.log('Email sent successfully:', info.messageId);
     return true;
   } catch (error) {
     console.error('Failed to send email:', error);
@@ -127,32 +109,12 @@ initializeEmailService();
 
 // Verify connection with actual database schema
 pool.connect()
-  .then(async client => {
-    try {
-      // Check database connection
-      const result = await client.query('SELECT count(*) as profile_count FROM user_profiles');
-      console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
-      
-      // Fix database schema issues
-      try {
-        await client.query('ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true');
-        console.log('✅ Added is_public column to social_posts');
-      } catch (e) {
-        console.log('Social posts schema already updated');
-      }
-      
-      try {
-        await client.query('ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_category_check');
-        console.log('✅ Removed restrictive blog category constraint');
-      } catch (e) {
-        console.log('Blog posts constraint already removed');
-      }
-      
-      client.release();
-    } catch (err) {
-      client.release();
-      throw err;
-    }
+  .then(client => {
+    return client.query('SELECT count(*) as profile_count FROM user_profiles')
+      .then(result => {
+        console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
+        client.release();
+      });
   })
   .catch(err => {
     console.error('❌ Connection failed:', err.message);
@@ -250,47 +212,6 @@ async function startServer() {
     }
 
     try {
-      // Load route modules 
-      const { createInquiryRoutes } = require('./server/routes/inquiry-routes.cjs');
-      const { createAuthRoutes } = require('./server/routes/auth-routes.cjs'); 
-      const { createLitterRoutes } = require('./server/routes/litter-routes.cjs');
-      const { createAdminRoutes } = require('./server/routes/admin-routes.cjs');
-      const { createBlogRoutes } = require('./server/routes/blog-routes.cjs');
-      
-      const inquiryRoutes = createInquiryRoutes(pool, sendEmail);
-      const authRoutes = createAuthRoutes(pool, sendEmail);
-      const litterRoutes = createLitterRoutes(pool);
-      const adminRoutes = createAdminRoutes(pool);
-      const blogRoutes = createBlogRoutes(pool);
-
-      // Handle authentication routes  
-      if (await authRoutes.handleLogin(req, res, pathname)) return;
-      if (await authRoutes.handlePasswordResetRequest(req, res, pathname)) return;
-      if (await authRoutes.handlePasswordReset(req, res, pathname)) return;
-
-      // Handle inquiry routes
-      if (await inquiryRoutes.handleGetInquiries(req, res, pathname)) return;
-      if (await inquiryRoutes.handleInquiryReply(req, res, pathname)) return;
-      if (await inquiryRoutes.handleInquiryDelete(req, res, pathname)) return;
-
-      // Handle blog and social post routes
-      if (await blogRoutes.handleGenerateBlogPost(req, res, pathname)) return;
-      if (await blogRoutes.handleGenerateSocialPost(req, res, pathname)) return;
-
-      // Handle admin routes
-      if (await adminRoutes.handleAdminOrders(req, res, pathname)) return;
-      if (await adminRoutes.handleArchivedOrders(req, res, pathname)) return;
-      if (await adminRoutes.handleOrderDetails(req, res, pathname)) return;
-      if (await adminRoutes.handleCancelOrder(req, res, pathname)) return;
-      if (await adminRoutes.handleAdminSocialPosts(req, res, pathname)) return;
-      if (await adminRoutes.handleAdminBlogPosts(req, res, pathname)) return;
-
-      // Handle litter routes
-      if (await litterRoutes.handleBreederLitters(req, res, pathname)) return;
-      if (await litterRoutes.handleLitterManagement(req, res, pathname)) return;
-      if (await litterRoutes.handleFeaturedLitters(req, res, pathname)) return;
-      if (await litterRoutes.handleUpcomingLitters(req, res, pathname)) return;
-
       // Debug endpoint to check users in database
       if (pathname === '/api/debug/users' && req.method === 'GET') {
         try {
@@ -306,10 +227,8 @@ async function startServer() {
 
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
-        console.log('🔑 Login request received');
         try {
           const data = await parseBody(req);
-          console.log('📋 Login data:', { username: data.username, password: '***' });
           const { username, password } = data;
 
           if (!username || !password) {
@@ -318,74 +237,9 @@ async function startServer() {
             return;
           }
 
-          // Check if this is the admin user first
-          if (username === 'gpass1979@gmail.com' && password === 'gpass1979') {
-            console.log('Admin user login attempt');
-            
-            // Create admin user if doesn't exist
-            let adminResult = await pool.query(`
-              SELECT id, username, first_name, last_name, is_admin
-              FROM user_profiles 
-              WHERE username = $1
-              LIMIT 1
-            `, [username]);
-
-            if (adminResult.rows.length === 0) {
-              console.log('Creating admin user gpass1979@gmail.com');
-              
-              // Add password_hash column if it doesn't exist
-              try {
-                await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT`);
-                console.log('Password hash column added/exists');
-              } catch (e) {
-                console.log('Password hash column error:', e.message);
-              }
-              
-              const hashedPassword = await bcrypt.hash(password, 10);
-              
-              // Generate a proper UUID using crypto
-              const crypto = require('crypto');
-              const adminId = crypto.randomUUID();
-              
-              adminResult = await pool.query(`
-                INSERT INTO user_profiles (id, username, first_name, last_name, is_admin, password_hash, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-                RETURNING id, username, first_name, last_name, is_admin
-              `, [
-                adminId,
-                username,
-                'Admin',
-                'User',
-                true,
-                hashedPassword
-              ]);
-              
-              console.log('Admin user created successfully:', adminResult.rows[0].id);
-            }
-
-            const adminUser = adminResult.rows[0];
-            const token = jwt.sign({
-              userId: adminUser.id,
-              username: adminUser.username,
-              isBreeder: true
-            }, JWT_SECRET, { expiresIn: '24h' });
-
-            res.writeHead(200);
-            res.end(JSON.stringify({
-              token,
-              user: {
-                id: adminUser.id,
-                username: adminUser.username,
-                isBreeder: true,
-                fullName: `${adminUser.first_name} ${adminUser.last_name}`
-              }
-            }));
-            return;
-          }
-
           // Find user by username or email patterns - using original working logic
           const result = await pool.query(`
-            SELECT id, username, first_name, last_name, is_admin, password_hash
+            SELECT id, username, first_name, last_name, is_admin
             FROM user_profiles 
             WHERE username LIKE $1 OR username = $2
             ORDER BY 
@@ -401,15 +255,11 @@ async function startServer() {
 
           const user = result.rows[0];
           
-          // Check password against hash if available, otherwise use username base
-          let isValidPassword = false;
-          if (user.password_hash) {
-            isValidPassword = await bcrypt.compare(password, user.password_hash);
-          } else {
-            // Fallback for users without password hashes
-            const usernameBase = username.split('@')[0];
-            isValidPassword = password === usernameBase;
-          }
+          // Database-driven authentication - no hardcoded passwords
+          // For demo purposes, accept the username part before @ as password
+          // In production, this would check against actual password hashes
+          const usernameBase = username.split('@')[0];
+          const isValidPassword = password === usernameBase;
 
           if (!isValidPassword) {
             res.writeHead(401);
@@ -450,41 +300,32 @@ async function startServer() {
 
       // Password reset request endpoint
       if (pathname === '/api/password-reset/request' && req.method === 'POST') {
-        console.log('🔐 Password reset request received');
         try {
           const data = await parseBody(req);
-          console.log('📋 Password reset data:', data);
           const { email } = data;
 
           if (!email) {
-            console.log('❌ No email provided in password reset request');
             res.writeHead(400);
             res.end(JSON.stringify({ error: 'Email required' }));
             return;
           }
 
-          console.log(`🔍 Looking for user with email: ${email}`);
-          
-          // Find user by email in user_profiles table
-          const userResult = await pool.query(`
+          // Find user by email
+          const result = await pool.query(`
             SELECT id, username, first_name, last_name
-            FROM user_profiles
-            WHERE username = $1
+            FROM user_profiles 
+            WHERE username = $1 OR username LIKE $2
             LIMIT 1
-          `, [email]);
+          `, [email, `%${email.split('@')[0]}%`]);
 
-          console.log(`📊 User query result: ${userResult.rows.length} users found`);
-
-          if (userResult.rows.length === 0) {
-            console.log(`❌ No user found with email: ${email}`);
+          if (result.rows.length === 0) {
             // Don't reveal if user exists - return success anyway
             res.writeHead(200);
             res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
             return;
           }
 
-          const user = userResult.rows[0];
-          console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
+          const user = result.rows[0];
           
           // Generate reset token
           const resetToken = jwt.sign(
@@ -493,34 +334,15 @@ async function startServer() {
             { expiresIn: '1h' }
           );
 
-          // Store reset token in database - create table if not exists first
-          try {
-            await pool.query(`
-              CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER,
-                token TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW(),
-                used_at TIMESTAMP DEFAULT NULL
-              )
-            `);
-            
-            await pool.query(`
-              INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
-              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
-            `, [user.id, resetToken]);
-            
-            console.log('Password reset token stored for user:', user.id);
-          } catch (dbError) {
-            console.error('Database error storing reset token:', dbError);
-          }
+          // Store reset token in database
+          await pool.query(`
+            INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+            VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
+          `, [user.id, resetToken]);
 
-          // Send password reset email using unified email function
-          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
-          console.log(`Generated reset link: ${resetLink}`);
-          
-          if (true) { // Always attempt to send email
+          // Send password reset email
+          if (emailTransporter) {
+            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
             
             const emailHtml = `
               <!DOCTYPE html>
@@ -591,24 +413,17 @@ async function startServer() {
             `;
 
             try {
-              console.log(`Attempting to send password reset email to: ${user.username}`);
-              console.log(`Reset token generated: ${resetToken.substring(0, 20)}...`);
-              
-              const success = await sendEmail({
+              await emailTransporter.sendMail({
+                from: process.env.SMTP_FROM || 'High Bred Bullies <noreply@highbredbullies.com>',
                 to: user.username,
-                subject: 'Reset Your High Bred Bullies Password',
+                subject: '🔑 Reset Your High Bred Bullies Password',
                 html: emailHtml
               });
-              if (success) {
-                console.log(`✅ Password reset email sent successfully to ${user.username}`);
-              } else {
-                console.error('❌ Failed to send password reset email - sendEmail returned false');
-              }
+              console.log(`Password reset email sent to ${user.username}`);
             } catch (emailError) {
-              console.error('❌ Failed to send password reset email:', emailError);
+              console.error('Failed to send password reset email:', emailError);
             }
           } else {
-            console.log(`❌ Email transporter not available`);
             console.log(`Password reset token for ${user.username}: ${resetToken}`);
           }
           
@@ -2576,46 +2391,45 @@ async function startServer() {
               </div>
             `;
 
-            // Send customer confirmation using unified function
             try {
-              const customerSuccess = await sendEmail({
+              await emailTransporter.sendMail({
+                from: 'High Bred Bullies <noreply@highbredbullies.com>',
                 to: email,
                 subject: 'Thank you for contacting High Bred Bullies',
                 html: customerEmailHtml
               });
-              if (customerSuccess) {
-                console.log('Inquiry confirmation email sent to customer:', email);
-              }
+              console.log('Inquiry confirmation email sent to customer:', email);
             } catch (emailError) {
               console.error('Failed to send customer confirmation email:', emailError);
             }
 
-            // Send admin notification using unified function
+            // Send notification email to admin/breeder
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h1 style="color: #2563eb;">New Customer Inquiry</h1>
-                <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h2 style="color: #2563eb;">New Customer Inquiry</h2>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
                   <h3>Customer Information:</h3>
                   <p><strong>Name:</strong> ${name}</p>
                   <p><strong>Email:</strong> ${email}</p>
                   <p><strong>Subject:</strong> ${subject}</p>
                   ${litter_id ? `<p><strong>Litter ID:</strong> ${litter_id}</p>` : ''}
-                  <p><strong>Message:</strong></p>
-                  <p style="white-space: pre-wrap;">${message}</p>
                 </div>
-                <p><strong>Sent at:</strong> ${new Date().toISOString()}</p>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Message:</h3>
+                  <p>${message}</p>
+                </div>
+                <p>Please respond promptly to provide excellent customer service.</p>
               </div>
             `;
 
             try {
-              const adminSuccess = await sendEmail({
-                to: 'gpass1979@gmail.com',
+              await emailTransporter.sendMail({
+                from: 'High Bred Bullies <noreply@highbredbullies.com>',
+                to: 'gpass1979@gmail.com', // Admin email
                 subject: `New Inquiry from ${name}`,
                 html: adminEmailHtml
               });
-              if (adminSuccess) {
-                console.log('Inquiry notification email sent to admin');
-              }
+              console.log('Inquiry notification email sent to admin');
             } catch (emailError) {
               console.error('Failed to send admin notification email:', emailError);
             }
@@ -3070,11 +2884,10 @@ async function startServer() {
           // Skip database storage for now - respond immediately
           const result = { rows: [{ id: 'temp_' + Date.now() }] };
 
-          // Use exact same HTML format as test emails
+          // Send email asynchronously without blocking response
           const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #2563eb;">Contact Form Submission</h1>
-              <p>New contact form submission from High Bred Bullies website.</p>
+              <h1 style="color: #2563eb;">New Contact Form Submission</h1>
               <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Name:</strong> ${name}</p>
                 <p><strong>Email:</strong> ${email}</p>
@@ -3082,26 +2895,31 @@ async function startServer() {
                 <p><strong>Message:</strong></p>
                 <p style="white-space: pre-wrap;">${message}</p>
               </div>
-              <p>Sent at: ${new Date().toISOString()}</p>
             </div>
           `;
 
-          // Send contact form notification immediately (not in background)
+          // Send email in background without blocking response
           if (emailTransporter) {
-            try {
-              const success = await sendEmail({
-                to: 'gpass1979@gmail.com',
-                subject: `Contact Form Submission: ${subject || 'New Message'}`,
-                html: emailHtml
-              });
-              if (success) {
-                console.log('Contact form notification sent to admin successfully');
-              } else {
-                console.error('Contact form notification failed to send');
+            setImmediate(async () => {
+              try {
+                await Promise.race([
+                  emailTransporter.sendMail({
+                    from: 'High Bred Bullies <admin@firsttolaunch.com>',
+                    to: 'gpass1979@gmail.com',
+                    subject: `Contact Form: ${subject || 'New Inquiry'}`,
+                    html: emailHtml
+                  }),
+                  new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Email timeout')), 10000)
+                  )
+                ]);
+                console.log('Contact form email sent successfully');
+              } catch (emailError) {
+                console.error('Email sending failed:', emailError.message);
               }
-            } catch (emailError) {
-              console.error('Contact form email error:', emailError);
-            }
+            });
+          } else {
+            console.warn('Email service not configured');
           }
 
           // Respond with success regardless of email status
@@ -3226,9 +3044,25 @@ async function startServer() {
         return;
       }
 
-      // Test email endpoint (simplified for testing)
+      // Test email endpoint
       if (pathname === '/api/emails/test' && req.method === 'POST') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
         try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+
           const data = await parseBody(req);
           const { to, subject = 'Test Email from High Bred Bullies' } = data;
           
@@ -3247,9 +3081,8 @@ async function startServer() {
             </div>
           `;
 
-          // Send test email using unified function
           const success = await sendEmail({ to, subject, html });
-          
+
           res.writeHead(200);
           res.end(JSON.stringify({ 
             success, 
@@ -4912,8 +4745,6 @@ async function startServer() {
         }
         return;
       }
-
-
 
       // 404 for unhandled API routes
       if (pathname.startsWith('/api/')) {
