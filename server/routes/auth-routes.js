@@ -173,10 +173,10 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('🔍 Looking for user with email:', email);
         
-        // Look for user in user_profiles table (check both username and email fields)
+        // Look for user in user_profiles table (only username field exists)
         const userResult = await pool.query(`
-          SELECT id, username, first_name, email FROM user_profiles 
-          WHERE username = $1 OR email = $1
+          SELECT id, username, first_name FROM user_profiles 
+          WHERE username = $1
           LIMIT 1
         `, [email]);
 

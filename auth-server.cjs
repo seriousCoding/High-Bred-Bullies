@@ -574,10 +574,10 @@ async function startServer() {
             // Code-based reset
             console.log('🔑 Processing code-based reset for:', email);
             
-            // Find user first
+            // Find user first (note: user_profiles table doesn't have email column, only username)
             const userResult = await pool.query(`
               SELECT id, username FROM user_profiles 
-              WHERE username = $1 OR email = $1
+              WHERE username = $1
               LIMIT 1
             `, [email]);
 
