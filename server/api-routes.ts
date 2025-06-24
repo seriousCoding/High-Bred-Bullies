@@ -325,5 +325,180 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
 
+  // Cleanup test litters endpoint
+  app.post('/api/cleanup-stripe-test-litters', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      console.log('Starting cleanup of test litters...');
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        // Delete test litters and associated data
+        // First, delete puppies from test litters
+        const deletePuppiesQuery = `
+          DELETE FROM puppies 
+          WHERE litter_id IN (
+            SELECT id FROM litters 
+            WHERE name ILIKE '%test%' OR description ILIKE '%test%'
+          )
+        `;
+        const puppiesResult = await pool.query(deletePuppiesQuery);
+        console.log(`Deleted ${puppiesResult.rowCount} test puppies`);
+        
+        // Delete test litters
+        const deleteLittersQuery = `
+          DELETE FROM litters 
+          WHERE name ILIKE '%test%' OR description ILIKE '%test%'
+        `;
+        const littersResult = await pool.query(deleteLittersQuery);
+        console.log(`Deleted ${littersResult.rowCount} test litters`);
+        
+        // Delete any orders related to test litters
+        const deleteOrdersQuery = `
+          DELETE FROM orders 
+          WHERE litter_id IN (
+            SELECT id FROM litters 
+            WHERE name ILIKE '%test%' OR description ILIKE '%test%'
+          )
+        `;
+        const ordersResult = await pool.query(deleteOrdersQuery);
+        console.log(`Deleted ${ordersResult.rowCount} test orders`);
+        
+        await pool.end();
+        
+        const totalDeleted = (puppiesResult.rowCount || 0) + (littersResult.rowCount || 0) + (ordersResult.rowCount || 0);
+        
+        res.json({ 
+          success: true, 
+          message: `Successfully cleaned up ${totalDeleted} test records`,
+          details: {
+            puppies: puppiesResult.rowCount || 0,
+            litters: littersResult.rowCount || 0,
+            orders: ordersResult.rowCount || 0
+          }
+        });
+        
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error cleaning up test litters:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to cleanup test litters',
+        error: error.message 
+      });
+    }
+  });
+
+  // Seed test litters endpoint
+  app.post('/api/seed-stripe-test-litters', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      console.log('Starting seeding of test litters...');
+      
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        // Get the breeder ID for the authenticated user
+        const breederQuery = await pool.query('SELECT user_id FROM breeders WHERE user_id = $1', [req.user.id]);
+        let breederId = req.user.id;
+        
+        if (breederQuery.rows.length === 0) {
+          // Create breeder profile if it doesn't exist
+          await pool.query(`
+            INSERT INTO breeders (user_id, business_name, created_at, updated_at)
+            VALUES ($1, 'Test Breeder', NOW(), NOW())
+          `, [req.user.id]);
+        }
+        
+        // Create two test litters
+        const testLitters = [
+          {
+            name: 'Test Litter Alpha',
+            breed: 'Test Bulldog',
+            dam_name: 'Test Dam Alpha',
+            sire_name: 'Test Sire Alpha',
+            birth_date: new Date(),
+            expected_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            total_puppies: 4,
+            available_puppies: 4,
+            description: 'Test litter for development purposes',
+            status: 'upcoming'
+          },
+          {
+            name: 'Test Litter Beta',
+            breed: 'Test Pitbull',
+            dam_name: 'Test Dam Beta',
+            sire_name: 'Test Sire Beta',
+            birth_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
+            expected_date: new Date(),
+            total_puppies: 6,
+            available_puppies: 6,
+            description: 'Test litter for development purposes',
+            status: 'active'
+          }
+        ];
+        
+        const createdLitters = [];
+        
+        for (const litter of testLitters) {
+          const litterResult = await pool.query(`
+            INSERT INTO litters (
+              breeder_id, name, breed, dam_name, sire_name, birth_date, expected_date,
+              total_puppies, available_puppies, description, status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+            RETURNING id, name
+          `, [
+            breederId, litter.name, litter.breed, litter.dam_name, litter.sire_name,
+            litter.birth_date, litter.expected_date, litter.total_puppies, 
+            litter.available_puppies, litter.description, litter.status
+          ]);
+          
+          createdLitters.push(litterResult.rows[0]);
+          
+          // Create test puppies for each litter
+          for (let i = 1; i <= litter.total_puppies; i++) {
+            await pool.query(`
+              INSERT INTO puppies (
+                litter_id, name, gender, color, is_available, created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+            `, [
+              litterResult.rows[0].id,
+              `Test Puppy ${i}`,
+              i % 2 === 0 ? 'male' : 'female',
+              'Brindle'
+            ]);
+          }
+        }
+        
+        await pool.end();
+        
+        res.json({ 
+          success: true, 
+          message: `Successfully created ${createdLitters.length} test litters`,
+          litters: createdLitters
+        });
+        
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error seeding test litters:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to seed test litters',
+        error: error.message 
+      });
+    }
+  });
+
   console.log('✅ API routes registered successfully');
 }
