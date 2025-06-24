@@ -406,7 +406,7 @@ async function startServer() {
           
           // Find user by username (users put emails in username field)
           const userResult = await pool.query(`
-            SELECT id, username, first_name, last_name, password_hash
+            SELECT id, username, password_hash
             FROM user_profiles
             WHERE username = $1
             LIMIT 1
@@ -501,7 +501,7 @@ async function startServer() {
                       <div class="greeting">Password Reset Request</div>
                       
                       <div class="message">
-                        Hello ${user.first_name || 'Fellow Dog Lover'},<br><br>
+                        Hello Fellow Dog Lover,<br><br>
                         
                         We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
                         
@@ -597,7 +597,7 @@ async function startServer() {
               }
               
               const userResult = await pool.query(`
-                SELECT id, username, first_name, last_name FROM user_profiles 
+                SELECT id, username FROM user_profiles 
                 WHERE id = $1
                 LIMIT 1
               `, [decoded.userId]);
@@ -629,7 +629,7 @@ async function startServer() {
 
             // Find user by username (users put emails in username field)
             const userResult = await pool.query(`
-              SELECT id, username, first_name, last_name FROM user_profiles 
+              SELECT id, username FROM user_profiles 
               WHERE username = $1
               LIMIT 1
             `, [email]);
