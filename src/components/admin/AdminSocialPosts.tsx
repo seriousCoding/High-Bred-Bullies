@@ -398,6 +398,6 @@ export const AdminSocialPosts = () => {
           </DialogContent>
         </Dialog>
       )}
-    </>
+    </div>
   );
 };
