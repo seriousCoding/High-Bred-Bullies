@@ -86,25 +86,45 @@ const deleteBlogPost = async (postId: string) => {
 
 const generateBlogPost = async () => {
   const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+  
   const response = await fetch(`${API_BASE_URL}/api/ai/generate-blog-post`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
   });
-  if (!response.ok) throw new Error('Failed to generate blog post');
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Server error: ${response.status}`);
+  }
+  
   return await response.json();
-};
+};;
 
 const generateSocialPosts = async () => {
   const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+  
   const response = await fetch(`${API_BASE_URL}/api/ai/generate-social-posts`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
   });
-  if (!response.ok) throw new Error('Failed to generate social posts');
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Server error: ${response.status}`);
+  }
+  
   return await response.json();
 };
 
