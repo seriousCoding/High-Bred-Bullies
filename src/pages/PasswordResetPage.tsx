@@ -71,6 +71,10 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.error === 'USER_NOT_FOUND') {
+          throw new Error(`${errorData.message}. ${errorData.suggestion}`);
+        }
         throw new Error('Failed to send reset code');
       }
 
@@ -159,6 +163,10 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.error === 'USER_NOT_FOUND') {
+          throw new Error(`${errorData.message}. ${errorData.suggestion}`);
+        }
         throw new Error('Failed to resend code');
       }
 
