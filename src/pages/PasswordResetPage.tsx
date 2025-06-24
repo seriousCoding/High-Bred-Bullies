@@ -21,6 +21,8 @@ export default function PasswordResetPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetToken, setResetToken] = useState('');
+  const [canResend, setCanResend] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     // Check if we have a reset token in URL params
@@ -31,6 +33,23 @@ export default function PasswordResetPage() {
       toast.success('Reset link detected! You can use this link or enter a code from your email.');
     }
   }, [searchParams]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      interval = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +76,8 @@ export default function PasswordResetPage() {
 
       toast.success('Reset code sent! Check your email.');
       setStep('reset');
+      setCanResend(true);
+      setResendCooldown(30); // 30 second initial cooldown
     } catch (error) {
       console.error('Password reset request error:', error);
       toast.error('Failed to send reset code. Please try again.');
@@ -176,6 +197,26 @@ export default function PasswordResetPage() {
                       Reset token detected from link - you can reset password directly
                     </p>
                   )}
+                  
+                  {/* Resend button */}
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-muted-foreground">
+                      Didn't receive the email?
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResendCode}
+                      disabled={!canResend || isSubmitting}
+                      className="text-sm"
+                    >
+                      {resendCooldown > 0 
+                        ? `Resend in ${resendCooldown}s` 
+                        : 'Resend Code'
+                      }
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
