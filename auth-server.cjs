@@ -543,16 +543,16 @@ async function startServer() {
             `;
 
             try {
-              console.log(`Attempting to send password reset email to: ${user.username}`);
-              console.log(`📧 Sending reset code ${resetToken} to ${user.username}`);
+              console.log(`Attempting to send password reset email to: ${email}`);
+              console.log(`📧 Sending reset code ${resetToken} to ${email}`);
               
               const success = await sendEmail({
-                to: user.username,
+                to: email,
                 subject: 'Reset Your High Bred Bullies Password',
                 html: emailHtml
               });
               if (success) {
-                console.log(`✅ Password reset email sent successfully to ${user.username}`);
+                console.log(`✅ Password reset email sent successfully to ${email}`);
               } else {
                 console.error('❌ Failed to send password reset email - sendEmail returned false');
               }
@@ -561,7 +561,7 @@ async function startServer() {
             }
           } else {
             console.log(`❌ Email transporter not available`);
-            console.log(`Password reset code for ${user.username}: ${resetToken}`);
+            console.log(`Password reset code for ${email}: ${resetToken}`);
           }
           
           res.writeHead(200);
