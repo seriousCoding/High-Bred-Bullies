@@ -36,6 +36,12 @@ export const BlogPostItem: React.FC<BlogPostItemProps> = ({ post }) => {
           src={getCacheBustedUrl(post.image_url, post.updated_at)}
           alt={post.title}
           className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src !== placeholderImage) {
+              target.src = placeholderImage;
+            }
+          }}
         />
       </Link>
       <CardHeader>

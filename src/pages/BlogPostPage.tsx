@@ -95,6 +95,12 @@ const BlogPostPage = () => {
                   src={getCacheBustedUrl(post.image_url, post.updated_at)}
                   alt={post.title}
                   className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== placeholderImage) {
+                      target.src = placeholderImage;
+                    }
+                  }}
                 />
                 <div className="absolute inset-0 bg-black/60" />
                 <div className="absolute inset-0 container mx-auto px-4 sm:px-6 flex flex-col justify-end pb-12">
