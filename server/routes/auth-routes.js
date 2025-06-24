@@ -173,16 +173,12 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('🔍 Looking for user with email:', email);
         
-        // First check users table, then user_profiles
-        let userResult = await pool.query(`
-          SELECT id, username FROM users WHERE username = $1 LIMIT 1
-        `, [email]);
-        
-        if (userResult.rows.length === 0) {
-          userResult = await pool.query(`
-            SELECT id, username, first_name FROM user_profiles WHERE username = $1 LIMIT 1
-          `, [email]);
-        }
+        // Look for user in user_profiles table with flexible matching
+        const userResult = await pool.query(`
+          SELECT id, username, first_name, email FROM user_profiles 
+          WHERE username = $1 OR username ILIKE $2 OR email = $1
+          LIMIT 1
+        `, [email, `${email.split('@')[0]}%`]);
 
         console.log('📊 User query result:', `${userResult.rows.length} users found`);
 
@@ -247,9 +243,19 @@ function createAuthRoutes(pool, sendEmail) {
         `;
 
         try {
-          console.log(`📧 Sending reset code ${resetCode} to ${email}`);
+          // Use actual email address if available, otherwise skip sending
+          const emailAddress = user.email || (email.includes('@') ? email : null);
+          
+          if (!emailAddress) {
+            console.log('⚠️ No valid email address for user:', user.username);
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'User found but no email on file. Contact admin.' }));
+            return true;
+          }
+
+          console.log(`📧 Sending reset code ${resetCode} to ${emailAddress}`);
           const emailSuccess = await sendEmail({
-            to: email,
+            to: emailAddress,
             subject: 'Password Reset Code - High Bred Bullies',
             html: resetEmailHtml
           });
@@ -291,10 +297,12 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('📋 Password reset data:', { email, code: '***', password: '***' });
 
-        // Find user by email
+        // Find user by email/username
         const userResult = await pool.query(`
-          SELECT id, username FROM users WHERE username = $1 LIMIT 1
-        `, [email]);
+          SELECT id, username FROM user_profiles 
+          WHERE username = $1 OR username ILIKE $2
+          LIMIT 1
+        `, [email, `${email.split('@')[0]}%`]);
 
         if (userResult.rows.length === 0) {
           res.writeHead(400);
