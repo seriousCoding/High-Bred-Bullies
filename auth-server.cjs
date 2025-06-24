@@ -328,22 +328,24 @@ async function startServer() {
             return;
           }
 
-          // Find user by email
-          const result = await pool.query(`
-            SELECT id, username, first_name, last_name
-            FROM user_profiles 
-            WHERE username = $1 OR username LIKE $2
+          // Find user by email - check both users and user_profiles tables
+          const userResult = await pool.query(`
+            SELECT u.id, u.username, up.first_name, up.last_name
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.username = $1
             LIMIT 1
-          `, [email, `%${email.split('@')[0]}%`]);
+          `, [email]);
 
-          if (result.rows.length === 0) {
+          if (userResult.rows.length === 0) {
             // Don't reveal if user exists - return success anyway
             res.writeHead(200);
             res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
             return;
           }
 
-          const user = result.rows[0];
+          const user = userResult.rows[0];
+          console.log('Found user for password reset:', { id: user.id, email: user.username });
           
           // Generate reset token
           const resetToken = jwt.sign(
@@ -352,11 +354,28 @@ async function startServer() {
             { expiresIn: '1h' }
           );
 
-          // Store reset token in database
-          await pool.query(`
-            INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
-            VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
-          `, [user.id, resetToken]);
+          // Store reset token in database - create table if not exists first
+          try {
+            await pool.query(`
+              CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                token TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                used_at TIMESTAMP DEFAULT NULL
+              )
+            `);
+            
+            await pool.query(`
+              INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
+            `, [user.id, resetToken]);
+            
+            console.log('Password reset token stored for user:', user.id);
+          } catch (dbError) {
+            console.error('Database error storing reset token:', dbError);
+          }
 
           // Send password reset email
           if (emailTransporter) {
@@ -431,13 +450,16 @@ async function startServer() {
             `;
 
             try {
-              await emailTransporter.sendMail({
-                from: process.env.SMTP_FROM || 'High Bred Bullies <noreply@highbredbullies.com>',
+              const success = await sendEmail({
                 to: user.username,
-                subject: '🔑 Reset Your High Bred Bullies Password',
+                subject: 'Reset Your High Bred Bullies Password',
                 html: emailHtml
               });
-              console.log(`Password reset email sent to ${user.username}`);
+              if (success) {
+                console.log(`Password reset email sent to ${user.username}`);
+              } else {
+                console.error('Failed to send password reset email');
+              }
             } catch (emailError) {
               console.error('Failed to send password reset email:', emailError);
             }
