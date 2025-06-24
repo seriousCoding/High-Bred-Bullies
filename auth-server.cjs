@@ -94,7 +94,7 @@ function initializeEmailService() {
   }
 }
 
-// Email sending function with enhanced deliverability
+// Unified email sending function with enhanced deliverability
 async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@firsttolaunch.com>' }) {
   if (!emailTransporter) {
     console.warn('Email service not configured - skipping email send');
@@ -107,10 +107,12 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
       to, 
       subject, 
       html,
+      text: html.replace(/<[^>]*>/g, ''), // Add plain text version
       headers: {
         'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
         'X-Priority': '1',
-        'Reply-To': 'gpass1979@gmail.com'
+        'Reply-To': 'gpass1979@gmail.com',
+        'X-Mailer': 'High Bred Bullies Platform'
       }
     });
     console.log('Email sent successfully to', to, '- Message ID:', info.messageId);
@@ -2407,24 +2409,21 @@ async function startServer() {
               </div>
             `;
 
+            // Send customer confirmation using unified function
             try {
-              const customerInfo = await emailTransporter.sendMail({
-                from: 'High Bred Bullies <admin@firsttolaunch.com>',
+              const customerSuccess = await sendEmail({
                 to: email,
                 subject: 'Thank you for contacting High Bred Bullies',
-                html: customerEmailHtml,
-                headers: {
-                  'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
-                  'X-Priority': '1',
-                  'Reply-To': 'gpass1979@gmail.com'
-                }
+                html: customerEmailHtml
               });
-              console.log('Inquiry confirmation email sent to customer:', email, '- Message ID:', customerInfo.messageId);
+              if (customerSuccess) {
+                console.log('Inquiry confirmation email sent to customer:', email);
+              }
             } catch (emailError) {
               console.error('Failed to send customer confirmation email:', emailError);
             }
 
-            // Send notification email to admin/breeder
+            // Send admin notification using unified function
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h1 style="color: #2563eb;">New Customer Inquiry</h1>
@@ -2442,18 +2441,14 @@ async function startServer() {
             `;
 
             try {
-              const adminInfo = await emailTransporter.sendMail({
-                from: 'High Bred Bullies <admin@firsttolaunch.com>',
+              const adminSuccess = await sendEmail({
                 to: 'gpass1979@gmail.com',
                 subject: `New Inquiry from ${name}`,
-                html: adminEmailHtml,
-                headers: {
-                  'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
-                  'X-Priority': '1',
-                  'Reply-To': 'gpass1979@gmail.com'
-                }
+                html: adminEmailHtml
               });
-              console.log('Inquiry notification email sent to admin - Message ID:', adminInfo.messageId);
+              if (adminSuccess) {
+                console.log('Inquiry notification email sent to admin');
+              }
             } catch (emailError) {
               console.error('Failed to send admin notification email:', emailError);
             }
@@ -2908,10 +2903,11 @@ async function startServer() {
           // Skip database storage for now - respond immediately
           const result = { rows: [{ id: 'temp_' + Date.now() }] };
 
-          // Send email asynchronously without blocking response
+          // Use exact same HTML format as test emails
           const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #2563eb;">New Contact Form Submission</h1>
+              <h1 style="color: #2563eb;">Contact Form Submission</h1>
+              <p>New contact form submission from High Bred Bullies website.</p>
               <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Name:</strong> ${name}</p>
                 <p><strong>Email:</strong> ${email}</p>
@@ -2919,25 +2915,24 @@ async function startServer() {
                 <p><strong>Message:</strong></p>
                 <p style="white-space: pre-wrap;">${message}</p>
               </div>
+              <p>Sent at: ${new Date().toISOString()}</p>
             </div>
           `;
 
-          // Send email using same config as working test emails
+          // Send contact form email using unified function
           if (emailTransporter) {
             setImmediate(async () => {
               try {
-                const emailInfo = await emailTransporter.sendMail({
-                  from: 'High Bred Bullies <admin@firsttolaunch.com>',
+                const success = await sendEmail({
                   to: 'gpass1979@gmail.com',
                   subject: `Contact Form: ${subject || 'New Inquiry'}`,
-                  html: emailHtml,
-                  headers: {
-                    'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
-                    'X-Priority': '1',
-                    'Reply-To': 'gpass1979@gmail.com'
-                  }
+                  html: emailHtml
                 });
-                console.log('Contact form email sent successfully - Message ID:', emailInfo.messageId);
+                if (success) {
+                  console.log('Contact form email sent via unified function');
+                } else {
+                  console.error('Contact form email failed via unified function');
+                }
               } catch (emailError) {
                 console.error('Contact form email failed:', emailError.message);
               }
@@ -3089,8 +3084,9 @@ async function startServer() {
             </div>
           `;
 
+          // Send test email using unified function
           const success = await sendEmail({ to, subject, html });
-
+          
           res.writeHead(200);
           res.end(JSON.stringify({ 
             success, 
