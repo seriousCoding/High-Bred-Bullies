@@ -635,10 +635,23 @@ async function startServer() {
           const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
           console.log(`Generated new reset code: ${resetToken}`);
 
-          // Update reset token in database
+          // Store multiple reset tokens for resend - append to existing valid tokens
+          const existingTokens = user.reset_token ? user.reset_token.split(',') : [];
+          const currentExpiry = user.reset_token_expires ? new Date(user.reset_token_expires) : new Date();
+          
+          // Keep existing tokens if they haven't expired
+          const validTokens = [];
+          if (existingTokens.length > 0 && currentExpiry > new Date()) {
+            validTokens.push(...existingTokens);
+          }
+          
+          // Add new resend token
+          validTokens.push(resetToken);
+          
+          // Store comma-separated tokens with latest expiry
           await pool.query(
             'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
-            [resetToken, new Date(Date.now() + 3600000), user.id] // 1 hour expiry
+            [validTokens.join(','), new Date(Date.now() + 3600000), user.id] // 1 hour expiry
           );
 
           console.log(`Updated reset token for user: ${user.id}`);
@@ -718,7 +731,8 @@ async function startServer() {
             const user = userResult.rows[0];
             
             // Check if the provided code matches any recent valid token
-            if (!user.reset_token || user.reset_token !== code) {
+            const validTokens = user.reset_token ? user.reset_token.split(',') : [];
+            if (!user.reset_token || !validTokens.includes(code)) {
               res.writeHead(400);
               res.end(JSON.stringify({ error: 'Invalid reset code' }));
               return;
