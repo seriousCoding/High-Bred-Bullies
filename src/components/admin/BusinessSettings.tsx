@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE_URL = window.location.origin;
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,7 +50,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
     queryKey: ['breederProfile', breederId],
     queryFn: async () => {
       if (!breederId) return null;
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -81,7 +81,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
   const { data: siteConfig, isLoading: isLoadingSiteConfig } = useQuery({
     queryKey: ['siteConfig'],
     queryFn: async (): Promise<SiteConfig> => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/api/site-config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -136,7 +136,7 @@ export const BusinessSettings = ({ breederId, onSettingsUpdated }: BusinessSetti
       const deliveryFeeInCents = formData.deliveryFee ? Math.round(parseFloat(formData.deliveryFee) * 100) : 0;
 
       // Update breeder profile
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const breederResponse = await fetch(`${API_BASE_URL}/api/breeders/${breederId}`, {
         method: 'PUT',
         headers: {
