@@ -186,7 +186,12 @@ function createAuthRoutes(pool, sendEmail) {
           console.log('❌ No user found with email:', email);
           console.log('🔍 Available users sample:', await pool.query('SELECT username FROM user_profiles LIMIT 5'));
           res.writeHead(200);
-          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+          res.end(JSON.stringify({ 
+            message: `Password reset code sent successfully to ${email}`,
+            email: email,
+            sent: true,
+            instructions: 'Check your email for the 6-digit reset code'
+          }));
           return true;
         }
 

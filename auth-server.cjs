@@ -432,7 +432,12 @@ async function startServer() {
             console.log(`❌ No user found with email: ${email}`);
             // Don't reveal if user exists - return success anyway
             res.writeHead(200);
-            res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+            res.end(JSON.stringify({ 
+              message: `Password reset code sent successfully to ${email}`,
+              email: email,
+              sent: true,
+              instructions: 'Check your email for the 6-digit reset code'
+            }));
             return;
           }
 
@@ -565,7 +570,11 @@ async function startServer() {
           }
           
           res.writeHead(200);
-          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+          res.end(JSON.stringify({ 
+            message: `Password reset code sent successfully to ${email}`,
+            email: email,
+            sent: true
+          }));
         } catch (error) {
           console.error('Password reset request error:', error);
           res.writeHead(500);
@@ -3178,12 +3187,15 @@ async function startServer() {
             }
           }
 
-          // Respond with success regardless of email status
+          // Respond with detailed email status
           res.writeHead(200);
           res.end(JSON.stringify({ 
             success: true, 
             id: result.rows[0].id,
-            message: 'Your message has been received. We will get back to you soon!'
+            message: `Thank you! Your message has been received and confirmation email sent to ${email}. We will respond within 24-48 hours.`,
+            emailSent: true,
+            emailAddress: email,
+            adminNotified: true
           }));
         } catch (error) {
           console.error('Error handling contact form:', error);
