@@ -6,9 +6,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle, PlusCircle, Send, Pencil, Trash2, Bot } from 'lucide-react';
 import {
@@ -21,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 interface BlogPost {
@@ -51,12 +50,12 @@ const addBlogPost = async (newPost: Omit<BlogPost, 'id' | 'created_at' | 'publis
   const response = await fetch(`${API_BASE_URL}/api/blog/posts`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(newPost),
   });
-  if (!response.ok) throw new Error('Failed to create blog post');
+  if (!response.ok) throw new Error('Failed to add blog post');
   return await response.json();
 };
 
@@ -224,22 +223,15 @@ export const AdminBlogManager = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPost.title || !newPost.content || !newPost.category) {
-      toast({ title: 'Error', description: 'Title, content, and category are required.', variant: 'destructive' });
-      return;
-    }
     addMutation.mutate(newPost);
   };
 
   const handleToggleForm = () => {
-    if (showForm) { // If form is open, we are cancelling
-        setNewPost({ title: '', content: '', excerpt: '', category: 'general', image_url: '', author_name: '' });
-    }
     setShowForm(!showForm);
   };
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   if (error) {
@@ -247,166 +239,181 @@ export const AdminBlogManager = () => {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>Blog Post Management</CardTitle>
-            <CardDescription>Create, edit, and manage blog posts.</CardDescription>
+            <h2 className="text-xl font-semibold text-gray-900">Blog Post Management</h2>
+            <p className="text-sm text-gray-600 mt-1">Create, edit, and manage blog posts.</p>
           </div>
           <div className="flex items-center space-x-2">
-            <Button onClick={() => generateMutation.mutate()} variant="outline" size="sm" disabled={generateMutation.isPending}>
-                {generateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button onClick={() => generateMutation.mutate()} variant="outline" size="sm" disabled={generateMutation.isPending} className="text-xs">
+                {generateMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PlusCircle className="mr-1 h-3 w-3" />}
                 Generate New AI Blog Post
             </Button>
-            <Button onClick={() => generateSocialMutation.mutate()} variant="outline" size="sm" disabled={generateSocialMutation.isPending}>
-                {generateSocialMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button onClick={() => generateSocialMutation.mutate()} variant="outline" size="sm" disabled={generateSocialMutation.isPending} className="text-xs">
+                {generateSocialMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Bot className="mr-1 h-3 w-3" />}
                 Generate AI Social Posts
             </Button>
-            <Button onClick={handleToggleForm} variant="outline" size="sm">
+            <Button onClick={handleToggleForm} variant="outline" size="sm" className="text-xs">
+              <PlusCircle className="mr-1 h-3 w-3" />
               {showForm ? 'Cancel' : 'Add New Post'}
             </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      
+      <div className="p-6">
         {posts && posts.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {posts.map((post) => (
-                <TableRow key={post.id}>
-                  <TableCell className="font-medium">{post.title}</TableCell>
-                  <TableCell>{post.category}</TableCell>
-                  <TableCell>{post.published_at ? <span className="text-green-600 font-semibold">Published</span> : 'Draft'}</TableCell>
-                  <TableCell>{new Date(post.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      disabled={(publishMutation.isPending && publishMutation.variables === post.id)}
-                    >
-                      <Link to={`/admin/blog/edit/${post.id}`}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </Link>
-                    </Button>
-                    {!post.published_at && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => publishMutation.mutate(post.id)}
-                        disabled={publishMutation.isPending && publishMutation.variables === post.id}
-                      >
-                         {publishMutation.isPending && publishMutation.variables === post.id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="mr-2 h-4 w-4" />
+          <div className="overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-0 text-sm font-medium text-gray-500">Title</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Category</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Status</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Created</th>
+                  <th className="text-right py-3 px-0 text-sm font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {posts.map((post) => (
+                  <tr key={post.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-4 px-0 text-sm font-medium text-gray-900">{post.title}</td>
+                    <td className="py-4 px-4 text-sm text-gray-600">{post.category}</td>
+                    <td className="py-4 px-4 text-sm">
+                      {post.published_at ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Published
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Draft
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-gray-600">{new Date(post.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                    <td className="py-4 px-0 text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <Button variant="outline" size="sm" asChild className="text-xs">
+                          <Link to={`/admin/blog/edit/${post.id}`}>
+                            <Pencil className="mr-1 h-3 w-3" />
+                            Edit
+                          </Link>
+                        </Button>
+                        {!post.published_at && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => publishMutation.mutate(post.id)}
+                            disabled={publishMutation.isPending && publishMutation.variables === post.id}
+                            className="text-xs"
+                          >
+                             {publishMutation.isPending && publishMutation.variables === post.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : (
+                              <Send className="mr-1 h-3 w-3" />
+                            )}
+                            Publish
+                          </Button>
                         )}
-                        Publish
-                      </Button>
-                    )}
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setPostToDelete(post)}
-                        disabled={deleteMutation.isPending && deleteMutation.variables === post.id}
-                    >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">No blog posts found.</p>
-        )}
-        
-        {postToDelete && (
-            <AlertDialog open={!!postToDelete} onOpenChange={(open) => !open && setPostToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will permanently delete the blog post "{postToDelete.title}". This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => deleteMutation.mutate(postToDelete.id)}
-                            className={cn(buttonVariants({ variant: "destructive" }))}
-                            disabled={deleteMutation.isPending}
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setPostToDelete(post)}
+                            disabled={deleteMutation.isPending && deleteMutation.variables === post.id}
+                            className="text-xs"
                         >
-                            {deleteMutation.isPending && deleteMutation.variables === postToDelete.id ? (
-                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>
-                            ) : 'Delete'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500">No blog posts found.</p>
+          </div>
         )}
-        
-        {showForm && (
-          <Dialog open={showForm} onOpenChange={setShowForm}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Add New Blog Post</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input id="title" value={newPost.title} onChange={e => handleInputChange('title', e.target.value)} required />
-                </div>
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <select id="category" value={newPost.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full p-2 border rounded-md">
-                    <option value="general">General</option>
-                    <option value="nutrition">Nutrition</option>
-                    <option value="health">Health</option>
-                    <option value="training">Training</option>
-                    <option value="treats">Treats</option>
-                    <option value="lifestyle">Lifestyle</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="author_name">Author Name (optional)</Label>
-                  <Input id="author_name" value={newPost.author_name} onChange={e => handleInputChange('author_name', e.target.value)} placeholder="e.g. Dr. Paws" />
-                </div>
-                <div>
-                  <Label htmlFor="image_url">Image URL (optional)</Label>
-                  <Input id="image_url" value={newPost.image_url} onChange={e => handleInputChange('image_url', e.target.value)} placeholder="https://images.unsplash.com/..." />
-                </div>
-                <div>
-                  <Label htmlFor="content">Content (Markdown supported)</Label>
-                  <Textarea id="content" value={newPost.content} onChange={e => handleInputChange('content', e.target.value)} rows={10} required />
-                </div>
-                <div>
-                  <Label htmlFor="excerpt">Excerpt (optional)</Label>
-                  <Textarea id="excerpt" value={newPost.excerpt} onChange={e => handleInputChange('excerpt', e.target.value)} rows={3} />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                  <Button type="submit" disabled={addMutation.isPending}>
-                    {addMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Post'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      
+      {postToDelete && (
+        <AlertDialog open={!!postToDelete} onOpenChange={(open) => !open && setPostToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the blog post "{postToDelete.title}". This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteMutation.mutate(postToDelete.id)}
+                className={cn(buttonVariants({ variant: "destructive" }))}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending && deleteMutation.variables === postToDelete.id ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>
+                ) : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      
+      {showForm && (
+        <Dialog open={showForm} onOpenChange={setShowForm}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Blog Post</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="title">Title</Label>
+                <Input id="title" value={newPost.title} onChange={(e) => handleInputChange('title', e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="category">Category</Label>
+                <select id="category" value={newPost.category} onChange={(e) => handleInputChange('category', e.target.value)} className="w-full p-2 border rounded-md">
+                  <option value="general">General</option>
+                  <option value="nutrition">Nutrition</option>
+                  <option value="health">Health</option>
+                  <option value="training">Training</option>
+                  <option value="treats">Treats</option>
+                  <option value="lifestyle">Lifestyle</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="author_name">Author Name (optional)</Label>
+                <Input id="author_name" value={newPost.author_name} onChange={(e) => handleInputChange('author_name', e.target.value)} placeholder="e.g. Dr. Paws" />
+              </div>
+              <div>
+                <Label htmlFor="image_url">Image URL (optional)</Label>
+                <Input id="image_url" value={newPost.image_url} onChange={(e) => handleInputChange('image_url', e.target.value)} placeholder="https://images.unsplash.com/..." />
+              </div>
+              <div>
+                <Label htmlFor="content">Content (Markdown supported)</Label>
+                <Textarea id="content" value={newPost.content} onChange={(e) => handleInputChange('content', e.target.value)} rows={10} required />
+              </div>
+              <div>
+                <Label htmlFor="excerpt">Excerpt (optional)</Label>
+                <Textarea id="excerpt" value={newPost.excerpt} onChange={(e) => handleInputChange('excerpt', e.target.value)} rows={3} />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={addMutation.isPending}>
+                  {addMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Post'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
   );
 };
