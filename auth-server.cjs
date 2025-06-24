@@ -426,7 +426,14 @@ async function startServer() {
           console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
           
           // Generate 6-digit reset code
-          const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+          const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+          
+          // Generate JWT token as fallback
+          const resetToken = jwt.sign(
+            { userId: user.id, email: user.username, type: 'password_reset' },
+            JWT_SECRET,
+            { expiresIn: '1h' }
+          );
 
           // Store reset token in database - create table if not exists first
           try {
@@ -570,7 +577,125 @@ async function startServer() {
         return;
       }
 
-      // Password reset confirmation endpoint
+      // Password reset completion endpoint  
+      if (pathname === '/api/password-reset/reset' && req.method === 'POST') {
+        console.log('🔑 Password reset completion received');
+        try {
+          const data = await parseBody(req);
+          const { email, code, newPassword, token } = data;
+
+          let user;
+          let resetIdentifier;
+
+          if (token) {
+            // Handle JWT token reset
+            try {
+              const decoded = jwt.verify(token, JWT_SECRET);
+              if (decoded.type !== 'password_reset') {
+                throw new Error('Invalid token type');
+              }
+              
+              const userResult = await pool.query(`
+                SELECT id, username, email FROM user_profiles 
+                WHERE id = $1
+                LIMIT 1
+              `, [decoded.userId]);
+              
+              if (userResult.rows.length === 0) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid reset request' }));
+                return;
+              }
+              
+              user = userResult.rows[0];
+              resetIdentifier = token;
+              console.log('📋 Using JWT token reset for user:', user.username);
+              
+            } catch (error) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid or expired reset token' }));
+              return;
+            }
+          } else {
+            // Handle code-based reset
+            if (!email || !code || !newPassword) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Email, code, and new password required' }));
+              return;
+            }
+
+            console.log('📋 Using code reset for email:', email);
+
+            // Find user by email/username
+            const userResult = await pool.query(`
+              SELECT id, username, email FROM user_profiles 
+              WHERE username = $1 OR email = $1
+              LIMIT 1
+            `, [email]);
+            
+            if (userResult.rows.length === 0) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid reset request' }));
+              return;
+            }
+            
+            user = userResult.rows[0];
+            resetIdentifier = code;
+          }
+
+          // Check if reset identifier exists and is not used
+          const tokenResult = await pool.query(`
+            SELECT id, user_id, used_at
+            FROM password_reset_tokens 
+            WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
+            LIMIT 1
+          `, [user.id, resetIdentifier]);
+
+          if (tokenResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid or expired reset code/token' }));
+            return;
+          }
+
+          const tokenRecord = tokenResult.rows[0];
+          
+          if (tokenRecord.used_at) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Reset code/token already used' }));
+            return;
+          }
+
+          // Hash new password
+          const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+          // Update user password
+          await pool.query(`
+            UPDATE user_profiles 
+            SET password_hash = $1, updated_at = NOW()
+            WHERE id = $2
+          `, [hashedPassword, user.id]);
+
+          // Mark token as used
+          await pool.query(`
+            UPDATE password_reset_tokens 
+            SET used_at = NOW() 
+            WHERE user_id = $1 AND token = $2
+          `, [user.id, resetIdentifier]);
+
+          console.log('✅ Password reset successful for user:', user.username);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'Password reset successful' }));
+
+        } catch (error) {
+          console.error('❌ Password reset completion error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+        return;
+      }
+
+      // Legacy password reset confirmation endpoint
       if (pathname === '/api/password-reset/confirm' && req.method === 'POST') {
         try {
           const data = await parseBody(req);
