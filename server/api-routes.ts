@@ -159,14 +159,171 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     }
   });
 
-  // Dog breeding API endpoints would go here
-  // These would include:
-  // - Litter management
-  // - Puppy registration
-  // - Breeder profiles
-  // - Customer orders
-  // - Blog posts
-  // - Social features
+  // Get breeder profile
+  app.get('/api/breeders/:id', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      console.log(`Fetching breeder profile for ID: ${id}`);
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        const breederQuery = `
+          SELECT user_id, business_name, contact_phone, contact_email, address, delivery_areas, delivery_fee
+          FROM breeders 
+          WHERE user_id = $1
+        `;
+        
+        const result = await pool.query(breederQuery, [id]);
+        
+        if (result.rows.length === 0) {
+          // Return empty breeder object if not found
+          await pool.end();
+          return res.json({
+            user_id: id,
+            business_name: '',
+            contact_phone: '',
+            contact_email: '',
+            address: '',
+            delivery_areas: [],
+            delivery_fee: 0
+          });
+        }
+        
+        const breeder = result.rows[0];
+        console.log('Breeder profile fetched:', breeder);
+        await pool.end();
+        res.json(breeder);
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error fetching breeder profile:', error);
+      res.status(500).json({ message: 'Failed to fetch breeder profile' });
+    }
+  });
+
+  // Update breeder profile
+  app.put('/api/breeders/:id', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { business_name, contact_phone, contact_email, address, delivery_areas, delivery_fee } = req.body;
+      
+      console.log(`Updating breeder profile for ID: ${id}`, req.body);
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        // Check if breeder exists
+        const existingBreeder = await pool.query('SELECT user_id FROM breeders WHERE user_id = $1', [id]);
+        
+        if (existingBreeder.rows.length === 0) {
+          // Create new breeder profile
+          const insertQuery = `
+            INSERT INTO breeders (user_id, business_name, contact_phone, contact_email, address, delivery_areas, delivery_fee, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            RETURNING *
+          `;
+          const result = await pool.query(insertQuery, [
+            id, business_name, contact_phone, contact_email, address, 
+            JSON.stringify(delivery_areas), delivery_fee
+          ]);
+          console.log('Created new breeder profile:', result.rows[0]);
+          await pool.end();
+          res.json(result.rows[0]);
+        } else {
+          // Update existing breeder profile
+          const updateQuery = `
+            UPDATE breeders 
+            SET business_name = $2, contact_phone = $3, contact_email = $4, address = $5, 
+                delivery_areas = $6, delivery_fee = $7, updated_at = NOW()
+            WHERE user_id = $1
+            RETURNING *
+          `;
+          const result = await pool.query(updateQuery, [
+            id, business_name, contact_phone, contact_email, address, 
+            JSON.stringify(delivery_areas), delivery_fee
+          ]);
+          console.log('Updated breeder profile:', result.rows[0]);
+          await pool.end();
+          res.json(result.rows[0]);
+        }
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error updating breeder profile:', error);
+      res.status(500).json({ message: 'Failed to update breeder profile' });
+    }
+  });
+
+  // Get site configuration
+  app.get('/api/site-config', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      console.log('Fetching site configuration');
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        const siteConfig = await pool.query('SELECT key, value FROM site_config ORDER BY key');
+        
+        // Convert to key-value object
+        const config = siteConfig.rows.reduce((acc, row) => {
+          acc[row.key] = row.value;
+          return acc;
+        }, {});
+        
+        console.log('Site config fetched:', config);
+        await pool.end();
+        res.json(config);
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error fetching site config:', error);
+      res.status(500).json({ message: 'Failed to fetch site configuration' });
+    }
+  });
+
+  // Update site configuration
+  app.put('/api/site-config', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const updates = req.body;
+      console.log('Updating site configuration:', updates);
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      
+      try {
+        // Update each config key-value pair
+        for (const update of updates) {
+          const { key, value } = update;
+          await pool.query(`
+            INSERT INTO site_config (key, value, updated_at) 
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (key) 
+            DO UPDATE SET value = $2, updated_at = NOW()
+          `, [key, value]);
+        }
+        
+        console.log('Site config updated successfully');
+        await pool.end();
+        res.json({ success: true, message: 'Site configuration updated' });
+      } catch (dbError) {
+        await pool.end();
+        throw dbError;
+      }
+    } catch (error) {
+      console.error('Error updating site config:', error);
+      res.status(500).json({ message: 'Failed to update site configuration' });
+    }
+  });
 
   console.log('✅ API routes registered successfully');
 }
