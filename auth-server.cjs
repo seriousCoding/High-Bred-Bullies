@@ -328,6 +328,8 @@ async function startServer() {
             return;
           }
 
+          console.log(`🔍 Looking for user with email: ${email}`);
+          
           // Find user by email in user_profiles table
           const userResult = await pool.query(`
             SELECT id, username, first_name, last_name
@@ -336,7 +338,10 @@ async function startServer() {
             LIMIT 1
           `, [email]);
 
+          console.log(`📊 User query result: ${userResult.rows.length} users found`);
+
           if (userResult.rows.length === 0) {
+            console.log(`❌ No user found with email: ${email}`);
             // Don't reveal if user exists - return success anyway
             res.writeHead(200);
             res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
@@ -344,7 +349,7 @@ async function startServer() {
           }
 
           const user = userResult.rows[0];
-          console.log('Found user for password reset:', { id: user.id, email: user.username });
+          console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
           
           // Generate reset token
           const resetToken = jwt.sign(
