@@ -63,7 +63,7 @@ export default function PasswordResetPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/password-reset/request`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,13 +88,49 @@ export default function PasswordResetPage() {
         toast.success('Reset code sent! Check your email.');
       }
       setStep('reset');
-      // Enable resend after successful send
-      setTimeout(() => {
-        setCanResend(true);
-      }, 30000); // 30 second delay before resend is available
+      setCanResend(false);
+      setResendCooldown(60);
     } catch (error) {
       console.error('Password reset request error:', error);
       toast.error('Failed to send reset code. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email || !canResend) return;
+    
+    setIsSubmitting(true);
+    setCanResend(false);
+    setResendCooldown(60);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend code');
+      }
+
+      if (data.resetCode) {
+        toast.success(`New reset code: ${data.resetCode}`);
+        setCode(data.resetCode);
+      } else {
+        toast.success(`New reset code sent to ${email}`);
+      }
+    } catch (error) {
+      console.error('Resend code error:', error);
+      toast.error(error.message || 'Failed to resend code. Please try again.');
+      setCanResend(true);
+      setResendCooldown(0);
     } finally {
       setIsSubmitting(false);
     }
@@ -251,22 +287,22 @@ export default function PasswordResetPage() {
                     </p>
                   )}
                   
-                  {/* Resend button */}
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">
-                      Didn't receive the email?
+                  {/* Resend button section */}
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Didn't receive the code?
                     </p>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={handleResendCode}
                       disabled={!canResend || isSubmitting}
-                      className="text-sm"
+                      className="w-full"
                     >
                       {resendCooldown > 0 
-                        ? `Resend in ${resendCooldown}s` 
-                        : 'Resend Code'
+                        ? `Resend code in ${resendCooldown}s` 
+                        : 'Resend reset code'
                       }
                     </Button>
                   </div>
