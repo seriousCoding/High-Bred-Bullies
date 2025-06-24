@@ -376,9 +376,11 @@ async function startServer() {
             console.error('Database error storing reset token:', dbError);
           }
 
-          // Send password reset email
-          if (emailTransporter) {
-            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+          // Send password reset email using unified email function
+          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+          console.log(`Generated reset link: ${resetLink}`);
+          
+          if (true) { // Always attempt to send email
             
             const emailHtml = `
               <!DOCTYPE html>
@@ -449,20 +451,24 @@ async function startServer() {
             `;
 
             try {
+              console.log(`Attempting to send password reset email to: ${user.username}`);
+              console.log(`Reset token generated: ${resetToken.substring(0, 20)}...`);
+              
               const success = await sendEmail({
                 to: user.username,
                 subject: 'Reset Your High Bred Bullies Password',
                 html: emailHtml
               });
               if (success) {
-                console.log(`Password reset email sent to ${user.username}`);
+                console.log(`✅ Password reset email sent successfully to ${user.username}`);
               } else {
-                console.error('Failed to send password reset email');
+                console.error('❌ Failed to send password reset email - sendEmail returned false');
               }
             } catch (emailError) {
-              console.error('Failed to send password reset email:', emailError);
+              console.error('❌ Failed to send password reset email:', emailError);
             }
           } else {
+            console.log(`❌ Email transporter not available`);
             console.log(`Password reset token for ${user.username}: ${resetToken}`);
           }
           
