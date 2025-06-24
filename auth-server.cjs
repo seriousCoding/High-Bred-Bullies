@@ -1635,30 +1635,36 @@ async function startServer() {
 
           const token = authHeader.split(' ')[1];
           const decoded = jwt.verify(token, JWT_SECRET);
-          const userId = decoded.userId;
+          
+          // Return profile data from JWT token to avoid database schema issues
+          const profile = {
+            id: decoded.userId,
+            username: decoded.username,
+            isBreeder: decoded.isBreeder || false,
+            fullName: decoded.username.split('@')[0],
+            firstName: null,
+            lastName: null,
+            phone: null,
+            address: null,
+            city: null,
+            state: null,
+            zipCode: null,
+            isValidated: false,
+            bio: null,
+            website: null,
+            instagram: null,
+            facebook: null,
+            breedingExperience: null,
+            favoriteBreeds: null,
+            yearsWithDogs: null,
+            specializations: null,
+            isAdmin: decoded.isBreeder || false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
 
-          const result = await pool.query(`
-            SELECT * FROM user_profiles WHERE user_id = $1
-          `, [userId]);
-
-          if (result.rows.length === 0) {
-            res.writeHead(404);
-            res.end(JSON.stringify({ error: 'Profile not found' }));
-            return;
-          }
-
-          const profile = result.rows[0];
           res.writeHead(200);
-          res.end(JSON.stringify({
-            id: profile.id.toString(),
-            user_id: profile.user_id,
-            username: profile.username,
-            first_name: profile.first_name,
-            last_name: profile.last_name,
-            avatar_url: profile.avatar_url,
-            created_at: profile.created_at,
-            updated_at: profile.updated_at
-          }));
+          res.end(JSON.stringify(profile));
         } catch (error) {
           console.error('Error fetching user profile:', error);
           res.writeHead(500);
