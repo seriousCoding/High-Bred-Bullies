@@ -154,6 +154,12 @@ const BlogPostPage = () => {
                       src={getCacheBustedUrl(post.image_url, post.updated_at)}
                       alt={post.title}
                       className="w-full h-full object-cover rounded-xl"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== placeholderImage) {
+                          target.src = placeholderImage;
+                        }
+                      }}
                     />
                   )}
                 </div>
