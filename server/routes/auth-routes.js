@@ -213,30 +213,43 @@ function createAuthRoutes(pool, sendEmail) {
           console.log('Password reset tokens table already exists or error:', tableError.message);
         }
 
+        // Store both reset code and JWT token
         await pool.query(`
           INSERT INTO password_reset_tokens (user_id, token, expires_at)
-          VALUES ($1, $2, NOW() + INTERVAL '1 hour')
-        `, [user.id, resetCode]);
+          VALUES ($1, $2, NOW() + INTERVAL '1 hour'), ($1, $3, NOW() + INTERVAL '1 hour')
+        `, [user.id, resetCode, resetToken]);
 
-        console.log('💾 Reset code stored in database, code:', resetCode);
+        console.log('💾 Reset code and token stored in database');
 
-        // Send password reset email with code
+        const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+        
+        // Send password reset email with both code and link options
         const resetEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #333;">Password Reset Request</h2>
             
             <p>Hello ${user.first_name || user.username},</p>
             
-            <p>You requested a password reset for your High Bred Bullies account. Use the code below to reset your password:</p>
+            <p>You requested a password reset for your High Bred Bullies account. Choose one of these options:</p>
             
-            <div style="text-align: center; margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 8px;">
-              <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
-              <h1 style="font-size: 32px; margin: 0; color: #007bff; letter-spacing: 4px; font-family: monospace;">${resetCode}</h1>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #007bff;">Option 1: Use Reset Code</h3>
+              <div style="text-align: center; background: white; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
+                <h1 style="font-size: 28px; margin: 0; color: #007bff; letter-spacing: 3px; font-family: monospace;">${resetCode}</h1>
+              </div>
+              <p style="font-size: 14px; margin: 5px 0;">Enter this code on the password reset page</p>
             </div>
             
-            <p>Enter this code on the password reset page to create a new password.</p>
+            <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #007bff;">Option 2: Use Reset Link</h3>
+              <div style="text-align: center;">
+                <a href="${resetLink}" style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password Now</a>
+              </div>
+              <p style="font-size: 14px; margin: 10px 0 0 0;">Click the button above for direct reset</p>
+            </div>
             
-            <p style="color: #666; font-size: 14px;">This code will expire in 1 hour for security reasons.</p>
+            <p style="color: #666; font-size: 14px;">Both options will expire in 1 hour for security reasons.</p>
             
             <p style="color: #666; font-size: 14px;">If you didn't request this password reset, please ignore this email.</p>
             
