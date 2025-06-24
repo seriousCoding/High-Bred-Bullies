@@ -65,54 +65,7 @@ export default function PasswordResetPage() {
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!code || !newPassword || !confirmPassword) {
-      toast.error('All fields are required');
-      return;
-    }
 
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters long');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/password-reset/reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          code,
-          newPassword,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to reset password');
-      }
-
-      toast.success('Password reset successfully! You can now log in.');
-      navigate('/auth');
-    } catch (error) {
-      console.error('Password reset error:', error);
-      toast.error(error.message || 'Failed to reset password. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -157,7 +110,7 @@ export default function PasswordResetPage() {
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleResetPassword} className="space-y-4">
+              <form onSubmit={handleCompleteReset} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="code">Reset Code</Label>
                   <Input
