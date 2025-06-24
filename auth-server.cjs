@@ -61,7 +61,7 @@ if (STRIPE_SECRET_KEY) {
 // Initialize Email Service
 let emailTransporter = null;
 function initializeEmailService() {
-  // Enhanced SMTP configuration for better deliverability
+  // Enhanced SMTP configuration for maximum deliverability
   const smtpConfig = {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -70,17 +70,21 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 30000,
-    greetingTimeout: 10000,
-    socketTimeout: 30000,
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
     pool: true,
-    maxConnections: 5,
-    rateDelta: 20000,
-    rateLimit: 5,
+    maxConnections: 3,
+    rateDelta: 1000,
+    rateLimit: 1,
     tls: {
       rejectUnauthorized: false,
-      ciphers: 'SSLv3'
-    }
+      ciphers: 'TLSv1.2'
+    },
+    // SPF, DKIM compliance
+    name: 'firsttolaunch.com',
+    logger: false,
+    debug: false
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
@@ -115,9 +119,13 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
       html,
       text: html.replace(/<[^>]*>/g, ''), // Add plain text version
       headers: {
-        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
-        'X-Priority': '1',
-        'Reply-To': 'gpass1979@gmail.com',
+        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@firsttolaunch.com>`,
+        'X-Priority': '3',
+        'Reply-To': 'admin@firsttolaunch.com',
+        'X-Mailer': 'High Bred Bullies v1.0',
+        'List-Unsubscribe': '<mailto:admin@firsttolaunch.com?subject=unsubscribe>',
+        'Return-Path': 'admin@firsttolaunch.com',
+        'X-Auto-Response-Suppress': 'DR, RN, NRN, OOF, AutoReply',
         'X-Mailer': 'High Bred Bullies Platform'
       }
     });
