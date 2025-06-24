@@ -36,7 +36,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onFollow, onDelete, c
     if (!user) return;
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/api/social-posts/${post.id}`, {
         method: 'DELETE',
         headers: {

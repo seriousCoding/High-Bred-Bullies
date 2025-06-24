@@ -27,7 +27,7 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    // Check for existing token on mount
+    // Check for existing token on mount - standardize to 'auth_token'
     const token = localStorage.getItem('auth_token');
     if (token) {
       // Verify token and get user info
