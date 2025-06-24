@@ -333,8 +333,7 @@ async function startServer() {
           }
 
           // Send password reset email
-          if (emailTransporter) {
-            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
             
             const emailHtml = `
               <!DOCTYPE html>
@@ -404,18 +403,11 @@ async function startServer() {
               </html>
             `;
 
-            const emailSent = await sendEmail({
-              to: user.username,
-              subject: 'Reset Your High Bred Bullies Password',
-              html: emailHtml
-            });
-            
-            if (emailSent) {
-              console.log(`Password reset email sent to ${user.username}`);
-            }
-          } else {
-            console.log(`Password reset token for ${user.username}: ${resetToken}`);
-          }
+          await sendEmail({
+            to: user.username,
+            subject: 'Reset Your High Bred Bullies Password',
+            html: emailHtml
+          });
           
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
