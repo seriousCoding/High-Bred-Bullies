@@ -558,7 +558,7 @@ async function startServer() {
                       
                       <div class="security-note">
                         <strong>🛡️ Security Notice:</strong><br>
-                        This code will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                        This code will expire in 24 hours for your security. If you didn't request this reset, please ignore this email - your account remains secure.
                       </div>
                       
                       <div class="message">
