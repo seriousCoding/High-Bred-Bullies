@@ -37,6 +37,21 @@ const BlogPostPage = () => {
 
   const getCacheBustedUrl = (url: string | null | undefined, updated_at: string | undefined) => {
     if (!url || !updated_at) return url || placeholderImage;
+    
+    // Check if it's an expired DALL-E URL (contains st= and se= parameters)
+    if (url.includes('oaidalleapiprodscus.blob.core.windows.net') && url.includes('se=')) {
+      // Extract expiration time
+      const seMatch = url.match(/se=([^&]+)/);
+      if (seMatch) {
+        const expirationTime = new Date(decodeURIComponent(seMatch[1]));
+        const now = new Date();
+        if (now > expirationTime) {
+          // URL has expired, use placeholder
+          return placeholderImage;
+        }
+      }
+    }
+    
     const date = new Date(updated_at).getTime();
     const separator = url.includes('?') ? '&' : '?';
     return `${url}${separator}v=${date}`;
