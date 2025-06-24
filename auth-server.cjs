@@ -4956,6 +4956,45 @@ async function startServer() {
         return;
       }
 
+      // Delete inquiry endpoint
+      if (pathname.match(/^\/api\/inquiries\/[^\/]+$/) && req.method === 'DELETE') {
+        console.log('🗑️ Delete inquiry request received');
+        const authResult = authenticateTokenDirect(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+        
+        try {
+          // Extract inquiry ID from path
+          const inquiryId = pathname.split('/')[3];
+          console.log(`Deleting inquiry ${inquiryId}`);
+          
+          // Delete the inquiry
+          const result = await pool.query(`
+            DELETE FROM inquiries 
+            WHERE id = $1
+            RETURNING id
+          `, [inquiryId]);
+          
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Inquiry not found' }));
+            return;
+          }
+          
+          console.log(`✅ Successfully deleted inquiry ${inquiryId}`);
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'Inquiry deleted successfully' }));
+        } catch (error) {
+          console.error('Delete inquiry error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to delete inquiry' }));
+        }
+        return;
+      }
+
       // 404 for unhandled API routes
       if (pathname.startsWith('/api/')) {
         res.writeHead(404);
