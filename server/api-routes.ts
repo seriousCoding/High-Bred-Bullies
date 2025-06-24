@@ -32,12 +32,31 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      const profile = await storage.getUserProfile(req.user.id);
-      if (!profile) {
+      // Query user_profiles table directly using the actual database schema
+      const { Pool } = require('pg');
+      const pool = new Pool({
+        host: '50.193.77.237',
+        port: 5432,
+        database: 'high_bred',
+        user: 'rtownsend',
+        password: 'rTowns402',
+        ssl: false,
+      });
+
+      // Query user_profiles table with simplified approach
+      const result = await pool.query(`
+        SELECT * FROM user_profiles 
+        WHERE username = $1
+        LIMIT 1
+      `, [req.user.username]);
+
+      console.log('Profile lookup for:', req.user.username, 'found:', result.rows.length, 'rows');
+
+      if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Profile not found' });
       }
 
-      res.json(profile);
+      res.json(result.rows[0]);
     } catch (error) {
       console.error('Get profile error:', error);
       res.status(500).json({ error: 'Internal server error' });
