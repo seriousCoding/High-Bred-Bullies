@@ -138,13 +138,16 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
 
     const result = await emailTransporter.sendMail(mailOptions);
     
-    console.log(`✅ EMAIL SENT SUCCESSFULLY:`, {
+    console.log(`📤 EMAIL QUEUED FOR DELIVERY:`, {
       to: to,
       messageId: result.messageId,
       response: result.response,
       accepted: result.accepted,
-      rejected: result.rejected
+      rejected: result.rejected,
+      status: 'QUEUED_BY_SMTP_SERVER'
     });
+    
+    // Note: Email is queued by SMTP server, actual delivery depends on recipient's email provider
     
     return true;
   } catch (error) {
@@ -585,7 +588,7 @@ async function startServer() {
                 html: emailHtml
               });
               if (success) {
-                console.log(`✅ Password reset email sent successfully to ${email}`);
+                console.log(`📬 Password reset email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
               } else {
                 console.error('❌ Failed to send password reset email - sendEmail returned false');
               }
@@ -694,7 +697,7 @@ async function startServer() {
             });
 
             if (emailSent) {
-              console.log(`✅ Password reset resend email sent successfully to ${email}`);
+              console.log(`📬 Password reset resend email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
             }
           } else {
             console.log(`❌ Email transporter not available for resend`);
