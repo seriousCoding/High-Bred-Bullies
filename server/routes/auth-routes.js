@@ -223,7 +223,7 @@ function createAuthRoutes(pool, sendEmail) {
         console.log('💾 Reset token stored in database');
 
         // Send password reset email
-        const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+        const resetLink = `${req.headers.origin || 'http://localhost:5000'}/password-reset?token=${resetToken}`;
         
         const resetEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
