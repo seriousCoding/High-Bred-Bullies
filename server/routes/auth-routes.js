@@ -173,17 +173,18 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('🔍 Looking for user with email:', email);
         
-        // Look for user in user_profiles table with flexible matching
+        // Look for user in user_profiles table 
         const userResult = await pool.query(`
           SELECT id, username, first_name, email FROM user_profiles 
-          WHERE username = $1 OR username ILIKE $2 OR email = $1
+          WHERE username = $1
           LIMIT 1
-        `, [email, `${email.split('@')[0]}%`]);
+        `, [email]);
 
         console.log('📊 User query result:', `${userResult.rows.length} users found`);
 
         if (userResult.rows.length === 0) {
           console.log('❌ No user found with email:', email);
+          console.log('🔍 Available users sample:', await pool.query('SELECT username FROM user_profiles LIMIT 5'));
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
           return true;
@@ -261,7 +262,7 @@ function createAuthRoutes(pool, sendEmail) {
           });
 
           if (emailSuccess) {
-            console.log(`✅ Password reset email with code ${resetCode} sent successfully to ${email}`);
+            console.log(`✅ Password reset email with code ${resetCode} sent successfully to ${emailAddress}`);
           } else {
             console.error('❌ Failed to send password reset email');
           }
