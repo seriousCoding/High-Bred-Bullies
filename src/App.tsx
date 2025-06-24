@@ -22,7 +22,7 @@ import { PurchaseSuccessPage } from '@/pages/PurchaseSuccessPage';
 import SchedulePickupPage from '@/pages/SchedulePickupPage';
 import HighTablePage from '@/pages/HighTablePage';
 import EmailVerificationPage from '@/pages/EmailVerificationPage';
-import PasswordResetPage from '@/pages/PasswordResetPage';
+
 import NotFound from '@/pages/NotFound';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -94,7 +94,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/verify-email" element={<EmailVerificationPage />} />
-            <Route path="/reset-password" element={<PasswordResetPage />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
           {showInstallPrompt && !isInstalled && (
