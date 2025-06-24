@@ -192,12 +192,8 @@ function createAuthRoutes(pool, sendEmail) {
         const user = userResult.rows[0];
         console.log('✅ User found:', user.username);
 
-        // Generate reset token
-        const resetToken = jwt.sign(
-          { userId: user.id, type: 'password_reset' },
-          JWT_SECRET,
-          { expiresIn: '1h' }
-        );
+        // Generate 6-digit reset code
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
         // Store reset token in database (create table if needed)
         try {
@@ -218,26 +214,27 @@ function createAuthRoutes(pool, sendEmail) {
         await pool.query(`
           INSERT INTO password_reset_tokens (user_id, token, expires_at)
           VALUES ($1, $2, NOW() + INTERVAL '1 hour')
-        `, [user.id, resetToken]);
+        `, [user.id, resetCode]);
 
         console.log('💾 Reset token stored in database');
 
-        // Send password reset email
-        const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
-        
+        // Send password reset email with code
         const resetEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #333;">Password Reset Request</h2>
             
             <p>Hello ${user.first_name || user.username},</p>
             
-            <p>You requested a password reset for your High Bred Bullies account. Click the link below to reset your password:</p>
+            <p>You requested a password reset for your High Bred Bullies account. Use the code below to reset your password:</p>
             
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+            <div style="text-align: center; margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+              <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
+              <h1 style="font-size: 32px; margin: 0; color: #007bff; letter-spacing: 4px; font-family: monospace;">${resetCode}</h1>
             </div>
             
-            <p style="color: #666; font-size: 14px;">This link will expire in 1 hour for security reasons.</p>
+            <p>Enter this code on the password reset page to create a new password.</p>
+            
+            <p style="color: #666; font-size: 14px;">This code will expire in 1 hour for security reasons.</p>
             
             <p style="color: #666; font-size: 14px;">If you didn't request this password reset, please ignore this email.</p>
             
@@ -248,7 +245,7 @@ function createAuthRoutes(pool, sendEmail) {
         try {
           const emailSuccess = await sendEmail({
             to: email,
-            subject: 'Password Reset - High Bred Bullies',
+            subject: 'Password Reset Code - High Bred Bullies',
             html: resetEmailHtml
           });
 
@@ -279,41 +276,40 @@ function createAuthRoutes(pool, sendEmail) {
       console.log('🔑 Password reset completion received');
       try {
         const data = await parseBody(req);
-        const { token, newPassword } = data;
+        const { email, code, newPassword } = data;
 
-        if (!token || !newPassword) {
+        if (!email || !code || !newPassword) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Token and new password required' }));
+          res.end(JSON.stringify({ error: 'Email, code, and new password required' }));
           return true;
         }
 
-        // Verify reset token
-        let decoded;
-        try {
-          decoded = jwt.verify(token, JWT_SECRET);
-        } catch (error) {
+        console.log('📋 Password reset data:', { email, code: '***', password: '***' });
+
+        // Find user by email
+        const userResult = await pool.query(`
+          SELECT id, username FROM user_profiles WHERE username = $1 LIMIT 1
+        `, [email]);
+
+        if (userResult.rows.length === 0) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+          res.end(JSON.stringify({ error: 'Invalid reset request' }));
           return true;
         }
 
-        if (decoded.type !== 'password_reset') {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Invalid token type' }));
-          return true;
-        }
+        const user = userResult.rows[0];
 
-        // Check if token exists and is not used
+        // Check if code exists and is not used
         const tokenResult = await pool.query(`
           SELECT id, user_id, used_at
           FROM password_reset_tokens 
-          WHERE token = $1 AND expires_at > NOW()
+          WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
           LIMIT 1
-        `, [token]);
+        `, [user.id, code]);
 
         if (tokenResult.rows.length === 0) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+          res.end(JSON.stringify({ error: 'Invalid or expired reset code' }));
           return true;
         }
 
@@ -321,19 +317,19 @@ function createAuthRoutes(pool, sendEmail) {
         
         if (tokenRecord.used_at) {
           res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Token already used' }));
+          res.end(JSON.stringify({ error: 'Reset code already used' }));
           return true;
         }
 
         // Hash new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        // Update user password in user_profiles
+        // Update user password
         await pool.query(`
           UPDATE user_profiles 
           SET password_hash = $1, updated_at = NOW()
           WHERE id = $2
-        `, [hashedPassword, tokenRecord.user_id]);
+        `, [hashedPassword, user.id]);
 
         // Mark token as used
         await pool.query(`
@@ -342,9 +338,9 @@ function createAuthRoutes(pool, sendEmail) {
           WHERE id = $1
         `, [tokenRecord.id]);
 
-        console.log('✅ Password reset completed successfully');
+        console.log('✅ Password reset completed successfully for:', email);
         res.writeHead(200);
-        res.end(JSON.stringify({ message: 'Password reset successful' }));
+        res.end(JSON.stringify({ message: 'Password reset successfully' }));
 
       } catch (error) {
         console.error('🚨 Password reset completion error:', error);
