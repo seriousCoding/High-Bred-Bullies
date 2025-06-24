@@ -141,12 +141,25 @@ initializeEmailService();
 
 // Verify connection with actual database schema
 pool.connect()
-  .then(client => {
-    return client.query('SELECT count(*) as profile_count FROM user_profiles')
-      .then(result => {
-        console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
-        client.release();
-      });
+  .then(async client => {
+    try {
+      const result = await client.query('SELECT count(*) as profile_count FROM user_profiles');
+      console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
+      
+      // Add missing columns for password reset functionality
+      try {
+        await client.query(`
+          ALTER TABLE user_profiles 
+          ADD COLUMN IF NOT EXISTS reset_token VARCHAR(10),
+          ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP
+        `);
+        console.log('✅ Password reset columns added to user_profiles table');
+      } catch (alterError) {
+        console.log('⚠️ Password reset columns may already exist');
+      }
+    } finally {
+      client.release();
+    }
   })
   .catch(err => {
     console.error('❌ Connection failed:', err.message);
