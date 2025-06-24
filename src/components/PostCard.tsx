@@ -173,8 +173,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onFollow, onDelete, c
             ) : (
               <img 
                 src={post.image_url} 
-                alt={post.title} 
+                alt={post.title || 'Post image'} 
                 className="rounded-lg w-full object-cover" 
+                style={{ maxHeight: '400px' }}
+                loading="lazy"
+                onError={(e) => {
+                  console.error('Image failed to load:', post.image_url);
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.style.display = 'none';
+                }}
               />
             )}
           </div>

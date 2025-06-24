@@ -136,7 +136,7 @@ const CreatePostCard: React.FC<CreatePostCardProps> = ({ userProfileId, onPostCr
           visibility: newPost.visibility,
           is_testimonial: newPost.is_testimonial,
           image_url: mediaUrl,
-          moderation_status: 'approved'
+          // Auto-approval based on content criteria - removed hardcoded 'approved'
         }),
       });
 
@@ -274,7 +274,7 @@ const CreatePostCard: React.FC<CreatePostCardProps> = ({ userProfileId, onPostCr
             </div>
           </div>
           <div className="text-xs text-muted-foreground bg-green-50 p-2 rounded">
-            Posts are auto-approved and will appear immediately in the community feed
+            Posts about pets and positive experiences are auto-approved. Others may require review.
           </div>
           <Button type="submit" disabled={isSubmitting || !newPost.title.trim()}>
             {isSubmitting ? 'Posting...' : 'Share Post'}
