@@ -3295,6 +3295,8 @@ async function startServer() {
               
               // Send user confirmation email FIRST
               console.log(`🚀 SENDING USER CONFIRMATION TO: ${email}`);
+              console.log(`📧 emailTransporter status:`, emailTransporter ? 'AVAILABLE' : 'NOT_AVAILABLE');
+              
               const userMailOptions = {
                 from: 'admin@firsttolaunch.com',
                 to: email,
@@ -3302,6 +3304,8 @@ async function startServer() {
                 html: userConfirmationHtml,
                 text: `Hi ${name}, Thank you for contacting High Bred Bullies. We received your message and will respond within 24-48 hours.`
               };
+
+              console.log(`📋 User mail options:`, JSON.stringify(userMailOptions, null, 2));
 
               const userResult = await emailTransporter.sendMail(userMailOptions);
               console.log(`✅ USER CONFIRMATION EMAIL SENT:`, {
