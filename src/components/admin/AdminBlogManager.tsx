@@ -193,12 +193,17 @@ export const AdminBlogManager = () => {
     mutationFn: generateBlogPost,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['adminBlogPosts'] });
-      toast({ title: 'Success', description: `New blog post draft "${(data as any).title}" has been generated.` });
+      const title = data?.title || data?.post?.title || 'AI Blog Post';
+      toast({ 
+        title: 'Success', 
+        description: `New blog post "${title}" has been generated.` 
+      });
     },
     onError: (err: any) => {
+      console.error('Blog generation error:', err);
       toast({
-        title: 'Error generating post',
-        description: err.message,
+        title: 'Error generating blog post',
+        description: err?.message || 'Failed to generate blog post. Please check console for details.',
         variant: 'destructive',
       });
     },
@@ -207,12 +212,19 @@ export const AdminBlogManager = () => {
   const generateSocialMutation = useMutation({
     mutationFn: generateSocialPosts,
     onSuccess: (data) => {
-      toast({ title: 'Success', description: `Generated ${(data as any).count} AI social posts for High Table.` });
+      queryClient.invalidateQueries({ queryKey: ['socialPosts'] });
+      queryClient.invalidateQueries({ queryKey: ['social_feed_posts'] });
+      const count = data?.count || 'several';
+      toast({ 
+        title: 'Success', 
+        description: `Generated ${count} AI social posts for High Table.` 
+      });
     },
     onError: (err: any) => {
+      console.error('Social posts generation error:', err);
       toast({
         title: 'Error generating social posts',
-        description: err.message,
+        description: err?.message || 'Failed to generate social posts. Please check console for details.',
         variant: 'destructive',
       });
     },

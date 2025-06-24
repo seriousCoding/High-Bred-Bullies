@@ -4921,12 +4921,30 @@ async function startServer() {
 
       // Generate blog post with AI
       if (pathname === '/api/ai/generate-blog-post' && req.method === 'POST') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'No token provided' }));
+          return;
+        }
+
         try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          if (!decoded.isBreeder) {
+            res.writeHead(403);
+            res.end(JSON.stringify({ error: 'Admin access required' }));
+            return;
+          }
+          
           if (!OPENAI_API_KEY) {
             res.writeHead(500);
             res.end(JSON.stringify({ error: "OpenAI API key not configured" }));
             return;
           }
+
+          console.log('Starting AI blog post generation...');
 
           const blogTopics = [
             "Common Pet Diseases and Their Treatments",
@@ -5047,9 +5065,9 @@ async function startServer() {
 
                       res.writeHead(200);
                       res.end(JSON.stringify({
-                        success: true,
-                        blog_post: insertResult.rows[0],
-                        image_url: imageUrl
+                        message: "Blog post generated successfully!",
+                        title: blogData.title,
+                        post: insertResult.rows[0]
                       }));
                     } catch (error) {
                       console.error('Error saving blog post:', error);
@@ -5080,9 +5098,9 @@ async function startServer() {
 
                     res.writeHead(200);
                     res.end(JSON.stringify({
-                      success: true,
-                      blog_post: insertResult.rows[0],
-                      image_url: null
+                      message: "Blog post generated successfully (without image)!",
+                      title: blogData.title,
+                      post: insertResult.rows[0]
                     }));
                   } catch (dbError) {
                     console.error('Error saving blog post:', dbError);
