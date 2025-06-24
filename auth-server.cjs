@@ -560,15 +560,82 @@ async function startServer() {
         return;
       }
 
-      // Password reset confirmation endpoint
-      if (pathname === '/api/password-reset/confirm' && req.method === 'POST') {
+      // Password reset completion endpoints (both /confirm and /reset for compatibility)
+      if ((pathname === '/api/password-reset/confirm' || pathname === '/api/password-reset/reset') && req.method === 'POST') {
         try {
           const data = await parseBody(req);
-          const { token, newPassword } = data;
+          const { token, newPassword, email, code } = data;
 
-          if (!token || !newPassword) {
+          // Handle both token-based and code-based reset
+          if (token && newPassword) {
+            // JWT token-based reset
+            console.log('🔑 Processing JWT token reset');
+          } else if (email && code && newPassword) {
+            // Code-based reset
+            console.log('🔑 Processing code-based reset for:', email);
+            
+            // Find user first
+            const userResult = await pool.query(`
+              SELECT id, username FROM user_profiles 
+              WHERE username = $1 OR email = $1
+              LIMIT 1
+            `, [email]);
+
+            if (userResult.rows.length === 0) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'User not found' }));
+              return;
+            }
+
+            const user = userResult.rows[0];
+
+            // Verify code
+            const tokenResult = await pool.query(`
+              SELECT id, user_id, used_at
+              FROM password_reset_tokens 
+              WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
+              LIMIT 1
+            `, [user.id, code]);
+
+            if (tokenResult.rows.length === 0) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid or expired reset code' }));
+              return;
+            }
+
+            const tokenRecord = tokenResult.rows[0];
+            
+            if (tokenRecord.used_at) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Reset code already used' }));
+              return;
+            }
+
+            // Hash new password
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            // Update user password
+            await pool.query(`
+              UPDATE user_profiles 
+              SET password_hash = $1, updated_at = NOW()
+              WHERE id = $2
+            `, [hashedPassword, user.id]);
+
+            // Mark code as used
+            await pool.query(`
+              UPDATE password_reset_tokens 
+              SET used_at = NOW() 
+              WHERE id = $1
+            `, [tokenRecord.id]);
+
+            console.log('✅ Password reset completed successfully for:', email);
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'Password reset successfully' }));
+            return;
+
+          } else {
             res.writeHead(400);
-            res.end(JSON.stringify({ error: 'Token and new password required' }));
+            res.end(JSON.stringify({ error: 'Either token or email+code with new password required' }));
             return;
           }
 
