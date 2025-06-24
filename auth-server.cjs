@@ -2408,13 +2408,18 @@ async function startServer() {
             `;
 
             try {
-              await emailTransporter.sendMail({
-                from: 'High Bred Bullies <noreply@highbredbullies.com>',
+              const customerInfo = await emailTransporter.sendMail({
+                from: 'High Bred Bullies <admin@firsttolaunch.com>',
                 to: email,
                 subject: 'Thank you for contacting High Bred Bullies',
-                html: customerEmailHtml
+                html: customerEmailHtml,
+                headers: {
+                  'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
+                  'X-Priority': '1',
+                  'Reply-To': 'gpass1979@gmail.com'
+                }
               });
-              console.log('Inquiry confirmation email sent to customer:', email);
+              console.log('Inquiry confirmation email sent to customer:', email, '- Message ID:', customerInfo.messageId);
             } catch (emailError) {
               console.error('Failed to send customer confirmation email:', emailError);
             }
@@ -2422,30 +2427,33 @@ async function startServer() {
             // Send notification email to admin/breeder
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">New Customer Inquiry</h2>
-                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h1 style="color: #2563eb;">New Customer Inquiry</h1>
+                <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
                   <h3>Customer Information:</h3>
                   <p><strong>Name:</strong> ${name}</p>
                   <p><strong>Email:</strong> ${email}</p>
                   <p><strong>Subject:</strong> ${subject}</p>
                   ${litter_id ? `<p><strong>Litter ID:</strong> ${litter_id}</p>` : ''}
+                  <p><strong>Message:</strong></p>
+                  <p style="white-space: pre-wrap;">${message}</p>
                 </div>
-                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <h3>Message:</h3>
-                  <p>${message}</p>
-                </div>
-                <p>Please respond promptly to provide excellent customer service.</p>
+                <p><strong>Sent at:</strong> ${new Date().toISOString()}</p>
               </div>
             `;
 
             try {
-              await emailTransporter.sendMail({
-                from: 'High Bred Bullies <noreply@highbredbullies.com>',
-                to: 'gpass1979@gmail.com', // Admin email
+              const adminInfo = await emailTransporter.sendMail({
+                from: 'High Bred Bullies <admin@firsttolaunch.com>',
+                to: 'gpass1979@gmail.com',
                 subject: `New Inquiry from ${name}`,
-                html: adminEmailHtml
+                html: adminEmailHtml,
+                headers: {
+                  'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
+                  'X-Priority': '1',
+                  'Reply-To': 'gpass1979@gmail.com'
+                }
               });
-              console.log('Inquiry notification email sent to admin');
+              console.log('Inquiry notification email sent to admin - Message ID:', adminInfo.messageId);
             } catch (emailError) {
               console.error('Failed to send admin notification email:', emailError);
             }
