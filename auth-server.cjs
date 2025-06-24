@@ -127,12 +127,32 @@ initializeEmailService();
 
 // Verify connection with actual database schema
 pool.connect()
-  .then(client => {
-    return client.query('SELECT count(*) as profile_count FROM user_profiles')
-      .then(result => {
-        console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
-        client.release();
-      });
+  .then(async client => {
+    try {
+      // Check database connection
+      const result = await client.query('SELECT count(*) as profile_count FROM user_profiles');
+      console.log(`✅ Database connected: ${result.rows[0].profile_count} user profiles found`);
+      
+      // Fix database schema issues
+      try {
+        await client.query('ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true');
+        console.log('✅ Added is_public column to social_posts');
+      } catch (e) {
+        console.log('Social posts schema already updated');
+      }
+      
+      try {
+        await client.query('ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_category_check');
+        console.log('✅ Removed restrictive blog category constraint');
+      } catch (e) {
+        console.log('Blog posts constraint already removed');
+      }
+      
+      client.release();
+    } catch (err) {
+      client.release();
+      throw err;
+    }
   })
   .catch(err => {
     console.error('❌ Connection failed:', err.message);
@@ -230,6 +250,47 @@ async function startServer() {
     }
 
     try {
+      // Load route modules 
+      const { createInquiryRoutes } = require('./server/routes/inquiry-routes.cjs');
+      const { createAuthRoutes } = require('./server/routes/auth-routes.cjs'); 
+      const { createLitterRoutes } = require('./server/routes/litter-routes.cjs');
+      const { createAdminRoutes } = require('./server/routes/admin-routes.cjs');
+      const { createBlogRoutes } = require('./server/routes/blog-routes.cjs');
+      
+      const inquiryRoutes = createInquiryRoutes(pool, sendEmail);
+      const authRoutes = createAuthRoutes(pool, sendEmail);
+      const litterRoutes = createLitterRoutes(pool);
+      const adminRoutes = createAdminRoutes(pool);
+      const blogRoutes = createBlogRoutes(pool);
+
+      // Handle authentication routes  
+      if (await authRoutes.handleLogin(req, res, pathname)) return;
+      if (await authRoutes.handlePasswordResetRequest(req, res, pathname)) return;
+      if (await authRoutes.handlePasswordReset(req, res, pathname)) return;
+
+      // Handle inquiry routes
+      if (await inquiryRoutes.handleGetInquiries(req, res, pathname)) return;
+      if (await inquiryRoutes.handleInquiryReply(req, res, pathname)) return;
+      if (await inquiryRoutes.handleInquiryDelete(req, res, pathname)) return;
+
+      // Handle blog and social post routes
+      if (await blogRoutes.handleGenerateBlogPost(req, res, pathname)) return;
+      if (await blogRoutes.handleGenerateSocialPost(req, res, pathname)) return;
+
+      // Handle admin routes
+      if (await adminRoutes.handleAdminOrders(req, res, pathname)) return;
+      if (await adminRoutes.handleArchivedOrders(req, res, pathname)) return;
+      if (await adminRoutes.handleOrderDetails(req, res, pathname)) return;
+      if (await adminRoutes.handleCancelOrder(req, res, pathname)) return;
+      if (await adminRoutes.handleAdminSocialPosts(req, res, pathname)) return;
+      if (await adminRoutes.handleAdminBlogPosts(req, res, pathname)) return;
+
+      // Handle litter routes
+      if (await litterRoutes.handleBreederLitters(req, res, pathname)) return;
+      if (await litterRoutes.handleLitterManagement(req, res, pathname)) return;
+      if (await litterRoutes.handleFeaturedLitters(req, res, pathname)) return;
+      if (await litterRoutes.handleUpcomingLitters(req, res, pathname)) return;
+
       // Debug endpoint to check users in database
       if (pathname === '/api/debug/users' && req.method === 'GET') {
         try {
