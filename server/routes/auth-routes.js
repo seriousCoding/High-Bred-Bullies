@@ -289,38 +289,75 @@ function createAuthRoutes(pool, sendEmail) {
       console.log('🔑 Password reset completion received');
       try {
         const data = await parseBody(req);
-        const { email, code, newPassword } = data;
+        const { email, code, newPassword, token } = data;
 
-        if (!email || !code || !newPassword) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Email, code, and new password required' }));
-          return true;
+        let user;
+        let resetIdentifier;
+
+        if (token) {
+          // Handle JWT token reset
+          const jwt = require('jsonwebtoken');
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+            if (decoded.type !== 'password_reset') {
+              throw new Error('Invalid token type');
+            }
+            
+            const userResult = await pool.query(`
+              SELECT id, username, email FROM user_profiles 
+              WHERE id = $1
+              LIMIT 1
+            `, [decoded.userId]);
+            
+            if (userResult.rows.length === 0) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid reset request' }));
+              return true;
+            }
+            
+            user = userResult.rows[0];
+            resetIdentifier = token;
+            console.log('📋 Using JWT token reset for user:', user.username);
+            
+          } catch (error) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid or expired reset token' }));
+            return true;
+          }
+        } else {
+          // Handle code-based reset
+          if (!email || !code || !newPassword) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Email, code, and new password required' }));
+            return true;
+          }
+
+          console.log('📋 Using code reset:', { email, code: '***', password: '***' });
+
+          // Find user by email/username
+          const userResult = await pool.query(`
+            SELECT id, username, email FROM user_profiles 
+            WHERE username = $1 OR email = $1
+            LIMIT 1
+          `, [email]);
+          
+          if (userResult.rows.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid reset request' }));
+            return true;
+          }
+          
+          user = userResult.rows[0];
+          resetIdentifier = code;
         }
 
-        console.log('📋 Password reset data:', { email, code: '***', password: '***' });
-
-        // Find user by email/username
-        const userResult = await pool.query(`
-          SELECT id, username, email FROM user_profiles 
-          WHERE username = $1 OR email = $1
-          LIMIT 1
-        `, [email]);
-
-        if (userResult.rows.length === 0) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Invalid reset request' }));
-          return true;
-        }
-
-        const user = userResult.rows[0];
-
-        // Check if code exists and is not used
+        // Check if reset identifier exists and is not used
         const tokenResult = await pool.query(`
           SELECT id, user_id, used_at
           FROM password_reset_tokens 
           WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
           LIMIT 1
-        `, [user.id, code]);
+        `, [user.id, resetIdentifier]);
 
         if (tokenResult.rows.length === 0) {
           res.writeHead(400);
