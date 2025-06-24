@@ -328,12 +328,11 @@ async function startServer() {
             return;
           }
 
-          // Find user by email - check both users and user_profiles tables
+          // Find user by email in user_profiles table
           const userResult = await pool.query(`
-            SELECT u.id, u.username, up.first_name, up.last_name
-            FROM users u
-            LEFT JOIN user_profiles up ON u.id = up.user_id
-            WHERE u.username = $1
+            SELECT id, username, first_name, last_name
+            FROM user_profiles
+            WHERE username = $1
             LIMIT 1
           `, [email]);
 
@@ -359,7 +358,7 @@ async function startServer() {
             await pool.query(`
               CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
+                user_id INTEGER,
                 token TEXT NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW(),
