@@ -318,11 +318,14 @@ async function startServer() {
 
       // Password reset request endpoint
       if (pathname === '/api/password-reset/request' && req.method === 'POST') {
+        console.log('🔐 Password reset request received');
         try {
           const data = await parseBody(req);
+          console.log('📋 Password reset data:', data);
           const { email } = data;
 
           if (!email) {
+            console.log('❌ No email provided in password reset request');
             res.writeHead(400);
             res.end(JSON.stringify({ error: 'Email required' }));
             return;
