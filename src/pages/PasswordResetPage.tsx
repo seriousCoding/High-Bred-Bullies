@@ -30,6 +30,7 @@ export default function PasswordResetPage() {
     if (token) {
       setResetToken(token);
       setStep('reset');
+      setCanResend(true); // Allow resend immediately when using token link
       toast.success('Reset link detected! You can use this link or enter a code from your email.');
     }
   }, [searchParams]);
@@ -120,7 +121,7 @@ export default function PasswordResetPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/password-reset/reset`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -388,7 +388,7 @@ async function startServer() {
       }
 
       // Password reset request endpoint
-      if (pathname === '/api/password-reset/request' && req.method === 'POST') {
+      if ((pathname === '/api/password-reset/request' || pathname === '/api/auth/request-password-reset') && req.method === 'POST') {
         console.log('🔐 Password reset request received');
         try {
           const data = await parseBody(req);
