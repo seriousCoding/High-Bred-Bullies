@@ -55,6 +55,7 @@ if (STRIPE_SECRET_KEY) {
 // Initialize Email Service
 let emailTransporter = null;
 function initializeEmailService() {
+  // Enhanced SMTP configuration for better deliverability
   const smtpConfig = {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -63,11 +64,16 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 5000,
-    socketTimeout: 10000,
+    connectionTimeout: 30000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
+    pool: true,
+    maxConnections: 5,
+    rateDelta: 20000,
+    rateLimit: 5,
     tls: {
-      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false'
+      rejectUnauthorized: false,
+      ciphers: 'SSLv3'
     }
   };
 
@@ -88,16 +94,26 @@ function initializeEmailService() {
   }
 }
 
-// Email sending function
-async function sendEmail({ to, subject, html, from = 'High Bred Bullies <noreply@highbredbullies.com>' }) {
+// Email sending function with enhanced deliverability
+async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@firsttolaunch.com>' }) {
   if (!emailTransporter) {
     console.warn('Email service not configured - skipping email send');
     return false;
   }
 
   try {
-    const info = await emailTransporter.sendMail({ from, to, subject, html });
-    console.log('Email sent successfully:', info.messageId);
+    const info = await emailTransporter.sendMail({ 
+      from, 
+      to, 
+      subject, 
+      html,
+      headers: {
+        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
+        'X-Priority': '1',
+        'Reply-To': 'gpass1979@gmail.com'
+      }
+    });
+    console.log('Email sent successfully to', to, '- Message ID:', info.messageId);
     return true;
   } catch (error) {
     console.error('Failed to send email:', error);
