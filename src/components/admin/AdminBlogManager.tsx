@@ -98,7 +98,7 @@ const generateBlogPost = async () => {
   }
   
   return await response.json();
-};;
+};
 
 const generateSocialPosts = async () => {
   const response = await fetch(`${API_BASE_URL}/api/ai/generate-social-posts`, {

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -27,7 +27,7 @@ interface InquiryWithProfile {
 }
 
 const fetchInquiries = async () => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
     headers: {
       'Authorization': `Bearer ${token}`,
