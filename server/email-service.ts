@@ -49,7 +49,8 @@ class EmailService {
 
   async sendEmail({ to, subject, html, from }: EmailTemplate): Promise<boolean> {
     if (!this.transporter) {
-      console.warn('Email service not configured - skipping email send');
+      console.warn('❌ Email service not configured - SMTP credentials missing');
+      console.warn('Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
       return false;
     }
 
@@ -61,10 +62,10 @@ class EmailService {
         html,
       });
 
-      console.log(`Email sent successfully to ${to} - Message ID: ${info.messageId}`);
+      console.log(`✅ Email sent successfully to ${to} - Message ID: ${info.messageId}`);
       return true;
     } catch (error) {
-      console.error('Failed to send email:', error);
+      console.error('❌ Failed to send email:', error.message);
       return false;
     }
   }
