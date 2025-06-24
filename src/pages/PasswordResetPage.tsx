@@ -191,7 +191,7 @@ export default function PasswordResetPage() {
     
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/password-reset/request`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
