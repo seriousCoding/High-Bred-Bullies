@@ -4859,6 +4859,110 @@ async function startServer() {
         return;
       }
 
+      // Inquiry response endpoint
+      if (pathname.match(/^\/api\/inquiries\/[^\/]+\/reply$/) && req.method === 'PATCH') {
+        console.log('📧 Inquiry response request received');
+        const authResult = authenticateTokenDirect(req);
+        if (!authResult.success) {
+          res.writeHead(401);
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+        
+        try {
+          // Extract inquiry ID from path
+          const inquiryId = pathname.split('/')[3];
+          const data = await parseBody(req);
+          const { reply } = data;
+          
+          console.log(`Responding to inquiry ${inquiryId}`);
+          
+          if (!reply) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Reply message required' }));
+            return;
+          }
+          
+          // Get inquiry details
+          const inquiryResult = await pool.query(`
+            SELECT id, name, email, subject, message 
+            FROM inquiries 
+            WHERE id = $1 
+            LIMIT 1
+          `, [inquiryId]);
+          
+          if (inquiryResult.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Inquiry not found' }));
+            return;
+          }
+          
+          const inquiry = inquiryResult.rows[0];
+          console.log(`Found inquiry from ${inquiry.email}`);
+          
+          // Update inquiry with response
+          await pool.query(`
+            UPDATE inquiries 
+            SET response = $1, status = 'responded', updated_at = NOW()
+            WHERE id = $2
+          `, [reply, inquiryId]);
+          
+          // Send response email using unified email function
+          const responseEmailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Response to Your Inquiry</h2>
+              
+              <p>Hello ${inquiry.name},</p>
+              
+              <p>Thank you for reaching out to High Bred Bullies. Here's our response to your inquiry:</p>
+              
+              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #555;">Your Original Message</h3>
+                <p><strong>Subject:</strong> ${inquiry.subject}</p>
+                <p style="line-height: 1.6;">${inquiry.message.replace(/\n/g, '<br>')}</p>
+              </div>
+              
+              <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #555;">Our Response</h3>
+                <p style="line-height: 1.6;">${reply.replace(/\n/g, '<br>')}</p>
+              </div>
+              
+              <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
+                <p style="margin: 0; font-size: 14px; color: #666;">
+                  If you have any additional questions, please don't hesitate to contact us again.
+                </p>
+              </div>
+              
+              <p>Best regards,<br>High Bred Bullies Team</p>
+            </div>
+          `;
+          
+          try {
+            const emailSuccess = await sendEmail({
+              to: inquiry.email,
+              subject: `Re: ${inquiry.subject}`,
+              html: responseEmailHtml
+            });
+            
+            if (emailSuccess) {
+              console.log(`✅ Response email sent successfully to ${inquiry.email}`);
+            } else {
+              console.error(`❌ Failed to send response email to ${inquiry.email}`);
+            }
+          } catch (emailError) {
+            console.error('Error sending response email:', emailError);
+          }
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'Response sent successfully' }));
+        } catch (error) {
+          console.error('Inquiry response error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to send response' }));
+        }
+        return;
+      }
+
       // Use Vite middleware for all other requests
       vite.ssrFixStacktrace(new Error());
       await new Promise((resolve, reject) => {
