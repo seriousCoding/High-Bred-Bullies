@@ -2723,21 +2723,29 @@ async function startServer() {
               </div>
             `;
 
-            // Send customer confirmation using unified function
+            // Send customer confirmation FIRST using direct transporter
             try {
-              const customerSuccess = await sendEmail({
+              console.log(`🚀 SENDING INQUIRY CONFIRMATION TO USER: ${email}`);
+              const customerMailOptions = {
+                from: 'admin@firsttolaunch.com',
                 to: email,
                 subject: 'Thank you for contacting High Bred Bullies',
-                html: customerEmailHtml
+                html: customerEmailHtml,
+                text: `Dear ${name}, We have received your inquiry and will get back to you within 24 hours. Your inquiry: ${message}`
+              };
+
+              const customerResult = await emailTransporter.sendMail(customerMailOptions);
+              console.log(`✅ INQUIRY CONFIRMATION EMAIL SENT:`, {
+                to: email,
+                messageId: customerResult.messageId,
+                accepted: customerResult.accepted,
+                rejected: customerResult.rejected
               });
-              if (customerSuccess) {
-                console.log('Inquiry confirmation email sent to customer:', email);
-              }
             } catch (emailError) {
               console.error('Failed to send customer confirmation email:', emailError);
             }
 
-            // Send admin notification using unified function
+            // Send admin notification SECOND using direct transporter
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h1 style="color: #2563eb;">New Customer Inquiry</h1>
@@ -2755,14 +2763,22 @@ async function startServer() {
             `;
 
             try {
-              const adminSuccess = await sendEmail({
+              console.log(`📧 SENDING INQUIRY ADMIN NOTIFICATION TO: gpass1979@gmail.com`);
+              const adminMailOptions = {
+                from: 'admin@firsttolaunch.com',
                 to: 'gpass1979@gmail.com',
                 subject: `New Inquiry from ${name}`,
-                html: adminEmailHtml
+                html: adminEmailHtml,
+                text: `New inquiry from ${name} (${email}): ${message}`
+              };
+
+              const adminResult = await emailTransporter.sendMail(adminMailOptions);
+              console.log(`✅ INQUIRY ADMIN NOTIFICATION SENT:`, {
+                to: 'gpass1979@gmail.com',
+                messageId: adminResult.messageId,
+                accepted: adminResult.accepted,
+                rejected: adminResult.rejected
               });
-              if (adminSuccess) {
-                console.log('Inquiry notification email sent to admin');
-              }
             } catch (emailError) {
               console.error('Failed to send admin notification email:', emailError);
             }
@@ -3288,7 +3304,7 @@ async function startServer() {
               };
 
               const userResult = await emailTransporter.sendMail(userMailOptions);
-              console.log(`✅ USER EMAIL SENT:`, {
+              console.log(`✅ USER CONFIRMATION EMAIL SENT:`, {
                 to: email,
                 messageId: userResult.messageId,
                 accepted: userResult.accepted,
@@ -3306,7 +3322,7 @@ async function startServer() {
               };
 
               const adminResult = await emailTransporter.sendMail(adminMailOptions);
-              console.log(`✅ ADMIN EMAIL SENT:`, {
+              console.log(`✅ ADMIN NOTIFICATION EMAIL SENT:`, {
                 to: 'gpass1979@gmail.com',
                 messageId: adminResult.messageId,
                 accepted: adminResult.accepted,
