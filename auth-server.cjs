@@ -454,12 +454,23 @@ async function startServer() {
           console.log(`🔍 Looking for user with email: ${email}`);
           
           // Find user by email in user_profiles table
+          console.log(`🔍 Searching for exact email: "${email}"`);
           const userResult = await pool.query(`
             SELECT id, username, first_name, last_name
             FROM user_profiles
             WHERE username = $1
             LIMIT 1
           `, [email]);
+          
+          // Also search for partial matches to debug username format issues
+          const partialResult = await pool.query(`
+            SELECT id, username, first_name, last_name
+            FROM user_profiles
+            WHERE username LIKE $1
+            LIMIT 5
+          `, [`%${email.split('@')[0]}%`]);
+          
+          console.log(`🔍 Partial match results for "${email.split('@')[0]}":`, partialResult.rows.map(r => r.username));
 
           console.log(`📊 User query result: ${userResult.rows.length} users found`);
 
