@@ -87,11 +87,7 @@ function App() {
                 <SchedulePickupPage />
               </ProtectedRoute>
             } />
-            <Route path="/high-table" element={
-              <ProtectedRoute>
-                <HighTablePage />
-              </ProtectedRoute>
-            } />
+            <Route path="/high-table" element={<HighTablePage />} />
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage />
