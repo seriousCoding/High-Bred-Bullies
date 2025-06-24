@@ -347,10 +347,10 @@ function createAuthRoutes(pool, sendEmail) {
 
           console.log('📋 Using code reset:', { email, code: '***', password: '***' });
 
-          // Find user by email/username
+          // Find user by username only (no email column exists)
           const userResult = await pool.query(`
-            SELECT id, username, email FROM user_profiles 
-            WHERE username = $1 OR email = $1
+            SELECT id, username FROM user_profiles 
+            WHERE username = $1
             LIMIT 1
           `, [email]);
           
