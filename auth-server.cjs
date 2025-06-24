@@ -3701,7 +3701,7 @@ async function startServer() {
                         postData.title,
                         postData.content,
                         imageUrl,
-                        1  // Default user ID
+                        '0a7a4b2b-992c-47bb-a2e8-626b943b3da6'  // Use admin user UUID
                       ]);
 
                       res.writeHead(200);
