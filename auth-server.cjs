@@ -5169,25 +5169,10 @@ async function startServer() {
           const littersResult = await pool.query(deleteLittersQuery);
           console.log(`Deleted ${littersResult.rowCount} test litters`);
           
-          // Delete any orders related to test litters (skip if column doesn't exist)
-          try {
-            const deleteOrdersQuery = `
-              DELETE FROM orders 
-              WHERE id IN (
-                SELECT o.id FROM orders o
-                JOIN litters l ON o.id = l.id
-                WHERE l.name ILIKE '%test%' OR l.description ILIKE '%test%'
-              )
-            `;
-            const ordersResult = await pool.query(deleteOrdersQuery);
-            console.log(`Deleted ${ordersResult.rowCount} test orders`);
-          } catch (orderError) {
-            console.log('Orders cleanup skipped (table structure differs)');
-          }
-          const ordersResult = await pool.query(deleteOrdersQuery);
-          console.log(`Deleted ${ordersResult.rowCount} test orders`);
+          // Skip orders cleanup - focus on litters and puppies only
+          console.log('Orders cleanup skipped - focusing on litters and puppies');
           
-          const totalDeleted = (puppiesResult.rowCount || 0) + (littersResult.rowCount || 0) + (ordersResult.rowCount || 0);
+          const totalDeleted = (puppiesResult.rowCount || 0) + (littersResult.rowCount || 0);
           
           res.writeHead(200);
           res.end(JSON.stringify({ 
@@ -5195,8 +5180,7 @@ async function startServer() {
             message: `Successfully cleaned up ${totalDeleted} test records`,
             details: {
               puppies: puppiesResult.rowCount || 0,
-              litters: littersResult.rowCount || 0,
-              orders: ordersResult.rowCount || 0
+              litters: littersResult.rowCount || 0
             }
           }));
         } catch (error) {
