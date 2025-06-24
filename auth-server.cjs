@@ -586,7 +586,7 @@ async function startServer() {
       }
 
       // Resend password reset code
-      if (pathname === '/api/password-reset/resend' && method === 'POST') {
+      if (pathname === '/api/password-reset/resend' && req.method === 'POST') {
         try {
           const body = await parseBody(req);
           const { email } = body;

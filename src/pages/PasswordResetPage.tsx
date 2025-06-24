@@ -65,6 +65,85 @@ export default function PasswordResetPage() {
     }
   };
 
+  const handleResendCode = async () => {
+    if (!email) {
+      toast.error('Please go back and enter your email first');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/password-reset/resend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success('New reset code sent to your email');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to resend reset code');
+      }
+    } catch (error) {
+      toast.error('Network error. Please try again.');
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const handleCompleteReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!code || !newPassword || !confirmPassword) {
+      toast.error('All fields are required');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/password-reset/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email, 
+          code, 
+          newPassword 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reset password');
+      }
+
+      toast.success('Password reset successfully! You can now login.');
+      navigate('/auth');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      toast.error(error.message || 'Failed to reset password. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
 
   return (
