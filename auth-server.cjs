@@ -245,8 +245,10 @@ async function startServer() {
 
       // Login endpoint - using user_profiles table with username matching
       if (pathname === '/api/login' && req.method === 'POST') {
+        console.log('🔑 Login request received');
         try {
           const data = await parseBody(req);
+          console.log('📋 Login data:', { username: data.username, password: '***' });
           const { username, password } = data;
 
           if (!username || !password) {
@@ -267,6 +269,14 @@ async function startServer() {
 
             if (adminResult.rows.length === 0) {
               console.log('Creating admin user gpass1979@gmail.com');
+              
+              // Add password_hash column if it doesn't exist
+              try {
+                await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+              } catch (e) {
+                console.log('Password hash column already exists or error adding:', e.message);
+              }
+              
               const hashedPassword = await bcrypt.hash(password, 10);
               adminResult = await pool.query(`
                 INSERT INTO user_profiles (id, username, first_name, last_name, is_admin, password_hash, created_at, updated_at)
