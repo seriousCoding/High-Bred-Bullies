@@ -3174,6 +3174,7 @@ async function startServer() {
               }
             } catch (emailError) {
               console.error('Contact form email error:', emailError);
+              console.error('Full error details:', emailError.stack);
             }
           }
 
