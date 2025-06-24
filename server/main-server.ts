@@ -247,4 +247,31 @@ async function startServer() {
   }
 }
 
+  // Admin endpoint to delete invalid test accounts
+  app.delete('/api/admin/cleanup-accounts', async (req, res) => {
+    try {
+      const invalidAccounts = [
+        'firsttolaunch_6155',
+        'rtowns22_3800', 
+        'rtownsend402_0b2f',
+        'rtownsend.appdesign.dev_db87',
+        'test_dc41'
+      ];
+
+      const result = await pool.query(`
+        DELETE FROM user_profiles 
+        WHERE username = ANY($1)
+        RETURNING username
+      `, [invalidAccounts]);
+
+      res.json({ 
+        deleted: result.rows.map(r => r.username),
+        count: result.rows.length,
+        message: `Deleted ${result.rows.length} invalid test accounts`
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
 startServer();
