@@ -453,7 +453,7 @@ async function startServer() {
 
           // Send password reset email using unified email function
           // No reset link needed - using reset codes now
-          console.log(`Generated reset link: ${resetLink}`);
+          console.log(`Generated reset code: ${resetToken}`);
           
           if (true) { // Always attempt to send email
             
@@ -497,16 +497,19 @@ async function startServer() {
                         
                         We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
                         
-                        Click the button below to create a new password and rejoin our amazing community of bulldog enthusiasts.
+                        Use the code above on the password reset page to create a new password and rejoin our amazing community of bulldog enthusiasts.
                       </div>
                       
                       <div style="text-align: center;">
-                        <a href="${resetLink}" class="btn">Reset My Password 🔑</a>
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                          <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
+                          <h1 style="font-size: 32px; margin: 0; color: #007bff; letter-spacing: 4px; font-family: monospace;">${resetToken}</h1>
+                        </div>
                       </div>
                       
                       <div class="security-note">
                         <strong>🛡️ Security Notice:</strong><br>
-                        This link will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                        This code will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
                       </div>
                       
                       <div class="message">
@@ -527,7 +530,7 @@ async function startServer() {
 
             try {
               console.log(`Attempting to send password reset email to: ${user.username}`);
-              console.log(`Reset code generated: ${resetToken}`);
+              console.log(`📧 Sending reset code ${resetToken} to ${user.username}`);
               
               const success = await sendEmail({
                 to: user.username,
