@@ -202,6 +202,11 @@ export const LitterForm: React.FC<LitterFormProps> = ({ litter, breederId, onSav
         title: "Test Litters Cleaned Up",
         description: "All test litters have been removed from Stripe and your database.",
       });
+      
+      // Force UI refresh after cleanup
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       toast({
         title: "Error Cleaning Up Test Data",

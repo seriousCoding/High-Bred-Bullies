@@ -48,7 +48,10 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
           title: 'Reset Code Sent',
           description: 'Check your email for a 6-digit reset code',
         });
-        setStep('token');
+        // Force UI update with delay to ensure state changes are processed
+        setTimeout(() => {
+          setStep('token');
+        }, 200);
       } else {
         toast({
           title: 'Error',

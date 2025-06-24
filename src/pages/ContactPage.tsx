@@ -94,11 +94,15 @@ const ContactPage = () => {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Contact form success:", data);
       toast.success("Message sent!", {
         description: "Thank you for contacting us. We will get back to you shortly.",
       });
-      form.reset();
+      // Force form reset with a small delay to ensure UI updates
+      setTimeout(() => {
+        form.reset();
+      }, 100);
     },
     onError: (error: any) => {
       console.error('Contact form error:', error);
