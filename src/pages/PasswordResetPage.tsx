@@ -74,7 +74,14 @@ export default function PasswordResetPage() {
         throw new Error('Failed to send reset code');
       }
 
-      toast.success('Reset code sent! Check your email.');
+      const data = await response.json();
+      
+      if (data.resetCode) {
+        toast.success(`Reset code: ${data.resetCode} - Also check your email for backup instructions.`);
+        setCode(data.resetCode);
+      } else {
+        toast.success('Reset code sent! Check your email.');
+      }
       setStep('reset');
       // Enable resend after successful send
       setTimeout(() => {
@@ -155,7 +162,14 @@ export default function PasswordResetPage() {
         throw new Error('Failed to resend code');
       }
 
-      toast.success('Reset code resent! Check your email.');
+      const data = await response.json();
+      
+      if (data.resetCode) {
+        toast.success(`New reset code: ${data.resetCode} - Also check your email.`);
+        setCode(data.resetCode);
+      } else {
+        toast.success('Reset code resent! Check your email.');
+      }
       setCanResend(false);
       setResendCooldown(60);
     } catch (error) {

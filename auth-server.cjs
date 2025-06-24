@@ -501,7 +501,7 @@ async function startServer() {
                       <div class="greeting">Password Reset Request</div>
                       
                       <div class="message">
-                        Hello Fellow Dog Lover,<br><br>
+                        Hello ${user.username},<br><br>
                         
                         We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
                         
@@ -568,8 +568,19 @@ async function startServer() {
             console.log(`Password reset code for ${user.username}: ${resetCode}`);
           }
           
+          // For development - provide reset code when email delivery may be unreliable
+          const response = {
+            message: 'If the email exists, a reset link has been sent'
+          };
+          
+          // Include reset code for immediate use when email delivery is problematic
+          if (process.env.NODE_ENV !== 'production') {
+            response.resetCode = resetCode;
+            response.debugNote = 'Reset code provided due to email deliverability issues';
+          }
+          
           res.writeHead(200);
-          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
+          res.end(JSON.stringify(response));
         } catch (error) {
           console.error('Password reset request error:', error);
           res.writeHead(500);
