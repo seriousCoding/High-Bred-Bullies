@@ -1346,7 +1346,7 @@ async function startServer() {
               last_name: row.last_name || '',
               avatar_url: row.avatar_url || null,
               is_testimonial: row.is_testimonial || false,
-              moderation_status: row.moderation_status || 'approved',
+              moderation_status: row.moderation_status || 'pending',
               visibility: row.visibility || 'public'
             };
           });
@@ -3695,7 +3695,7 @@ async function startServer() {
                       // Save social post to database (using correct column names)
                       const insertResult = await pool.query(`
                         INSERT INTO social_posts (title, content, image_url, user_id, is_public, moderation_status, created_at, updated_at)
-                        VALUES ($1, $2, $3, $4, true, 'approved', NOW(), NOW())
+                        VALUES ($1, $2, $3, $4, true, 'pending', NOW(), NOW())
                         RETURNING *
                       `, [
                         postData.title,
@@ -3724,7 +3724,7 @@ async function startServer() {
                   try {
                     const insertResult = await pool.query(`
                       INSERT INTO social_posts (title, content, author_id, user_id, is_public, moderation_status, created_at, updated_at)
-                      VALUES ($1, $2, $3, $4, true, 'approved', NOW(), NOW())
+                      VALUES ($1, $2, $3, $4, true, 'pending', NOW(), NOW())
                       RETURNING *
                     `, [
                       postData.title,
