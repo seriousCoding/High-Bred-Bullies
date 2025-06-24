@@ -3252,7 +3252,7 @@ async function startServer() {
           // Send contact form emails immediately (both user and admin)
           if (emailTransporter) {
             try {
-              // STEP 1: Send confirmation email to USER FIRST
+              // Send user confirmation email FIRST
               console.log(`🚀 SENDING USER CONFIRMATION TO: ${email}`);
               
               const userConfirmationHtml = `
@@ -3293,10 +3293,6 @@ async function startServer() {
                 </html>
               `;
               
-              // Send user confirmation email FIRST
-              console.log(`🚀 SENDING USER CONFIRMATION TO: ${email}`);
-              console.log(`📧 emailTransporter status:`, emailTransporter ? 'AVAILABLE' : 'NOT_AVAILABLE');
-              
               const userMailOptions = {
                 from: 'admin@firsttolaunch.com',
                 to: email,
@@ -3305,17 +3301,19 @@ async function startServer() {
                 text: `Hi ${name}, Thank you for contacting High Bred Bullies. We received your message and will respond within 24-48 hours.`
               };
 
-              console.log(`📋 User mail options:`, JSON.stringify(userMailOptions, null, 2));
-
-              const userResult = await emailTransporter.sendMail(userMailOptions);
-              console.log(`✅ USER CONFIRMATION EMAIL SENT:`, {
-                to: email,
-                messageId: userResult.messageId,
-                accepted: userResult.accepted,
-                rejected: userResult.rejected
-              });
+              try {
+                const userResult = await emailTransporter.sendMail(userMailOptions);
+                console.log(`✅ USER CONFIRMATION EMAIL SENT:`, {
+                  to: email,
+                  messageId: userResult.messageId,
+                  accepted: userResult.accepted,
+                  rejected: userResult.rejected
+                });
+              } catch (userError) {
+                console.error(`❌ USER EMAIL FAILED:`, userError.message);
+              }
               
-              // Send admin notification SECOND
+              // Send admin notification SECOND  
               console.log(`📧 SENDING ADMIN NOTIFICATION TO: gpass1979@gmail.com`);
               const adminMailOptions = {
                 from: 'admin@firsttolaunch.com',
@@ -3325,16 +3323,21 @@ async function startServer() {
                 text: `New contact from ${name} (${email}): ${message}`
               };
 
-              const adminResult = await emailTransporter.sendMail(adminMailOptions);
-              console.log(`✅ ADMIN NOTIFICATION EMAIL SENT:`, {
-                to: 'gpass1979@gmail.com',
-                messageId: adminResult.messageId,
-                accepted: adminResult.accepted,
-                rejected: adminResult.rejected
-              });
+              try {
+                const adminResult = await emailTransporter.sendMail(adminMailOptions);
+                console.log(`✅ ADMIN NOTIFICATION EMAIL SENT:`, {
+                  to: 'gpass1979@gmail.com',
+                  messageId: adminResult.messageId,
+                  accepted: adminResult.accepted,
+                  rejected: adminResult.rejected
+                });
+              } catch (adminError) {
+                console.error(`❌ ADMIN EMAIL FAILED:`, adminError.message);
+              }
             } catch (emailError) {
-              console.error('Contact form email error:', emailError);
-              console.error('Full error details:', emailError.stack);
+              console.error('❌ CONTACT FORM EMAIL ERROR:', emailError);
+              console.error('❌ FULL ERROR DETAILS:', emailError.stack);
+              console.error('❌ ERROR OCCURRED DURING EMAIL SENDING PROCESS');
             }
           }
 
