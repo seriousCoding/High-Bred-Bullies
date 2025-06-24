@@ -70,21 +70,19 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 60000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     pool: true,
-    maxConnections: 3,
-    rateDelta: 1000,
-    rateLimit: 1,
+    maxConnections: 5,
     tls: {
       rejectUnauthorized: false,
       ciphers: 'TLSv1.2'
     },
     // SPF, DKIM compliance
     name: 'firsttolaunch.com',
-    logger: true,
-    debug: true
+    logger: false,
+    debug: false
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
@@ -138,13 +136,16 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
 
     const result = await emailTransporter.sendMail(mailOptions);
     
-    console.log(`✅ EMAIL SENT SUCCESSFULLY:`, {
+    console.log(`📤 EMAIL QUEUED FOR DELIVERY:`, {
       to: to,
       messageId: result.messageId,
       response: result.response,
       accepted: result.accepted,
-      rejected: result.rejected
+      rejected: result.rejected,
+      status: 'QUEUED_BY_SMTP_SERVER'
     });
+    
+    // Note: Email is queued by SMTP server, actual delivery depends on recipient's email provider
     
     return true;
   } catch (error) {
@@ -453,12 +454,23 @@ async function startServer() {
           console.log(`🔍 Looking for user with email: ${email}`);
           
           // Find user by email in user_profiles table
+          console.log(`🔍 Searching for exact email: "${email}"`);
           const userResult = await pool.query(`
             SELECT id, username, first_name, last_name
             FROM user_profiles
             WHERE username = $1
             LIMIT 1
           `, [email]);
+          
+          // Also search for partial matches to debug username format issues
+          const partialResult = await pool.query(`
+            SELECT id, username, first_name, last_name
+            FROM user_profiles
+            WHERE username LIKE $1
+            LIMIT 5
+          `, [`%${email.split('@')[0]}%`]);
+          
+          console.log(`🔍 Partial match results for "${email.split('@')[0]}":`, partialResult.rows.map(r => r.username));
 
           console.log(`📊 User query result: ${userResult.rows.length} users found`);
 
@@ -484,12 +496,10 @@ async function startServer() {
 
           // Store reset token directly (simplified approach)
           try {
-            // Store reset token with 24 hour expiry, append to existing tokens
-            const existingTokens = user.reset_token ? user.reset_token.split(',') : [];
-            const allTokens = [...existingTokens, resetToken].join(',');
+            // Store single reset token with 1 hour expiry
             const result = await pool.query(
               'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3 RETURNING id',
-              [allTokens, new Date(Date.now() + 86400000), user.id]
+              [resetToken, new Date(Date.now() + 3600000), user.id]
             );
             if (result.rowCount > 0) {
               console.log('✅ Password reset token stored successfully for user:', user.id);
@@ -558,7 +568,7 @@ async function startServer() {
                       
                       <div class="security-note">
                         <strong>🛡️ Security Notice:</strong><br>
-                        This code will expire in 24 hours for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                        This code will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
                       </div>
                       
                       <div class="message">
@@ -587,7 +597,7 @@ async function startServer() {
                 html: emailHtml
               });
               if (success) {
-                console.log(`✅ Password reset email sent successfully to ${email}`);
+                console.log(`📬 Password reset email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
               } else {
                 console.error('❌ Failed to send password reset email - sendEmail returned false');
               }
@@ -650,7 +660,6 @@ async function startServer() {
 
           // Generate new reset token
           const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-          console.log('🔄 Generated new reset token for resend:', resetToken);
           console.log(`Generated new reset code: ${resetToken}`);
 
           // Store multiple reset tokens for resend - append to existing valid tokens
@@ -689,7 +698,7 @@ async function startServer() {
                     <h1 style="color: #1f2937; font-size: 32px; margin: 0;">${resetToken}</h1>
                     <p style="color: #6b7280; margin: 10px 0 0 0;">Enter this code to reset your password</p>
                   </div>
-                  <p>This code will expire in 24 hours.</p>
+                  <p>This code will expire in 1 hour.</p>
                   <p>If you didn't request this password reset, please ignore this email.</p>
                 </div>
               `,
@@ -697,7 +706,7 @@ async function startServer() {
             });
 
             if (emailSent) {
-              console.log(`✅ Password reset resend email sent successfully to ${email}`);
+              console.log(`📬 Password reset resend email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
             }
           } else {
             console.log(`❌ Email transporter not available for resend`);
@@ -748,11 +757,9 @@ async function startServer() {
 
             const user = userResult.rows[0];
             
-            // Check if the provided code matches any of the stored reset tokens
+            // Check if the provided code matches any recent valid token
             const validTokens = user.reset_token ? user.reset_token.split(',') : [];
-            console.log('🔍 Checking reset code:', { provided: code, validTokens: validTokens });
             if (!user.reset_token || !validTokens.includes(code)) {
-              console.log('❌ Reset code mismatch');
               res.writeHead(400);
               res.end(JSON.stringify({ error: 'Invalid reset code' }));
               return;
@@ -5169,10 +5176,18 @@ async function startServer() {
           const littersResult = await pool.query(deleteLittersQuery);
           console.log(`Deleted ${littersResult.rowCount} test litters`);
           
-          // Skip orders cleanup - focus on litters and puppies only
-          console.log('Orders cleanup skipped - focusing on litters and puppies');
+          // Delete any orders related to test litters
+          const deleteOrdersQuery = `
+            DELETE FROM orders 
+            WHERE litter_id IN (
+              SELECT id FROM litters 
+              WHERE name ILIKE '%test%' OR description ILIKE '%test%'
+            )
+          `;
+          const ordersResult = await pool.query(deleteOrdersQuery);
+          console.log(`Deleted ${ordersResult.rowCount} test orders`);
           
-          const totalDeleted = (puppiesResult.rowCount || 0) + (littersResult.rowCount || 0);
+          const totalDeleted = (puppiesResult.rowCount || 0) + (littersResult.rowCount || 0) + (ordersResult.rowCount || 0);
           
           res.writeHead(200);
           res.end(JSON.stringify({ 
@@ -5180,7 +5195,8 @@ async function startServer() {
             message: `Successfully cleaned up ${totalDeleted} test records`,
             details: {
               puppies: puppiesResult.rowCount || 0,
-              litters: littersResult.rowCount || 0
+              litters: littersResult.rowCount || 0,
+              orders: ordersResult.rowCount || 0
             }
           }));
         } catch (error) {

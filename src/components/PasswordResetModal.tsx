@@ -48,10 +48,7 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
           title: 'Reset Code Sent',
           description: 'Check your email for a 6-digit reset code',
         });
-        // Force UI update with delay to ensure state changes are processed
-        setTimeout(() => {
-          setStep('token');
-        }, 200);
+        setStep('token');
       } else {
         toast({
           title: 'Error',
@@ -98,8 +95,6 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
           title: 'Code Resent',
           description: 'A new reset code has been sent to your email',
         });
-        // Clear the token field so user knows to enter the new code
-        setToken('');
       } else {
         toast({
           title: 'Error',
@@ -147,11 +142,7 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          email: email,
-          code: token,
-          newPassword: newPassword 
-        }),
+        body: JSON.stringify({ token, newPassword }),
       });
 
       const data = await response.json();
@@ -159,17 +150,14 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
       if (response.ok) {
         toast({
           title: 'Success',
-          description: 'Password updated successfully. You can now log in with your new password.',
+          description: 'Password updated successfully',
         });
-        // Force UI reset with delay
-        setTimeout(() => {
-          onOpenChange(false);
-          setStep('email');
-          setEmail('');
-          setToken('');
-          setNewPassword('');
-          setConfirmPassword('');
-        }, 500);
+        onOpenChange(false);
+        setStep('email');
+        setEmail('');
+        setToken('');
+        setNewPassword('');
+        setConfirmPassword('');
       } else {
         toast({
           title: 'Error',

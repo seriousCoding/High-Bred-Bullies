@@ -100,10 +100,6 @@ const AdminPage = () => {
                           if (response.ok) {
                             alert(`Success: ${result.message}`);
                             queryClient.invalidateQueries({ queryKey: ['litters'] });
-                            // Force page refresh to ensure UI updates
-                            setTimeout(() => {
-                              window.location.reload();
-                            }, 1000);
                           } else {
                             alert(`Error: ${result.message || 'Failed to cleanup test litters'}`);
                           }
@@ -133,10 +129,6 @@ const AdminPage = () => {
                           if (response.ok) {
                             alert(`Success: ${result.message}`);
                             queryClient.invalidateQueries({ queryKey: ['litters'] });
-                            // Force page refresh to ensure UI updates
-                            setTimeout(() => {
-                              window.location.reload();
-                            }, 1000);
                           } else {
                             alert(`Error: ${result.message || 'Failed to seed test litters'}`);
                           }
