@@ -226,6 +226,41 @@ app.use((err: any, req: any, res: any, next: any) => {
 // Start server
 async function startServer() {
   try {
+    // Add cleanup endpoint for invalid test accounts
+    app.delete('/api/admin/cleanup-accounts', async (req, res) => {
+      try {
+        const { Pool } = await import('pg');
+        const dbPool = new Pool({ 
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false }
+        });
+
+        const invalidAccounts = [
+          'firsttolaunch_6155',
+          'rtowns22_3800', 
+          'rtownsend402_0b2f',
+          'rtownsend.appdesign.dev_db87',
+          'test_dc41'
+        ];
+
+        const result = await dbPool.query(`
+          DELETE FROM user_profiles 
+          WHERE username = ANY($1)
+          RETURNING username
+        `, [invalidAccounts]);
+
+        await dbPool.end();
+
+        res.json({ 
+          deleted: result.rows.map(r => r.username),
+          count: result.rows.length,
+          message: `Deleted ${result.rows.length} invalid test accounts`
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     const server = createServer(app);
     
     if (app.get("env") === "development") {
@@ -246,32 +281,5 @@ async function startServer() {
     process.exit(1);
   }
 }
-
-  // Admin endpoint to delete invalid test accounts
-  app.delete('/api/admin/cleanup-accounts', async (req, res) => {
-    try {
-      const invalidAccounts = [
-        'firsttolaunch_6155',
-        'rtowns22_3800', 
-        'rtownsend402_0b2f',
-        'rtownsend.appdesign.dev_db87',
-        'test_dc41'
-      ];
-
-      const result = await pool.query(`
-        DELETE FROM user_profiles 
-        WHERE username = ANY($1)
-        RETURNING username
-      `, [invalidAccounts]);
-
-      res.json({ 
-        deleted: result.rows.map(r => r.username),
-        count: result.rows.length,
-        message: `Deleted ${result.rows.length} invalid test accounts`
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
 
 startServer();
