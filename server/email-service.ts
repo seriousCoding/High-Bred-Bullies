@@ -61,7 +61,7 @@ class EmailService {
         html,
       });
 
-      console.log('Email sent successfully:', info.messageId);
+      console.log(`Email sent successfully to ${to} - Message ID: ${info.messageId}`);
       return true;
     } catch (error) {
       console.error('Failed to send email:', error);
