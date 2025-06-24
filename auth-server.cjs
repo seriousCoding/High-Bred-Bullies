@@ -2358,6 +2358,97 @@ async function startServer() {
         return;
       }
 
+      // Submit inquiry endpoint with email notifications
+      if (pathname === '/api/inquiries' && req.method === 'POST') {
+        try {
+          const data = await parseBody(req);
+          const { name, email, subject, message, litter_id, user_id } = data;
+
+          console.log('New inquiry submission:', { name, email, subject, litter_id });
+
+          // Insert inquiry into database
+          const result = await pool.query(`
+            INSERT INTO inquiries (user_id, litter_id, name, email, subject, message, status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
+            RETURNING *
+          `, [user_id || null, litter_id || null, name, email, subject, message]);
+
+          const inquiry = result.rows[0];
+
+          // Send confirmation email to customer
+          if (emailTransporter) {
+            const customerEmailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Thank you for your inquiry!</h2>
+                <p>Dear ${name},</p>
+                <p>We have received your inquiry and will get back to you within 24 hours.</p>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Your inquiry:</h3>
+                  <p><strong>Subject:</strong> ${subject}</p>
+                  <p><strong>Message:</strong> ${message}</p>
+                </div>
+                <p>Best regards,<br>High Bred Bullies Team</p>
+              </div>
+            `;
+
+            try {
+              await emailTransporter.sendMail({
+                from: 'High Bred Bullies <noreply@highbredbullies.com>',
+                to: email,
+                subject: 'Thank you for contacting High Bred Bullies',
+                html: customerEmailHtml
+              });
+              console.log('Inquiry confirmation email sent to customer:', email);
+            } catch (emailError) {
+              console.error('Failed to send customer confirmation email:', emailError);
+            }
+
+            // Send notification email to admin/breeder
+            const adminEmailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">New Customer Inquiry</h2>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Customer Information:</h3>
+                  <p><strong>Name:</strong> ${name}</p>
+                  <p><strong>Email:</strong> ${email}</p>
+                  <p><strong>Subject:</strong> ${subject}</p>
+                  ${litter_id ? `<p><strong>Litter ID:</strong> ${litter_id}</p>` : ''}
+                </div>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3>Message:</h3>
+                  <p>${message}</p>
+                </div>
+                <p>Please respond promptly to provide excellent customer service.</p>
+              </div>
+            `;
+
+            try {
+              await emailTransporter.sendMail({
+                from: 'High Bred Bullies <noreply@highbredbullies.com>',
+                to: 'gpass1979@gmail.com', // Admin email
+                subject: `New Inquiry from ${name}`,
+                html: adminEmailHtml
+              });
+              console.log('Inquiry notification email sent to admin');
+            } catch (emailError) {
+              console.error('Failed to send admin notification email:', emailError);
+            }
+          }
+
+          res.writeHead(201);
+          res.end(JSON.stringify({ 
+            success: true, 
+            inquiry: inquiry,
+            message: 'Inquiry submitted successfully' 
+          }));
+        } catch (error) {
+          console.error('Error submitting inquiry:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Failed to submit inquiry' }));
+        }
+        return;
+      }
+
       // Admin social posts endpoint
       if (pathname === '/api/admin/social-posts' && req.method === 'GET') {
         try {
