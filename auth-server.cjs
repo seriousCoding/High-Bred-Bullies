@@ -112,6 +112,7 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
   }
 
   try {
+    console.log(`📧 SMTP SEND ATTEMPT: From: ${from} | To: ${to} | Subject: ${subject}`);
     const info = await emailTransporter.sendMail({ 
       from, 
       to, 
