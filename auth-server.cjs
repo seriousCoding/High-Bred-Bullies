@@ -425,12 +425,8 @@ async function startServer() {
           const user = userResult.rows[0];
           console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
           
-          // Generate reset token
-          const resetToken = jwt.sign(
-            { userId: user.id, email: user.username, type: 'password_reset' },
-            JWT_SECRET,
-            { expiresIn: '1h' }
-          );
+          // Generate 6-digit reset code
+          const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
           // Store reset token in database - create table if not exists first
           try {
@@ -456,7 +452,7 @@ async function startServer() {
           }
 
           // Send password reset email using unified email function
-          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+          // No reset link needed - using reset codes now
           console.log(`Generated reset link: ${resetLink}`);
           
           if (true) { // Always attempt to send email
@@ -531,7 +527,7 @@ async function startServer() {
 
             try {
               console.log(`Attempting to send password reset email to: ${user.username}`);
-              console.log(`Reset code generated: ${resetCode}`);
+              console.log(`Reset code generated: ${resetToken}`);
               
               const success = await sendEmail({
                 to: user.username,
@@ -548,7 +544,7 @@ async function startServer() {
             }
           } else {
             console.log(`❌ Email transporter not available`);
-            console.log(`Password reset code for ${user.username}: ${resetCode}`);
+            console.log(`Password reset code for ${user.username}: ${resetToken}`);
           }
           
           res.writeHead(200);

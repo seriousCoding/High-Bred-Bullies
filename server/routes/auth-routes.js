@@ -173,10 +173,10 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('🔍 Looking for user with email:', email);
         
-        // Look for user in user_profiles table 
+        // Look for user in user_profiles table (check both username and email fields)
         const userResult = await pool.query(`
           SELECT id, username, first_name, email FROM user_profiles 
-          WHERE username = $1
+          WHERE username = $1 OR email = $1
           LIMIT 1
         `, [email]);
 
@@ -245,8 +245,8 @@ function createAuthRoutes(pool, sendEmail) {
         `;
 
         try {
-          // Use actual email address if available, otherwise skip sending
-          const emailAddress = user.email || (email.includes('@') ? email : null);
+          // Use actual email address - check email field first, then username if it's an email
+          const emailAddress = user.email || (user.username && user.username.includes('@') ? user.username : null);
           
           if (!emailAddress) {
             console.log('⚠️ No valid email address for user:', user.username);
@@ -301,10 +301,10 @@ function createAuthRoutes(pool, sendEmail) {
 
         // Find user by email/username
         const userResult = await pool.query(`
-          SELECT id, username FROM user_profiles 
-          WHERE username = $1 OR username ILIKE $2
+          SELECT id, username, email FROM user_profiles 
+          WHERE username = $1 OR email = $1
           LIMIT 1
-        `, [email, `${email.split('@')[0]}%`]);
+        `, [email]);
 
         if (userResult.rows.length === 0) {
           res.writeHead(400);
