@@ -2922,24 +2922,24 @@ async function startServer() {
             </div>
           `;
 
-          // Send email in background without blocking response
+          // Send email using same config as working test emails
           if (emailTransporter) {
             setImmediate(async () => {
               try {
-                await Promise.race([
-                  emailTransporter.sendMail({
-                    from: 'High Bred Bullies <admin@firsttolaunch.com>',
-                    to: 'gpass1979@gmail.com',
-                    subject: `Contact Form: ${subject || 'New Inquiry'}`,
-                    html: emailHtml
-                  }),
-                  new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Email timeout')), 10000)
-                  )
-                ]);
-                console.log('Contact form email sent successfully');
+                const emailInfo = await emailTransporter.sendMail({
+                  from: 'High Bred Bullies <admin@firsttolaunch.com>',
+                  to: 'gpass1979@gmail.com',
+                  subject: `Contact Form: ${subject || 'New Inquiry'}`,
+                  html: emailHtml,
+                  headers: {
+                    'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
+                    'X-Priority': '1',
+                    'Reply-To': 'gpass1979@gmail.com'
+                  }
+                });
+                console.log('Contact form email sent successfully - Message ID:', emailInfo.messageId);
               } catch (emailError) {
-                console.error('Email sending failed:', emailError.message);
+                console.error('Contact form email failed:', emailError.message);
               }
             });
           } else {
