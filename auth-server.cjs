@@ -484,10 +484,12 @@ async function startServer() {
 
           // Store reset token directly (simplified approach)
           try {
-            // Store single reset token with 1 hour expiry
+            // Store reset token with 24 hour expiry, append to existing tokens
+            const existingTokens = user.reset_token ? user.reset_token.split(',') : [];
+            const allTokens = [...existingTokens, resetToken].join(',');
             const result = await pool.query(
               'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3 RETURNING id',
-              [resetToken, new Date(Date.now() + 3600000), user.id]
+              [allTokens, new Date(Date.now() + 86400000), user.id]
             );
             if (result.rowCount > 0) {
               console.log('✅ Password reset token stored successfully for user:', user.id);
@@ -687,7 +689,7 @@ async function startServer() {
                     <h1 style="color: #1f2937; font-size: 32px; margin: 0;">${resetToken}</h1>
                     <p style="color: #6b7280; margin: 10px 0 0 0;">Enter this code to reset your password</p>
                   </div>
-                  <p>This code will expire in 1 hour.</p>
+                  <p>This code will expire in 24 hours.</p>
                   <p>If you didn't request this password reset, please ignore this email.</p>
                 </div>
               `,
@@ -746,9 +748,10 @@ async function startServer() {
 
             const user = userResult.rows[0];
             
-            // Check if the provided code matches the stored reset token
-            console.log('🔍 Checking reset code:', { provided: code, stored: user.reset_token });
-            if (!user.reset_token || user.reset_token !== code) {
+            // Check if the provided code matches any of the stored reset tokens
+            const validTokens = user.reset_token ? user.reset_token.split(',') : [];
+            console.log('🔍 Checking reset code:', { provided: code, validTokens: validTokens });
+            if (!user.reset_token || !validTokens.includes(code)) {
               console.log('❌ Reset code mismatch');
               res.writeHead(400);
               res.end(JSON.stringify({ error: 'Invalid reset code' }));
