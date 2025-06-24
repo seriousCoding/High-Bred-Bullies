@@ -83,20 +83,21 @@ function initializeEmailService() {
     },
     // SPF, DKIM compliance
     name: 'firsttolaunch.com',
-    logger: false,
-    debug: false
+    logger: true,
+    debug: true
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
     emailTransporter = nodemailer.createTransport(smtpConfig);
-    console.log('📧 Email service initialized with SMTP configuration');
+    console.log('📧 Email service initialized with .env SMTP configuration');
     
-    // Verify SMTP connection
+    // Verify SMTP connection with .env credentials
     emailTransporter.verify((error, success) => {
       if (error) {
-        console.error('SMTP verification failed:', error.message);
+        console.error('❌ .env SMTP verification failed:', error.message);
+        emailTransporter = null;
       } else {
-        console.log('✅ SMTP server connection verified successfully');
+        console.log('✅ .env SMTP server verified - emails ready');
       }
     });
   } else {
