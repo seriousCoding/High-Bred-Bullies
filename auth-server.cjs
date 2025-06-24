@@ -460,23 +460,29 @@ async function startServer() {
           // Generate 6-digit reset code
           const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
-          // Store reset token in database - create table if not exists first
+          // Store multiple reset tokens - append to existing valid tokens
           try {
-            await pool.query(`
-              CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER,
-                token TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW(),
-                used_at TIMESTAMP DEFAULT NULL
-              )
-            `);
+            // Get current user data to check existing tokens
+            const currentUser = await pool.query('SELECT reset_token, reset_token_expires FROM user_profiles WHERE id = $1', [user.id]);
+            const userData = currentUser.rows[0] || {};
             
-            await pool.query(`
-              INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
-              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
-            `, [user.id, resetToken]);
+            const currentTokens = userData.reset_token ? userData.reset_token.split(',') : [];
+            const currentExpiry = userData.reset_token_expires ? new Date(userData.reset_token_expires) : new Date();
+            
+            // Keep current tokens if they haven't expired
+            const validTokens = [];
+            if (currentTokens.length > 0 && currentExpiry > new Date()) {
+              validTokens.push(...currentTokens);
+            }
+            
+            // Add new token
+            validTokens.push(resetToken);
+            
+            // Store comma-separated tokens with latest expiry
+            await pool.query(
+              'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+              [validTokens.join(','), new Date(Date.now() + 3600000), user.id] // 1 hour expiry
+            );
             
             console.log('Password reset token stored for user:', user.id);
           } catch (dbError) {
