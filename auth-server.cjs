@@ -443,8 +443,8 @@ async function startServer() {
             
             await pool.query(`
               INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
-              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
-            `, [user.id, resetToken]);
+              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW()), ($1, $3, NOW() + INTERVAL '1 hour', NOW())
+            `, [user.id, resetCode, resetToken]);
             
             console.log('Password reset token stored for user:', user.id);
           } catch (dbError) {
@@ -497,19 +497,29 @@ async function startServer() {
                         
                         We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
                         
-                        Use the code above on the password reset page to create a new password and rejoin our amazing community of bulldog enthusiasts.
+                        You have two options to reset your password - use the code below or click the reset link.
                       </div>
                       
-                      <div style="text-align: center;">
-                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #007bff;">Option 1: Use Reset Code</h3>
+                        <div style="text-align: center; background: white; padding: 15px; border-radius: 5px; margin: 10px 0;">
                           <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
-                          <h1 style="font-size: 32px; margin: 0; color: #007bff; letter-spacing: 4px; font-family: monospace;">${resetToken}</h1>
+                          <h1 style="font-size: 28px; margin: 0; color: #007bff; letter-spacing: 3px; font-family: monospace;">${resetCode}</h1>
                         </div>
+                        <p style="font-size: 14px; margin: 5px 0;">Enter this code on the password reset page</p>
+                      </div>
+                      
+                      <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #007bff;">Option 2: Use Reset Link</h3>
+                        <div style="text-align: center;">
+                          <a href="${resetLink}" style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password Now</a>
+                        </div>
+                        <p style="font-size: 14px; margin: 10px 0 0 0;">Click the button above for direct reset</p>
                       </div>
                       
                       <div class="security-note">
                         <strong>🛡️ Security Notice:</strong><br>
-                        This code will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                        Both options will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
                       </div>
                       
                       <div class="message">
@@ -547,7 +557,7 @@ async function startServer() {
             }
           } else {
             console.log(`❌ Email transporter not available`);
-            console.log(`Password reset code for ${user.username}: ${resetToken}`);
+            console.log(`Password reset code for ${user.username}: ${resetCode}`);
           }
           
           res.writeHead(200);
