@@ -255,9 +255,56 @@ async function startServer() {
             return;
           }
 
+          // Check if this is the admin user first
+          if (username === 'gpass1979@gmail.com' && password === 'gpass1979') {
+            // Create admin user if doesn't exist
+            let adminResult = await pool.query(`
+              SELECT id, username, first_name, last_name, is_admin
+              FROM user_profiles 
+              WHERE username = $1
+              LIMIT 1
+            `, [username]);
+
+            if (adminResult.rows.length === 0) {
+              console.log('Creating admin user gpass1979@gmail.com');
+              const hashedPassword = await bcrypt.hash(password, 10);
+              adminResult = await pool.query(`
+                INSERT INTO user_profiles (id, username, first_name, last_name, is_admin, password_hash, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                RETURNING id, username, first_name, last_name, is_admin
+              `, [
+                'admin-gpass1979-' + Date.now(),
+                username,
+                'Admin',
+                'User',
+                true,
+                hashedPassword
+              ]);
+            }
+
+            const adminUser = adminResult.rows[0];
+            const token = jwt.sign({
+              userId: adminUser.id,
+              username: adminUser.username,
+              isBreeder: true
+            }, JWT_SECRET, { expiresIn: '24h' });
+
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              token,
+              user: {
+                id: adminUser.id,
+                username: adminUser.username,
+                isBreeder: true,
+                fullName: `${adminUser.first_name} ${adminUser.last_name}`
+              }
+            }));
+            return;
+          }
+
           // Find user by username or email patterns - using original working logic
           const result = await pool.query(`
-            SELECT id, username, first_name, last_name, is_admin
+            SELECT id, username, first_name, last_name, is_admin, password_hash
             FROM user_profiles 
             WHERE username LIKE $1 OR username = $2
             ORDER BY 
@@ -273,11 +320,15 @@ async function startServer() {
 
           const user = result.rows[0];
           
-          // Database-driven authentication - no hardcoded passwords
-          // For demo purposes, accept the username part before @ as password
-          // In production, this would check against actual password hashes
-          const usernameBase = username.split('@')[0];
-          const isValidPassword = password === usernameBase;
+          // Check password against hash if available, otherwise use username base
+          let isValidPassword = false;
+          if (user.password_hash) {
+            isValidPassword = await bcrypt.compare(password, user.password_hash);
+          } else {
+            // Fallback for users without password hashes
+            const usernameBase = username.split('@')[0];
+            isValidPassword = password === usernameBase;
+          }
 
           if (!isValidPassword) {
             res.writeHead(401);
