@@ -247,29 +247,28 @@ export const AdminBlogManager = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Blog Post Management</CardTitle>
-              <CardDescription>Create, edit, and manage blog posts for High Bred Bullies.</CardDescription>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button onClick={() => generateMutation.mutate()} variant="outline" disabled={generateMutation.isPending}>
-                  {generateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                  Generate AI Blog Post
-              </Button>
-              <Button onClick={() => generateSocialMutation.mutate()} variant="outline" disabled={generateSocialMutation.isPending}>
-                  {generateSocialMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                  Generate AI Social Posts
-              </Button>
-              <Button onClick={handleToggleForm} variant="default">
-                <PlusCircle className="mr-2 h-4 w-4" /> {showForm ? 'Cancel' : 'Add New Post'}
-              </Button>
-            </div>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>Blog Post Management</CardTitle>
+            <CardDescription>Create, edit, and manage blog posts.</CardDescription>
           </div>
-        </CardHeader>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => generateMutation.mutate()} variant="outline" size="sm" disabled={generateMutation.isPending}>
+                {generateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate New AI Blog Post
+            </Button>
+            <Button onClick={() => generateSocialMutation.mutate()} variant="outline" size="sm" disabled={generateSocialMutation.isPending}>
+                {generateSocialMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate AI Social Posts
+            </Button>
+            <Button onClick={handleToggleForm} variant="outline" size="sm">
+              {showForm ? 'Cancel' : 'Add New Post'}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
       <CardContent>
         {showForm && (
           <form onSubmit={handleSubmit} className="space-y-4 mb-6 p-4 border rounded-md">
@@ -312,15 +311,7 @@ export const AdminBlogManager = () => {
             </Button>
           </form>
         )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Published Blog Posts</CardTitle>
-          <CardDescription>Manage and edit existing blog posts.</CardDescription>
-        </CardHeader>
-        <CardContent>
         {posts && posts.length > 0 ? (
           <Table>
             <TableHeader>
@@ -407,8 +398,7 @@ export const AdminBlogManager = () => {
                 </AlertDialogContent>
             </AlertDialog>
         )}
-        </CardContent>
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
