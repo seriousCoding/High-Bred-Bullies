@@ -259,6 +259,8 @@ async function startServer() {
 
           // Check if this is the admin user first
           if (username === 'gpass1979@gmail.com' && password === 'gpass1979') {
+            console.log('Admin user login attempt');
+            
             // Create admin user if doesn't exist
             let adminResult = await pool.query(`
               SELECT id, username, first_name, last_name, is_admin
@@ -273,23 +275,31 @@ async function startServer() {
               // Add password_hash column if it doesn't exist
               try {
                 await pool.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+                console.log('Password hash column added/exists');
               } catch (e) {
-                console.log('Password hash column already exists or error adding:', e.message);
+                console.log('Password hash column error:', e.message);
               }
               
               const hashedPassword = await bcrypt.hash(password, 10);
+              
+              // Generate a proper UUID using crypto
+              const crypto = require('crypto');
+              const adminId = crypto.randomUUID();
+              
               adminResult = await pool.query(`
                 INSERT INTO user_profiles (id, username, first_name, last_name, is_admin, password_hash, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
                 RETURNING id, username, first_name, last_name, is_admin
               `, [
-                'admin-gpass1979-' + Date.now(),
+                adminId,
                 username,
                 'Admin',
                 'User',
                 true,
                 hashedPassword
               ]);
+              
+              console.log('Admin user created successfully:', adminResult.rows[0].id);
             }
 
             const adminUser = adminResult.rows[0];
