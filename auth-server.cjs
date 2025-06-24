@@ -70,21 +70,19 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 60000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     pool: true,
-    maxConnections: 3,
-    rateDelta: 1000,
-    rateLimit: 1,
+    maxConnections: 5,
     tls: {
       rejectUnauthorized: false,
       ciphers: 'TLSv1.2'
     },
     // SPF, DKIM compliance
     name: 'firsttolaunch.com',
-    logger: true,
-    debug: true
+    logger: false,
+    debug: false
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
