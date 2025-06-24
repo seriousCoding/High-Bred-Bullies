@@ -118,7 +118,7 @@ const CreatePostCard: React.FC<CreatePostCardProps> = ({ userProfileId, onPostCr
         moderation_status: 'approved'
       });
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         toast.error('Authentication required');
         return;
