@@ -408,7 +408,7 @@ async function startServer() {
           const userResult = await pool.query(`
             SELECT id, username, first_name, last_name
             FROM user_profiles
-            WHERE username = $1
+            WHERE username = $1 OR email = $1
             LIMIT 1
           `, [email]);
 
@@ -424,23 +424,25 @@ async function startServer() {
 
           const user = userResult.rows[0];
           console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
-          
-          // Generate 6-digit reset code
+
+          // Generate 6-digit reset code and JWT token
           const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-          
-          // Generate JWT token as fallback
           const resetToken = jwt.sign(
             { userId: user.id, email: user.username, type: 'password_reset' },
             JWT_SECRET,
             { expiresIn: '1h' }
           );
+          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
 
-          // Store reset token in database - create table if not exists first
+          console.log('Generated reset code:', resetCode);
+          console.log('Generated reset token for fallback');
+
+          // Store reset tokens in database
           try {
             await pool.query(`
               CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
+                user_id TEXT NOT NULL,
                 token TEXT NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW(),
@@ -454,10 +456,6 @@ async function startServer() {
             `, [user.id, resetCode, resetToken]);
             
             console.log('Password reset tokens stored for user:', user.id);
-            console.log('Generated reset code:', resetCode);
-            console.log('Generated reset token for fallback');
-
-            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
             
           } catch (dbError) {
             console.error('Database error storing reset token:', dbError);
