@@ -216,7 +216,7 @@ function createAuthRoutes(pool, sendEmail) {
           VALUES ($1, $2, NOW() + INTERVAL '1 hour')
         `, [user.id, resetCode]);
 
-        console.log('💾 Reset token stored in database');
+        console.log('💾 Reset code stored in database, code:', resetCode);
 
         // Send password reset email with code
         const resetEmailHtml = `
@@ -243,6 +243,7 @@ function createAuthRoutes(pool, sendEmail) {
         `;
 
         try {
+          console.log(`📧 Sending reset code ${resetCode} to ${email}`);
           const emailSuccess = await sendEmail({
             to: email,
             subject: 'Password Reset Code - High Bred Bullies',
@@ -250,7 +251,7 @@ function createAuthRoutes(pool, sendEmail) {
           });
 
           if (emailSuccess) {
-            console.log('✅ Password reset email sent successfully');
+            console.log(`✅ Password reset email with code ${resetCode} sent successfully to ${email}`);
           } else {
             console.error('❌ Failed to send password reset email');
           }
