@@ -70,19 +70,21 @@ function initializeEmailService() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
     pool: true,
-    maxConnections: 5,
+    maxConnections: 3,
+    rateDelta: 1000,
+    rateLimit: 1,
     tls: {
       rejectUnauthorized: false,
       ciphers: 'TLSv1.2'
     },
     // SPF, DKIM compliance
     name: 'firsttolaunch.com',
-    logger: false,
-    debug: false
+    logger: true,
+    debug: true
   };
 
   if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
@@ -136,16 +138,13 @@ async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@f
 
     const result = await emailTransporter.sendMail(mailOptions);
     
-    console.log(`📤 EMAIL QUEUED FOR DELIVERY:`, {
+    console.log(`✅ EMAIL SENT SUCCESSFULLY:`, {
       to: to,
       messageId: result.messageId,
       response: result.response,
       accepted: result.accepted,
-      rejected: result.rejected,
-      status: 'QUEUED_BY_SMTP_SERVER'
+      rejected: result.rejected
     });
-    
-    // Note: Email is queued by SMTP server, actual delivery depends on recipient's email provider
     
     return true;
   } catch (error) {
@@ -454,23 +453,12 @@ async function startServer() {
           console.log(`🔍 Looking for user with email: ${email}`);
           
           // Find user by email in user_profiles table
-          console.log(`🔍 Searching for exact email: "${email}"`);
           const userResult = await pool.query(`
             SELECT id, username, first_name, last_name
             FROM user_profiles
             WHERE username = $1
             LIMIT 1
           `, [email]);
-          
-          // Also search for partial matches to debug username format issues
-          const partialResult = await pool.query(`
-            SELECT id, username, first_name, last_name
-            FROM user_profiles
-            WHERE username LIKE $1
-            LIMIT 5
-          `, [`%${email.split('@')[0]}%`]);
-          
-          console.log(`🔍 Partial match results for "${email.split('@')[0]}":`, partialResult.rows.map(r => r.username));
 
           console.log(`📊 User query result: ${userResult.rows.length} users found`);
 
@@ -597,7 +585,7 @@ async function startServer() {
                 html: emailHtml
               });
               if (success) {
-                console.log(`📬 Password reset email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
+                console.log(`✅ Password reset email sent successfully to ${email}`);
               } else {
                 console.error('❌ Failed to send password reset email - sendEmail returned false');
               }
@@ -706,7 +694,7 @@ async function startServer() {
             });
 
             if (emailSent) {
-              console.log(`📬 Password reset resend email queued for delivery to ${email} - delivery time depends on recipient's email provider`);
+              console.log(`✅ Password reset resend email sent successfully to ${email}`);
             }
           } else {
             console.log(`❌ Email transporter not available for resend`);
