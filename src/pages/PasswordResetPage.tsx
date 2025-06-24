@@ -76,8 +76,10 @@ export default function PasswordResetPage() {
 
       toast.success('Reset code sent! Check your email.');
       setStep('reset');
-      setCanResend(true);
-      setResendCooldown(30); // 30 second initial cooldown
+      // Enable resend after successful send
+      setTimeout(() => {
+        setCanResend(true);
+      }, 30000); // 30 second delay before resend is available
     } catch (error) {
       console.error('Password reset request error:', error);
       toast.error('Failed to send reset code. Please try again.');
@@ -131,6 +133,34 @@ export default function PasswordResetPage() {
     } catch (error) {
       console.error('Password reset error:', error);
       toast.error(error.message || 'Failed to reset password. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email || !canResend) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/password-reset/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to resend code');
+      }
+
+      toast.success('Reset code resent! Check your email.');
+      setCanResend(false);
+      setResendCooldown(60);
+    } catch (error) {
+      console.error('Resend error:', error);
+      toast.error('Failed to resend code. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
