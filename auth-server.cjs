@@ -648,6 +648,7 @@ async function startServer() {
 
           // Generate new reset token
           const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+          console.log('🔄 Generated new reset token for resend:', resetToken);
           console.log(`Generated new reset code: ${resetToken}`);
 
           // Store multiple reset tokens for resend - append to existing valid tokens
@@ -745,9 +746,10 @@ async function startServer() {
 
             const user = userResult.rows[0];
             
-            // Check if the provided code matches any recent valid token
-            const validTokens = user.reset_token ? user.reset_token.split(',') : [];
-            if (!user.reset_token || !validTokens.includes(code)) {
+            // Check if the provided code matches the stored reset token
+            console.log('🔍 Checking reset code:', { provided: code, stored: user.reset_token });
+            if (!user.reset_token || user.reset_token !== code) {
+              console.log('❌ Reset code mismatch');
               res.writeHead(400);
               res.end(JSON.stringify({ error: 'Invalid reset code' }));
               return;

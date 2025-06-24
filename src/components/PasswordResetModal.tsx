@@ -147,7 +147,11 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ token, newPassword }),
+        body: JSON.stringify({ 
+          email: email,
+          code: token,
+          newPassword: newPassword 
+        }),
       });
 
       const data = await response.json();
@@ -155,14 +159,17 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
       if (response.ok) {
         toast({
           title: 'Success',
-          description: 'Password updated successfully',
+          description: 'Password updated successfully. You can now log in with your new password.',
         });
-        onOpenChange(false);
-        setStep('email');
-        setEmail('');
-        setToken('');
-        setNewPassword('');
-        setConfirmPassword('');
+        // Force UI reset with delay
+        setTimeout(() => {
+          onOpenChange(false);
+          setStep('email');
+          setEmail('');
+          setToken('');
+          setNewPassword('');
+          setConfirmPassword('');
+        }, 500);
       } else {
         toast({
           title: 'Error',
