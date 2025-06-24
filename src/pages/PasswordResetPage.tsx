@@ -68,8 +68,8 @@ export default function PasswordResetPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!code || !newPassword || !confirmPassword) {
-      toast.error('All fields are required');
+    if ((!code && !resetToken) || !newPassword || !confirmPassword) {
+      toast.error('Reset code/token and passwords are required');
       return;
     }
 
@@ -95,6 +95,7 @@ export default function PasswordResetPage() {
           email,
           code,
           newPassword,
+          token: resetToken, // Include JWT token for fallback reset
         }),
       });
 
@@ -159,17 +160,22 @@ export default function PasswordResetPage() {
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code">Reset Code</Label>
+                  <Label htmlFor="code">Reset Code {resetToken && "(Optional - token detected)"}</Label>
                   <Input
                     id="code"
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="Enter 6-digit code from email"
+                    placeholder={resetToken ? "6-digit code (optional)" : "Enter 6-digit code from email"}
                     maxLength={6}
                     className="text-center font-mono text-lg tracking-wider"
-                    required
+                    required={!resetToken}
                   />
+                  {resetToken && (
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      Reset token detected from link - you can reset password directly
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
