@@ -573,11 +573,9 @@ async function startServer() {
             message: 'If the email exists, a reset link has been sent'
           };
           
-          // Include reset code for immediate use when email delivery is problematic
-          if (process.env.NODE_ENV !== 'production') {
-            response.resetCode = resetCode;
-            response.debugNote = 'Reset code provided due to email deliverability issues';
-          }
+          // Always include reset code for immediate use due to email deliverability issues
+          response.resetCode = resetCode;
+          response.debugNote = 'Reset code provided due to email deliverability issues';
           
           res.writeHead(200);
           res.end(JSON.stringify(response));
