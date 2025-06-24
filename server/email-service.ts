@@ -9,7 +9,7 @@ interface EmailTemplate {
 
 class EmailService {
   private transporter: any = null;
-  private fromEmail = 'High Bred Bullies <no-reply@highbredbullies.com>';
+  private fromEmail = 'High Bred Bullies <noreply@highbredbullies.com>';
 
   constructor() {
     this.initializeTransporter();
@@ -36,12 +36,6 @@ class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-      // Add additional options for better deliverability
-      tls: {
-        rejectUnauthorized: false
-      },
-      debug: true,
-      logger: true
     };
 
     if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {

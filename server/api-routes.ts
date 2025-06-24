@@ -25,39 +25,17 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
     });
   });
 
-  // User Profile endpoints - simplified approach
+  // User Profile endpoints
   app.get('/api/user/profile', authenticateToken, async (req: Request, res: Response) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      // Return profile data based on JWT token (avoiding database schema issues)
-      const profile = {
-        id: req.user.id,
-        username: req.user.username,
-        isBreeder: req.user.isBreeder || false,
-        fullName: req.user.username.split('@')[0],
-        firstName: null,
-        lastName: null,
-        phone: null,
-        address: null,
-        city: null,
-        state: null,
-        zipCode: null,
-        isValidated: false,
-        bio: null,
-        website: null,
-        instagram: null,
-        facebook: null,
-        breedingExperience: null,
-        favoriteBreeds: null,
-        yearsWithDogs: null,
-        specializations: null,
-        isAdmin: req.user.isBreeder || false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const profile = await storage.getUserProfile(req.user.id);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
 
       res.json(profile);
     } catch (error) {
@@ -72,19 +50,33 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      // Return success with updated profile data (avoiding database schema conflicts)
-      const updatedProfile = {
-        ...req.body,
-        id: req.user.id,
-        username: req.user.username,
-        isBreeder: req.user.isBreeder || false,
-        updatedAt: new Date().toISOString()
+      const { username, first_name, last_name } = req.body;
+      
+      // Check if profile already exists
+      const existingProfile = await storage.getUserProfile(req.user.id);
+      if (existingProfile) {
+        return res.json(existingProfile);
+      }
+
+      // Create new profile
+      const profileData = {
+        userId: req.user.id,
+        fullName: `${first_name} ${last_name}`.trim(),
+        phone: null,
+        address: null,
+        city: null,
+        state: null,
+        zipCode: null,
+        avatarUrl: null,
+        bio: null,
+        isBreeder: false
       };
 
-      res.json({ success: true, profile: updatedProfile });
+      const newProfile = await storage.createUserProfile(profileData);
+      res.status(201).json(newProfile);
     } catch (error) {
-      console.error('Update profile error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error('Create profile error:', error);
+      res.status(500).json({ error: 'Failed to create profile' });
     }
   });
 

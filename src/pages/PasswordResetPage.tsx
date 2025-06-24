@@ -21,8 +21,6 @@ export default function PasswordResetPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetToken, setResetToken] = useState('');
-  const [canResend, setCanResend] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     // Check if we have a reset token in URL params
@@ -30,27 +28,9 @@ export default function PasswordResetPage() {
     if (token) {
       setResetToken(token);
       setStep('reset');
-      setCanResend(true); // Allow resend immediately when using token link
       toast.success('Reset link detected! You can use this link or enter a code from your email.');
     }
   }, [searchParams]);
-
-  // Resend cooldown timer
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (resendCooldown > 0) {
-      interval = setInterval(() => {
-        setResendCooldown((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [resendCooldown]);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +43,7 @@ export default function PasswordResetPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
+      const response = await fetch(`${API_BASE_URL}/api/password-reset/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,24 +52,11 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error === 'USER_NOT_FOUND') {
-          throw new Error(`${errorData.message}. ${errorData.suggestion}`);
-        }
         throw new Error('Failed to send reset code');
       }
 
-      const data = await response.json();
-      
-      if (data.resetCode) {
-        toast.success(`Reset code: ${data.resetCode} - Also check your email for backup instructions.`);
-        setCode(data.resetCode);
-      } else {
-        toast.success('Reset code sent! Check your email.');
-      }
+      toast.success('Reset code sent! Check your email.');
       setStep('reset');
-      setCanResend(false);
-      setResendCooldown(60);
     } catch (error) {
       console.error('Password reset request error:', error);
       toast.error('Failed to send reset code. Please try again.');
@@ -98,49 +65,11 @@ export default function PasswordResetPage() {
     }
   };
 
-  const handleResendCode = async () => {
-    if (!email || !canResend) return;
-    
-    setIsSubmitting(true);
-    setCanResend(false);
-    setResendCooldown(60);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to resend code');
-      }
-
-      if (data.resetCode) {
-        toast.success(`New reset code: ${data.resetCode}`);
-        setCode(data.resetCode);
-      } else {
-        toast.success(`New reset code sent to ${email}`);
-      }
-    } catch (error) {
-      console.error('Resend code error:', error);
-      toast.error(error.message || 'Failed to resend code. Please try again.');
-      setCanResend(true);
-      setResendCooldown(0);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if ((!code && !resetToken) || !newPassword || !confirmPassword) {
-      toast.error('Reset code/token and passwords are required');
+    if (!code || !newPassword || !confirmPassword) {
+      toast.error('All fields are required');
       return;
     }
 
@@ -157,7 +86,7 @@ export default function PasswordResetPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const response = await fetch(`${API_BASE_URL}/api/password-reset/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +95,6 @@ export default function PasswordResetPage() {
           email,
           code,
           newPassword,
-          token: resetToken, // Include JWT token for fallback reset
         }),
       });
 
@@ -181,45 +109,6 @@ export default function PasswordResetPage() {
     } catch (error) {
       console.error('Password reset error:', error);
       toast.error(error.message || 'Failed to reset password. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    if (!email || !canResend) return;
-    
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/request-password-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error === 'USER_NOT_FOUND') {
-          throw new Error(`${errorData.message}. ${errorData.suggestion}`);
-        }
-        throw new Error('Failed to resend code');
-      }
-
-      const data = await response.json();
-      
-      if (data.resetCode) {
-        toast.success(`New reset code: ${data.resetCode} - Also check your email.`);
-        setCode(data.resetCode);
-      } else {
-        toast.success('Reset code resent! Check your email.');
-      }
-      setCanResend(false);
-      setResendCooldown(60);
-    } catch (error) {
-      console.error('Resend error:', error);
-      toast.error('Failed to resend code. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -270,42 +159,17 @@ export default function PasswordResetPage() {
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code">Reset Code {resetToken && "(Optional - token detected)"}</Label>
+                  <Label htmlFor="code">Reset Code</Label>
                   <Input
                     id="code"
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder={resetToken ? "6-digit code (optional)" : "Enter 6-digit code from email"}
+                    placeholder="Enter 6-digit code from email"
                     maxLength={6}
                     className="text-center font-mono text-lg tracking-wider"
-                    required={!resetToken}
+                    required
                   />
-                  {resetToken && (
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      Reset token detected from link - you can reset password directly
-                    </p>
-                  )}
-                  
-                  {/* Resend button section */}
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Didn't receive the code?
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleResendCode}
-                      disabled={!canResend || isSubmitting}
-                      className="w-full"
-                    >
-                      {resendCooldown > 0 
-                        ? `Resend code in ${resendCooldown}s` 
-                        : 'Resend reset code'
-                      }
-                    </Button>
-                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>

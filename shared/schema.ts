@@ -17,35 +17,21 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
 });
 
-// User profiles for detailed information - matches actual database schema
+// User profiles for detailed information
 export const userProfiles = pgTable("user_profiles", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id"),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  fullName: text("full_name"),
   phone: text("phone"),
   address: text("address"),
   city: text("city"),
   state: text("state"),
   zipCode: text("zip_code"),
-  isValidated: boolean("is_validated").default(false),
-  validationDate: timestamp("validation_date"),
+  profilePicture: text("profile_picture"),
+  bio: text("bio"),
+  isBreeder: boolean("is_breeder").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-  canViewContactInfo: boolean("can_view_contact_info").default(false),
-  validationNotes: text("validation_notes"),
-  avatarUrl: text("avatar_url"),
-  username: text("username"),
-  bio: text("bio"),
-  website: text("website"),
-  instagram: text("instagram"),
-  facebook: text("facebook"),
-  breedingExperience: text("breeding_experience"),
-  favoriteBreeds: text("favorite_breeds").array(),
-  yearsWithDogs: integer("years_with_dogs"),
-  specializations: text("specializations").array(),
-  isAdmin: boolean("is_admin").default(false),
-  passwordHash: text("password_hash"),
 });
 
 // Breeder-specific information

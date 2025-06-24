@@ -388,7 +388,7 @@ async function startServer() {
       }
 
       // Password reset request endpoint
-      if ((pathname === '/api/password-reset/request' || pathname === '/api/auth/request-password-reset') && req.method === 'POST') {
+      if (pathname === '/api/password-reset/request' && req.method === 'POST') {
         console.log('🔐 Password reset request received');
         try {
           const data = await parseBody(req);
@@ -404,9 +404,9 @@ async function startServer() {
 
           console.log(`🔍 Looking for user with email: ${email}`);
           
-          // Find user by username (users put emails in username field)
+          // Find user by email in user_profiles table
           const userResult = await pool.query(`
-            SELECT id, username, password_hash
+            SELECT id, username, first_name, last_name
             FROM user_profiles
             WHERE username = $1
             LIMIT 1
@@ -416,38 +416,24 @@ async function startServer() {
 
           if (userResult.rows.length === 0) {
             console.log(`❌ No user found with email: ${email}`);
-            // Provide clear feedback for non-existent users
-            const response = {
-              message: 'No account found with this email address',
-              error: 'USER_NOT_FOUND',
-              suggestion: 'Please check your email address or create a new account'
-            };
-            res.writeHead(404);
-            res.end(JSON.stringify(response));
+            // Don't reveal if user exists - return success anyway
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
             return;
           }
 
           const user = userResult.rows[0];
           console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
+          
+          // Generate 6-digit reset code
+          const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
-          // Generate 6-digit reset code and JWT token
-          const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-          const resetToken = jwt.sign(
-            { userId: user.id, email: user.username, type: 'password_reset' },
-            JWT_SECRET,
-            { expiresIn: '1h' }
-          );
-          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
-
-          console.log('Generated reset code:', resetCode);
-          console.log('Generated reset token for fallback');
-
-          // Store reset tokens in database
+          // Store reset token in database - create table if not exists first
           try {
             await pool.query(`
               CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id SERIAL PRIMARY KEY,
-                user_id TEXT NOT NULL,
+                user_id INTEGER,
                 token TEXT NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW(),
@@ -457,16 +443,17 @@ async function startServer() {
             
             await pool.query(`
               INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
-              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW()), ($1, $3, NOW() + INTERVAL '1 hour', NOW())
-            `, [user.id, resetCode, resetToken]);
+              VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
+            `, [user.id, resetToken]);
             
-            console.log('Password reset tokens stored for user:', user.id);
-            
+            console.log('Password reset token stored for user:', user.id);
           } catch (dbError) {
             console.error('Database error storing reset token:', dbError);
           }
 
           // Send password reset email using unified email function
+          // No reset link needed - using reset codes now
+          console.log(`Generated reset code: ${resetToken}`);
           
           if (true) { // Always attempt to send email
             
@@ -506,33 +493,23 @@ async function startServer() {
                       <div class="greeting">Password Reset Request</div>
                       
                       <div class="message">
-                        Hello ${user.username},<br><br>
+                        Hello ${user.first_name || 'Fellow Dog Lover'},<br><br>
                         
                         We received a request to reset your password for your High Bred Bullies account. Just like our loyal bulldogs, we're here to help you get back on track!<br><br>
                         
-                        You have two options to reset your password - use the code below or click the reset link.
+                        Use the code above on the password reset page to create a new password and rejoin our amazing community of bulldog enthusiasts.
                       </div>
                       
-                      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="margin-top: 0; color: #007bff;">Option 1: Use Reset Code</h3>
-                        <div style="text-align: center; background: white; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                      <div style="text-align: center;">
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
                           <p style="font-size: 14px; margin: 0 0 10px 0; color: #666;">Your Reset Code:</p>
-                          <h1 style="font-size: 28px; margin: 0; color: #007bff; letter-spacing: 3px; font-family: monospace;">${resetCode}</h1>
+                          <h1 style="font-size: 32px; margin: 0; color: #007bff; letter-spacing: 4px; font-family: monospace;">${resetToken}</h1>
                         </div>
-                        <p style="font-size: 14px; margin: 5px 0;">Enter this code on the password reset page</p>
-                      </div>
-                      
-                      <div style="background: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="margin-top: 0; color: #007bff;">Option 2: Use Reset Link</h3>
-                        <div style="text-align: center;">
-                          <a href="${resetLink}" style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password Now</a>
-                        </div>
-                        <p style="font-size: 14px; margin: 10px 0 0 0;">Click the button above for direct reset</p>
                       </div>
                       
                       <div class="security-note">
                         <strong>🛡️ Security Notice:</strong><br>
-                        Both options will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
+                        This code will expire in 1 hour for your security. If you didn't request this reset, please ignore this email - your account remains secure.
                       </div>
                       
                       <div class="message">
@@ -570,20 +547,11 @@ async function startServer() {
             }
           } else {
             console.log(`❌ Email transporter not available`);
-            console.log(`Password reset code for ${user.username}: ${resetCode}`);
+            console.log(`Password reset code for ${user.username}: ${resetToken}`);
           }
           
-          // For development - provide reset code when email delivery may be unreliable
-          const response = {
-            message: 'If the email exists, a reset link has been sent'
-          };
-          
-          // Always include reset code for immediate use due to email deliverability issues
-          response.resetCode = resetCode;
-          response.debugNote = 'Reset code provided due to email deliverability issues';
-          
           res.writeHead(200);
-          res.end(JSON.stringify(response));
+          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
         } catch (error) {
           console.error('Password reset request error:', error);
           res.writeHead(500);
@@ -592,125 +560,7 @@ async function startServer() {
         return;
       }
 
-      // Password reset completion endpoint  
-      if ((pathname === '/api/password-reset/reset' || pathname === '/api/auth/reset-password') && req.method === 'POST') {
-        console.log('🔑 Password reset completion received');
-        try {
-          const data = await parseBody(req);
-          const { email, code, newPassword, token } = data;
-
-          let user;
-          let resetIdentifier;
-
-          if (token) {
-            // Handle JWT token reset
-            try {
-              const decoded = jwt.verify(token, JWT_SECRET);
-              if (decoded.type !== 'password_reset') {
-                throw new Error('Invalid token type');
-              }
-              
-              const userResult = await pool.query(`
-                SELECT id, username FROM user_profiles 
-                WHERE id = $1
-                LIMIT 1
-              `, [decoded.userId]);
-              
-              if (userResult.rows.length === 0) {
-                res.writeHead(400);
-                res.end(JSON.stringify({ error: 'Invalid reset request' }));
-                return;
-              }
-              
-              user = userResult.rows[0];
-              resetIdentifier = token;
-              console.log('📋 Using JWT token reset for user:', user.username);
-              
-            } catch (error) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid or expired reset token' }));
-              return;
-            }
-          } else {
-            // Handle code-based reset
-            if (!email || !code || !newPassword) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Email, code, and new password required' }));
-              return;
-            }
-
-            console.log('📋 Using code reset for email:', email);
-
-            // Find user by username (users put emails in username field)
-            const userResult = await pool.query(`
-              SELECT id, username FROM user_profiles 
-              WHERE username = $1
-              LIMIT 1
-            `, [email]);
-            
-            if (userResult.rows.length === 0) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid reset request' }));
-              return;
-            }
-            
-            user = userResult.rows[0];
-            resetIdentifier = code;
-          }
-
-          // Check if reset identifier exists and is not used
-          const tokenResult = await pool.query(`
-            SELECT id, user_id, used_at
-            FROM password_reset_tokens 
-            WHERE user_id = $1 AND token = $2 AND expires_at > NOW()
-            LIMIT 1
-          `, [user.id, resetIdentifier]);
-
-          if (tokenResult.rows.length === 0) {
-            res.writeHead(400);
-            res.end(JSON.stringify({ error: 'Invalid or expired reset code/token' }));
-            return;
-          }
-
-          const tokenRecord = tokenResult.rows[0];
-          
-          if (tokenRecord.used_at) {
-            res.writeHead(400);
-            res.end(JSON.stringify({ error: 'Reset code/token already used' }));
-            return;
-          }
-
-          // Hash new password
-          const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-          // Update user password
-          await pool.query(`
-            UPDATE user_profiles 
-            SET password_hash = $1, updated_at = NOW()
-            WHERE id = $2
-          `, [hashedPassword, user.id]);
-
-          // Mark token as used
-          await pool.query(`
-            UPDATE password_reset_tokens 
-            SET used_at = NOW() 
-            WHERE user_id = $1 AND token = $2
-          `, [user.id, resetIdentifier]);
-
-          console.log('✅ Password reset successful for user:', user.username);
-
-          res.writeHead(200);
-          res.end(JSON.stringify({ message: 'Password reset successful' }));
-
-        } catch (error) {
-          console.error('❌ Password reset completion error:', error);
-          res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Internal server error' }));
-        }
-        return;
-      }
-
-      // Legacy password reset confirmation endpoint
+      // Password reset confirmation endpoint
       if (pathname === '/api/password-reset/confirm' && req.method === 'POST') {
         try {
           const data = await parseBody(req);
@@ -1635,36 +1485,30 @@ async function startServer() {
 
           const token = authHeader.split(' ')[1];
           const decoded = jwt.verify(token, JWT_SECRET);
-          
-          // Return profile data from JWT token to avoid database schema issues
-          const profile = {
-            id: decoded.userId,
-            username: decoded.username,
-            isBreeder: decoded.isBreeder || false,
-            fullName: decoded.username.split('@')[0],
-            firstName: null,
-            lastName: null,
-            phone: null,
-            address: null,
-            city: null,
-            state: null,
-            zipCode: null,
-            isValidated: false,
-            bio: null,
-            website: null,
-            instagram: null,
-            facebook: null,
-            breedingExperience: null,
-            favoriteBreeds: null,
-            yearsWithDogs: null,
-            specializations: null,
-            isAdmin: decoded.isBreeder || false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
+          const userId = decoded.userId;
 
+          const result = await pool.query(`
+            SELECT * FROM user_profiles WHERE user_id = $1
+          `, [userId]);
+
+          if (result.rows.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: 'Profile not found' }));
+            return;
+          }
+
+          const profile = result.rows[0];
           res.writeHead(200);
-          res.end(JSON.stringify(profile));
+          res.end(JSON.stringify({
+            id: profile.id.toString(),
+            user_id: profile.user_id,
+            username: profile.username,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            avatar_url: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          }));
         } catch (error) {
           console.error('Error fetching user profile:', error);
           res.writeHead(500);
@@ -1685,24 +1529,38 @@ async function startServer() {
 
           const token = authHeader.split(' ')[1];
           const decoded = jwt.verify(token, JWT_SECRET);
-          
-          const body = await parseBody(req);
-          
-          // Return success with updated profile data (avoiding database schema conflicts)
-          const updatedProfile = {
-            ...body,
-            id: decoded.userId,
-            username: decoded.username,
-            isBreeder: decoded.isBreeder || false,
-            updatedAt: new Date().toISOString()
-          };
+          const userId = decoded.userId;
 
+          const body = await parseBody(req);
+          const { username, first_name, last_name } = body;
+
+          const result = await pool.query(`
+            INSERT INTO user_profiles (user_id, username, first_name, last_name, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              username = EXCLUDED.username,
+              first_name = EXCLUDED.first_name,
+              last_name = EXCLUDED.last_name,
+              updated_at = NOW()
+            RETURNING *
+          `, [userId, username, first_name, last_name]);
+
+          const profile = result.rows[0];
           res.writeHead(200);
-          res.end(JSON.stringify({ success: true, profile: updatedProfile }));
+          res.end(JSON.stringify({
+            id: profile.id.toString(),
+            user_id: profile.user_id,
+            username: profile.username,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            avatar_url: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          }));
         } catch (error) {
-          console.error('Error updating user profile:', error);
+          console.error('Error creating/updating user profile:', error);
           res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Failed to update profile' }));
+          res.end(JSON.stringify({ error: 'Failed to create profile' }));
         }
         return;
       }
