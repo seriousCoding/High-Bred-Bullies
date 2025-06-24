@@ -95,6 +95,8 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
           title: 'Code Resent',
           description: 'A new reset code has been sent to your email',
         });
+        // Clear the token field so user knows to enter the new code
+        setToken('');
       } else {
         toast({
           title: 'Error',
