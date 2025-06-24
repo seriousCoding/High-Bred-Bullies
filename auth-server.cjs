@@ -4852,13 +4852,6 @@ async function startServer() {
         return;
       }
 
-      // 404 for unhandled API routes
-      if (pathname.startsWith('/api/')) {
-        res.writeHead(404);
-        res.end(JSON.stringify({ error: 'API endpoint not found' }));
-        return;
-      }
-
       // Inquiry response endpoint
       if (pathname.match(/^\/api\/inquiries\/[^\/]+\/reply$/) && req.method === 'PATCH') {
         console.log('📧 Inquiry response request received');
@@ -4960,6 +4953,13 @@ async function startServer() {
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Failed to send response' }));
         }
+        return;
+      }
+
+      // 404 for unhandled API routes
+      if (pathname.startsWith('/api/')) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'API endpoint not found' }));
         return;
       }
 
