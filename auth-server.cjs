@@ -3233,10 +3233,12 @@ async function startServer() {
             </div>
           `;
 
-          // Send contact form notification immediately (not in background)
+          // Send contact form emails immediately (both user and admin)
           if (emailTransporter) {
             try {
-              // Send confirmation email to user first
+              // STEP 1: Send confirmation email to USER FIRST
+              console.log(`🚀 SENDING USER CONFIRMATION TO: ${email}`);
+              
               const userConfirmationHtml = `
                 <!DOCTYPE html>
                 <html>
@@ -3275,31 +3277,41 @@ async function startServer() {
                 </html>
               `;
               
-              console.log(`Attempting to send confirmation email to: ${email}`);
-              const userEmailSent = await sendEmail({
+              // Send user confirmation email FIRST
+              console.log(`🚀 SENDING USER CONFIRMATION TO: ${email}`);
+              const userMailOptions = {
+                from: 'admin@firsttolaunch.com',
                 to: email,
                 subject: 'Thank you for contacting High Bred Bullies',
                 html: userConfirmationHtml,
-                from: 'High Bred Bullies <admin@firsttolaunch.com>'
+                text: `Hi ${name}, Thank you for contacting High Bred Bullies. We received your message and will respond within 24-48 hours.`
+              };
+
+              const userResult = await emailTransporter.sendMail(userMailOptions);
+              console.log(`✅ USER EMAIL SENT:`, {
+                to: email,
+                messageId: userResult.messageId,
+                accepted: userResult.accepted,
+                rejected: userResult.rejected
               });
               
-              if (userEmailSent) {
-                console.log(`✅ Contact confirmation email sent successfully to ${email}`);
-              } else {
-                console.log(`❌ Failed to send confirmation email to ${email}`);
-              }
-              
-              // Send admin notification
-              const adminSuccess = await sendEmail({
+              // Send admin notification SECOND
+              console.log(`📧 SENDING ADMIN NOTIFICATION TO: gpass1979@gmail.com`);
+              const adminMailOptions = {
+                from: 'admin@firsttolaunch.com',
                 to: 'gpass1979@gmail.com',
                 subject: `Contact Form Submission: ${subject || 'New Message'}`,
-                html: emailHtml
+                html: emailHtml,
+                text: `New contact from ${name} (${email}): ${message}`
+              };
+
+              const adminResult = await emailTransporter.sendMail(adminMailOptions);
+              console.log(`✅ ADMIN EMAIL SENT:`, {
+                to: 'gpass1979@gmail.com',
+                messageId: adminResult.messageId,
+                accepted: adminResult.accepted,
+                rejected: adminResult.rejected
               });
-              if (adminSuccess) {
-                console.log('Contact form notification sent to admin successfully');
-              } else {
-                console.error('Contact form notification failed to send');
-              }
             } catch (emailError) {
               console.error('Contact form email error:', emailError);
               console.error('Full error details:', emailError.stack);
