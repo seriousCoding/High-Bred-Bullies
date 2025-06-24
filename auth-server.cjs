@@ -5169,14 +5169,21 @@ async function startServer() {
           const littersResult = await pool.query(deleteLittersQuery);
           console.log(`Deleted ${littersResult.rowCount} test litters`);
           
-          // Delete any orders related to test litters
-          const deleteOrdersQuery = `
-            DELETE FROM orders 
-            WHERE litter_id IN (
-              SELECT id FROM litters 
-              WHERE name ILIKE '%test%' OR description ILIKE '%test%'
-            )
-          `;
+          // Delete any orders related to test litters (skip if column doesn't exist)
+          try {
+            const deleteOrdersQuery = `
+              DELETE FROM orders 
+              WHERE id IN (
+                SELECT o.id FROM orders o
+                JOIN litters l ON o.id = l.id
+                WHERE l.name ILIKE '%test%' OR l.description ILIKE '%test%'
+              )
+            `;
+            const ordersResult = await pool.query(deleteOrdersQuery);
+            console.log(`Deleted ${ordersResult.rowCount} test orders`);
+          } catch (orderError) {
+            console.log('Orders cleanup skipped (table structure differs)');
+          }
           const ordersResult = await pool.query(deleteOrdersQuery);
           console.log(`Deleted ${ordersResult.rowCount} test orders`);
           
