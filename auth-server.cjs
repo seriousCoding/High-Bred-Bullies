@@ -2919,26 +2919,22 @@ async function startServer() {
             </div>
           `;
 
-          // Send contact form email using unified function
+          // Send contact form notification immediately (not in background)
           if (emailTransporter) {
-            setImmediate(async () => {
-              try {
-                const success = await sendEmail({
-                  to: 'gpass1979@gmail.com',
-                  subject: `Contact Form: ${subject || 'New Inquiry'}`,
-                  html: emailHtml
-                });
-                if (success) {
-                  console.log('Contact form email sent via unified function');
-                } else {
-                  console.error('Contact form email failed via unified function');
-                }
-              } catch (emailError) {
-                console.error('Contact form email failed:', emailError.message);
+            try {
+              const success = await sendEmail({
+                to: 'gpass1979@gmail.com',
+                subject: `Contact Form Submission: ${subject || 'New Message'}`,
+                html: emailHtml
+              });
+              if (success) {
+                console.log('Contact form notification sent to admin successfully');
+              } else {
+                console.error('Contact form notification failed to send');
               }
-            });
-          } else {
-            console.warn('Email service not configured');
+            } catch (emailError) {
+              console.error('Contact form email error:', emailError);
+            }
           }
 
           // Respond with success regardless of email status
