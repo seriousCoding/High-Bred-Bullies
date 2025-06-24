@@ -13,6 +13,18 @@ class EmailService {
 
   constructor() {
     this.initializeTransporter();
+    this.verifyConnection();
+  }
+
+  private async verifyConnection() {
+    if (this.transporter) {
+      try {
+        await this.transporter.verify();
+        console.log('✅ SMTP server connection verified successfully');
+      } catch (error) {
+        console.error('❌ SMTP server connection failed:', error.message);
+      }
+    }
   }
 
   private initializeTransporter() {
