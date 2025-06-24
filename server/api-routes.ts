@@ -32,31 +32,34 @@ export async function registerApiRoutes(app: Express, server: HttpServer): Promi
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      // Query user_profiles table directly using the actual database schema
-      const { Pool } = require('pg');
-      const pool = new Pool({
-        host: '50.193.77.237',
-        port: 5432,
-        database: 'high_bred',
-        user: 'rtownsend',
-        password: 'rTowns402',
-        ssl: false,
-      });
+      // Return profile data from JWT token
+      const profile = {
+        id: req.user.id,
+        username: req.user.username,
+        isBreeder: req.user.isBreeder || false,
+        fullName: req.user.username.split('@')[0],
+        first_name: null,
+        last_name: null,
+        phone: null,
+        address: null,
+        city: null,
+        state: null,
+        zip_code: null,
+        is_validated: false,
+        bio: null,
+        website: null,
+        instagram: null,
+        facebook: null,
+        breeding_experience: null,
+        favorite_breeds: null,
+        years_with_dogs: null,
+        specializations: null,
+        is_admin: req.user.isBreeder || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
 
-      // Query user_profiles table with simplified approach
-      const result = await pool.query(`
-        SELECT * FROM user_profiles 
-        WHERE username = $1
-        LIMIT 1
-      `, [req.user.username]);
-
-      console.log('Profile lookup for:', req.user.username, 'found:', result.rows.length, 'rows');
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Profile not found' });
-      }
-
-      res.json(result.rows[0]);
+      res.json(profile);
     } catch (error) {
       console.error('Get profile error:', error);
       res.status(500).json({ error: 'Internal server error' });
