@@ -270,48 +270,6 @@ export const AdminBlogManager = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {showForm && (
-          <form onSubmit={handleSubmit} className="space-y-4 mb-6 p-4 border rounded-md">
-            <div>
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" value={newPost.title} onChange={e => handleInputChange('title', e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <select id="category" value={newPost.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full p-2 border rounded-md">
-                <option value="general">General</option>
-                <option value="nutrition">Nutrition</option>
-                <option value="health">Health</option>
-                <option value="training">Training</option>
-                <option value="treats">Treats</option>
-                <option value="lifestyle">Lifestyle</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="author_name">Author Name (optional)</Label>
-              <Input id="author_name" value={newPost.author_name} onChange={e => handleInputChange('author_name', e.target.value)} placeholder="e.g. Dr. Paws" />
-            </div>
-            <div>
-              <Label htmlFor="image_url">Image URL (optional)</Label>
-              <Input id="image_url" value={newPost.image_url} onChange={e => handleInputChange('image_url', e.target.value)} placeholder="https://images.unsplash.com/..." />
-                <p className="text-sm text-muted-foreground mt-1">
-                  You can use placeholder images from <a href="https://unsplash.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Unsplash</a>.
-                </p>
-            </div>
-            <div>
-              <Label htmlFor="content">Content (Markdown supported)</Label>
-              <Textarea id="content" value={newPost.content} onChange={e => handleInputChange('content', e.target.value)} rows={10} required />
-            </div>
-            <div>
-              <Label htmlFor="excerpt">Excerpt (optional)</Label>
-              <Textarea id="excerpt" value={newPost.excerpt} onChange={e => handleInputChange('excerpt', e.target.value)} rows={3} />
-            </div>
-            <Button type="submit" disabled={addMutation.isPending}>
-              {addMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Post'}
-            </Button>
-          </form>
-        )}
-
         {posts && posts.length > 0 ? (
           <Table>
             <TableHeader>
@@ -372,8 +330,9 @@ export const AdminBlogManager = () => {
             </TableBody>
           </Table>
         ) : (
-          <p className="text-center text-muted-foreground">No blog posts found.</p>
+          <p className="text-center text-muted-foreground py-8">No blog posts found.</p>
         )}
+        
         {postToDelete && (
             <AlertDialog open={!!postToDelete} onOpenChange={(open) => !open && setPostToDelete(null)}>
                 <AlertDialogContent>
@@ -397,6 +356,55 @@ export const AdminBlogManager = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+        )}
+        
+        {showForm && (
+          <Dialog open={showForm} onOpenChange={setShowForm}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Add New Blog Post</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" value={newPost.title} onChange={e => handleInputChange('title', e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <select id="category" value={newPost.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full p-2 border rounded-md">
+                    <option value="general">General</option>
+                    <option value="nutrition">Nutrition</option>
+                    <option value="health">Health</option>
+                    <option value="training">Training</option>
+                    <option value="treats">Treats</option>
+                    <option value="lifestyle">Lifestyle</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="author_name">Author Name (optional)</Label>
+                  <Input id="author_name" value={newPost.author_name} onChange={e => handleInputChange('author_name', e.target.value)} placeholder="e.g. Dr. Paws" />
+                </div>
+                <div>
+                  <Label htmlFor="image_url">Image URL (optional)</Label>
+                  <Input id="image_url" value={newPost.image_url} onChange={e => handleInputChange('image_url', e.target.value)} placeholder="https://images.unsplash.com/..." />
+                </div>
+                <div>
+                  <Label htmlFor="content">Content (Markdown supported)</Label>
+                  <Textarea id="content" value={newPost.content} onChange={e => handleInputChange('content', e.target.value)} rows={10} required />
+                </div>
+                <div>
+                  <Label htmlFor="excerpt">Excerpt (optional)</Label>
+                  <Textarea id="excerpt" value={newPost.excerpt} onChange={e => handleInputChange('excerpt', e.target.value)} rows={3} />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                  <Button type="submit" disabled={addMutation.isPending}>
+                    {addMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Post'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </CardContent>
     </Card>
