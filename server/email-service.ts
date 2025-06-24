@@ -260,9 +260,8 @@ class EmailService {
   async sendPasswordReset(
     userEmail: string,
     userName: string,
-    resetToken: string
+    resetCode: string
   ): Promise<boolean> {
-    const resetUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

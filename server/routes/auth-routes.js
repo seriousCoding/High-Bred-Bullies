@@ -195,6 +195,7 @@ function createAuthRoutes(pool, sendEmail) {
 
         // Generate 6-digit reset code
         const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        console.log('💾 Reset code generated:', resetCode);
 
         // Store reset token in database (create table if needed)
         try {

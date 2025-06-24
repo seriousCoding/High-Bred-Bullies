@@ -531,7 +531,7 @@ async function startServer() {
 
             try {
               console.log(`Attempting to send password reset email to: ${user.username}`);
-              console.log(`Reset token generated: ${resetToken.substring(0, 20)}...`);
+              console.log(`Reset code generated: ${resetCode}`);
               
               const success = await sendEmail({
                 to: user.username,
@@ -548,7 +548,7 @@ async function startServer() {
             }
           } else {
             console.log(`❌ Email transporter not available`);
-            console.log(`Password reset token for ${user.username}: ${resetToken}`);
+            console.log(`Password reset code for ${user.username}: ${resetCode}`);
           }
           
           res.writeHead(200);
