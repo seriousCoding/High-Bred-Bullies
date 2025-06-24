@@ -3108,12 +3108,66 @@ async function startServer() {
           // Send contact form notification immediately (not in background)
           if (emailTransporter) {
             try {
-              const success = await sendEmail({
+              // Send confirmation email to user first
+              const userConfirmationHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <title>Thank You - High Bred Bullies</title>
+                  <style>
+                    body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
+                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; }
+                    .header { background: #2563eb; padding: 30px; text-align: center; color: white; }
+                    .content { padding: 30px; }
+                    .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="header">
+                      <h1 style="margin: 0;">High Bred Bullies</h1>
+                      <p style="margin: 10px 0 0 0;">Premium American Bully Community</p>
+                    </div>
+                    <div class="content">
+                      <h2 style="color: #2563eb;">Thank You for Contacting Us!</h2>
+                      <p>Hello ${name},</p>
+                      <p>Thank you for reaching out to High Bred Bullies. We have received your message and will respond within 24-48 hours.</p>
+                      <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Subject:</strong> ${subject || 'Contact Form Submission'}</p>
+                        <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+                      </div>
+                      <p>We appreciate your interest in our American Bully breeding program.</p>
+                    </div>
+                    <div class="footer">
+                      <p><strong>High Bred Bullies Team</strong></p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+              `;
+              
+              console.log(`Attempting to send confirmation email to: ${email}`);
+              const userEmailSent = await sendEmail({
+                to: email,
+                subject: 'Thank you for contacting High Bred Bullies',
+                html: userConfirmationHtml,
+                from: 'High Bred Bullies <admin@firsttolaunch.com>'
+              });
+              
+              if (userEmailSent) {
+                console.log(`✅ Contact confirmation email sent successfully to ${email}`);
+              } else {
+                console.log(`❌ Failed to send confirmation email to ${email}`);
+              }
+              
+              // Send admin notification
+              const adminSuccess = await sendEmail({
                 to: 'gpass1979@gmail.com',
                 subject: `Contact Form Submission: ${subject || 'New Message'}`,
                 html: emailHtml
               });
-              if (success) {
+              if (adminSuccess) {
                 console.log('Contact form notification sent to admin successfully');
               } else {
                 console.error('Contact form notification failed to send');
