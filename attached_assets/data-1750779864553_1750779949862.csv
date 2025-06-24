@@ -1,0 +1,28 @@
+"column_name","data_type","is_nullable","column_default"
+"id","uuid","NO","gen_random_uuid()"
+"user_id","uuid","YES",NULL
+"first_name","text","YES",NULL
+"last_name","text","YES",NULL
+"phone","text","YES",NULL
+"address","text","YES",NULL
+"city","text","YES",NULL
+"state","text","YES",NULL
+"zip_code","text","YES",NULL
+"is_validated","boolean","YES","false"
+"validation_date","timestamp with time zone","YES",NULL
+"created_at","timestamp with time zone","YES","now()"
+"updated_at","timestamp with time zone","YES","now()"
+"can_view_contact_info","boolean","YES","false"
+"validation_notes","text","YES",NULL
+"avatar_url","text","YES",NULL
+"username","text","YES",NULL
+"bio","text","YES",NULL
+"website","text","YES",NULL
+"instagram","text","YES",NULL
+"facebook","text","YES",NULL
+"breeding_experience","text","YES",NULL
+"favorite_breeds","ARRAY","YES",NULL
+"years_with_dogs","integer","YES",NULL
+"specializations","ARRAY","YES",NULL
+"is_admin","boolean","YES","false"
+"password_hash","text","YES",NULL
