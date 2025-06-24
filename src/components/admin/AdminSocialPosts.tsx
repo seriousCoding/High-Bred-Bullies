@@ -181,11 +181,15 @@ export const AdminSocialPosts = () => {
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Manage Social Posts</CardTitle>
-          <CardDescription>Review, moderate, and manage user-generated social posts.</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Social Posts Management</CardTitle>
+              <CardDescription>Review, moderate, and manage user-generated social posts from the High Table community.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {posts && posts.length > 0 ? (

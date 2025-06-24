@@ -50,7 +50,7 @@ export const AdminInquiries = () => {
 
   const respondMutation = useMutation({
     mutationFn: async ({ inquiryId, responseText }: { inquiryId: string, responseText: string }) => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/reply`, {
         method: 'PATCH',
         headers: {
@@ -75,7 +75,7 @@ export const AdminInquiries = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (inquiryId: string) => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}`, {
         method: 'DELETE',
         headers: {
