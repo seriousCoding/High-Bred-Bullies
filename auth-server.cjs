@@ -5131,12 +5131,15 @@ async function startServer() {
 
       // Cleanup test litters endpoint
       if (pathname === '/api/cleanup-stripe-test-litters' && req.method === 'POST') {
+        console.log('🧹 Cleanup test litters request received');
         const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
+          console.log('❌ Cleanup request unauthorized');
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
           return;
         }
+        console.log('✅ Cleanup request authorized for user:', authResult.userId);
 
         try {
           console.log('Starting cleanup of test litters...');
@@ -5198,12 +5201,15 @@ async function startServer() {
 
       // Seed test litters endpoint
       if (pathname === '/api/seed-stripe-test-litters' && req.method === 'POST') {
+        console.log('🌱 Seed test litters request received');
         const authResult = authenticateTokenDirect(req);
         if (!authResult.success) {
+          console.log('❌ Seed request unauthorized');
           res.writeHead(401);
           res.end(JSON.stringify({ error: 'Unauthorized' }));
           return;
         }
+        console.log('✅ Seed request authorized for user:', authResult.userId);
 
         try {
           console.log('Starting seeding of test litters...');

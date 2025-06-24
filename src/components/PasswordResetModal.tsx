@@ -67,6 +67,52 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
     }
   };
 
+  const handleResendCode = async () => {
+    if (!email) {
+      toast({
+        title: 'Error',
+        description: 'Email address is required to resend code',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/password-reset/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Code Resent',
+          description: 'A new reset code has been sent to your email',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: data.error || 'Failed to resend code',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Network error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -182,6 +228,18 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
                 maxLength={6}
                 required
               />
+              <div className="flex justify-end mt-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={handleResendCode}
+                  disabled={isLoading}
+                  className="text-xs"
+                >
+                  Didn't receive code? Resend
+                </Button>
+              </div>
             </div>
             <div>
               <Label htmlFor="newPassword">New Password</Label>
