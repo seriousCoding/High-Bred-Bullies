@@ -173,12 +173,16 @@ function createAuthRoutes(pool, sendEmail) {
 
         console.log('🔍 Looking for user with email:', email);
         
-        const userResult = await pool.query(`
-          SELECT id, username, first_name, last_name 
-          FROM user_profiles 
-          WHERE username = $1 
-          LIMIT 1
+        // First check users table, then user_profiles
+        let userResult = await pool.query(`
+          SELECT id, username FROM users WHERE username = $1 LIMIT 1
         `, [email]);
+        
+        if (userResult.rows.length === 0) {
+          userResult = await pool.query(`
+            SELECT id, username, first_name FROM user_profiles WHERE username = $1 LIMIT 1
+          `, [email]);
+        }
 
         console.log('📊 User query result:', `${userResult.rows.length} users found`);
 
@@ -289,7 +293,7 @@ function createAuthRoutes(pool, sendEmail) {
 
         // Find user by email
         const userResult = await pool.query(`
-          SELECT id, username FROM user_profiles WHERE username = $1 LIMIT 1
+          SELECT id, username FROM users WHERE username = $1 LIMIT 1
         `, [email]);
 
         if (userResult.rows.length === 0) {
