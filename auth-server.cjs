@@ -440,7 +440,7 @@ async function startServer() {
             await pool.query(`
               CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER,
+                user_id VARCHAR(255) NOT NULL,
                 token TEXT NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW(),
@@ -453,14 +453,17 @@ async function startServer() {
               VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW()), ($1, $3, NOW() + INTERVAL '1 hour', NOW())
             `, [user.id, resetCode, resetToken]);
             
-            console.log('Password reset token stored for user:', user.id);
+            console.log('Password reset tokens stored for user:', user.id);
+            console.log('Generated reset code:', resetCode);
+            console.log('Generated reset token for fallback');
+
+            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+            
           } catch (dbError) {
             console.error('Database error storing reset token:', dbError);
           }
 
           // Send password reset email using unified email function
-          // No reset link needed - using reset codes now
-          console.log(`Generated reset code: ${resetToken}`);
           
           if (true) { // Always attempt to send email
             
