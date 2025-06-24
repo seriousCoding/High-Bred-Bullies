@@ -104,39 +104,55 @@ function initializeEmailService() {
   }
 }
 
-// Unified email sending function with enhanced deliverability
+// COMPLETELY REWRITTEN EMAIL FUNCTION
 async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@firsttolaunch.com>' }) {
+  console.log(`🚀 NEW EMAIL SYSTEM - SENDING TO: ${to}`);
+  
   if (!emailTransporter) {
-    console.warn('Email service not configured - skipping email send');
-    return false;
+    console.error('❌ EMAIL TRANSPORTER NOT AVAILABLE');
+    // Try to reinitialize
+    initializeEmailService();
+    if (!emailTransporter) {
+      console.error('❌ EMAIL SYSTEM COMPLETELY FAILED');
+      return false;
+    }
   }
 
   try {
-    console.log(`📧 SMTP SEND ATTEMPT: From: ${from} | To: ${to} | Subject: ${subject}`);
-    const info = await emailTransporter.sendMail({ 
-      from, 
-      to, 
-      subject, 
-      html,
-      text: html.replace(/<[^>]*>/g, ''), // Add plain text version
-      headers: {
-        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@firsttolaunch.com>`,
-        'X-Priority': '3',
-        'Reply-To': 'admin@firsttolaunch.com',
-        'X-Mailer': 'High Bred Bullies v1.0',
-        'List-Unsubscribe': '<mailto:admin@firsttolaunch.com>',
-        'MIME-Version': '1.0',
-        'Content-Type': 'text/html; charset=UTF-8',
-        'List-Unsubscribe': '<mailto:admin@firsttolaunch.com?subject=unsubscribe>',
-        'Return-Path': 'admin@firsttolaunch.com',
-        'X-Auto-Response-Suppress': 'DR, RN, NRN, OOF, AutoReply',
-        'X-Mailer': 'High Bred Bullies Platform'
-      }
+    // Clean and simple email configuration
+    const mailOptions = {
+      from: 'admin@firsttolaunch.com',
+      to: to,
+      subject: subject,
+      html: html,
+      text: html.replace(/<[^>]*>/g, ''), // Plain text fallback
+    };
+
+    console.log(`📧 SENDING EMAIL:`, {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      transporterStatus: emailTransporter ? 'READY' : 'NOT_READY'
     });
-    console.log('Email sent successfully to', to, '- Message ID:', info.messageId);
+
+    const result = await emailTransporter.sendMail(mailOptions);
+    
+    console.log(`✅ EMAIL SENT SUCCESSFULLY:`, {
+      to: to,
+      messageId: result.messageId,
+      response: result.response,
+      accepted: result.accepted,
+      rejected: result.rejected
+    });
+    
     return true;
   } catch (error) {
-    console.error('Failed to send email:', error);
+    console.error(`❌ EMAIL SEND FAILED:`, {
+      to: to,
+      error: error.message,
+      code: error.code,
+      command: error.command
+    });
     return false;
   }
 }
