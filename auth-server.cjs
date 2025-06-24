@@ -573,12 +573,104 @@ async function startServer() {
           res.end(JSON.stringify({ 
             message: `Password reset code sent successfully to ${email}`,
             email: email,
-            sent: true
+            sent: true,
+            canResend: true,
+            resendAvailable: true
           }));
         } catch (error) {
           console.error('Password reset request error:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ error: 'Password reset request failed' }));
+        }
+        return;
+      }
+
+      // Resend password reset code
+      if (pathname === '/api/password-reset/resend' && method === 'POST') {
+        try {
+          const body = await parseBody(req);
+          const { email } = body;
+          
+          if (!email) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Email is required' }));
+            return;
+          }
+
+          console.log(`🔄 Password reset resend request for: ${email}`);
+          
+          // Check if user exists
+          const userResult = await pool.query('SELECT id, username FROM user_profiles WHERE username = $1', [email]);
+          
+          if (userResult.rows.length === 0) {
+            console.log(`❌ No user found for resend: ${email}`);
+            // Don't reveal if user exists - return success anyway
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              message: `New password reset code sent successfully to ${email}`,
+              email: email,
+              sent: true,
+              resent: true
+            }));
+            return;
+          }
+
+          const user = userResult.rows[0];
+          console.log(`✅ Resending reset code for user: ${user.username}`);
+
+          // Generate new reset token
+          const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+          console.log(`Generated new reset code: ${resetToken}`);
+
+          // Update reset token in database
+          await pool.query(
+            'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+            [resetToken, new Date(Date.now() + 3600000), user.id] // 1 hour expiry
+          );
+
+          console.log(`Updated reset token for user: ${user.id}`);
+
+          // Send email with new reset code
+          if (emailTransporter) {
+            console.log(`📧 Resending reset code ${resetToken} to ${email}`);
+            
+            const emailSent = await sendEmail({
+              to: email,
+              subject: 'High Bred Bullies - New Password Reset Code',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #2563eb;">Password Reset Code (Resent)</h2>
+                  <p>You requested a new password reset code for your High Bred Bullies account.</p>
+                  <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                    <h1 style="color: #1f2937; font-size: 32px; margin: 0;">${resetToken}</h1>
+                    <p style="color: #6b7280; margin: 10px 0 0 0;">Enter this code to reset your password</p>
+                  </div>
+                  <p>This code will expire in 1 hour.</p>
+                  <p>If you didn't request this password reset, please ignore this email.</p>
+                </div>
+              `,
+              from: 'High Bred Bullies <admin@firsttolaunch.com>'
+            });
+
+            if (emailSent) {
+              console.log(`✅ Password reset resend email sent successfully to ${email}`);
+            }
+          } else {
+            console.log(`❌ Email transporter not available for resend`);
+            console.log(`New password reset code for ${email}: ${resetToken}`);
+          }
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            message: `New password reset code sent successfully to ${email}`,
+            email: email,
+            sent: true,
+            resent: true
+          }));
+        } catch (error) {
+          console.error('Password reset resend error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: 'Password reset resend failed' }));
         }
         return;
       }

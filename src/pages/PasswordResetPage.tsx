@@ -157,17 +157,17 @@ export default function PasswordResetPage() {
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? 'Resetting...' : 'Reset Password'}
                 </Button>
-                <p className="text-sm text-muted-foreground text-center">
-                  Didn't receive the code?{' '}
+                <div className="text-center">
                   <Button
                     type="button"
                     variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setStep('request')}
+                    className="text-sm"
+                    onClick={handleResendCode}
+                    disabled={isSubmitting}
                   >
-                    Send again
+                    {isSubmitting ? 'Resending...' : 'Didn\'t receive the code? Resend'}
                   </Button>
-                </p>
+                </div>
               </form>
             )}
           </CardContent>
