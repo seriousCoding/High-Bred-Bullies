@@ -52,34 +52,78 @@ if (STRIPE_SECRET_KEY) {
   console.warn('⚠️ Stripe API key not found in environment variables');
 }
 
-// Email System - Direct SMTP
-async function sendEmail({ to, subject, html }) {
-  try {
-    const transporter = nodemailer.createTransporter({
-      host: 'mail.firsttolaunch.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'admin@firsttolaunch.com',
-        pass: 'rTown$402'
+// Initialize Email Service
+let emailTransporter = null;
+function initializeEmailService() {
+  // Enhanced SMTP configuration for better deliverability
+  const smtpConfig = {
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
+    pool: true,
+    maxConnections: 5,
+    rateDelta: 20000,
+    rateLimit: 5,
+    tls: {
+      rejectUnauthorized: false,
+      ciphers: 'SSLv3'
+    }
+  };
+
+  if (smtpConfig.host && smtpConfig.auth.user && smtpConfig.auth.pass) {
+    emailTransporter = nodemailer.createTransport(smtpConfig);
+    console.log('📧 Email service initialized with SMTP configuration');
+    
+    // Verify SMTP connection
+    emailTransporter.verify((error, success) => {
+      if (error) {
+        console.error('SMTP verification failed:', error.message);
+      } else {
+        console.log('✅ SMTP server connection verified successfully');
       }
     });
+  } else {
+    console.warn('⚠️ SMTP configuration incomplete - email functionality disabled');
+  }
+}
 
-    await transporter.sendMail({
-      from: 'High Bred Bullies <admin@firsttolaunch.com>',
-      to: to,
-      subject: subject,
-      html: html,
-      text: html.replace(/<[^>]*>/g, '')
+// Unified email sending function with enhanced deliverability
+async function sendEmail({ to, subject, html, from = 'High Bred Bullies <admin@firsttolaunch.com>' }) {
+  if (!emailTransporter) {
+    console.warn('Email service not configured - skipping email send');
+    return false;
+  }
+
+  try {
+    const info = await emailTransporter.sendMail({ 
+      from, 
+      to, 
+      subject, 
+      html,
+      text: html.replace(/<[^>]*>/g, ''), // Add plain text version
+      headers: {
+        'Message-ID': `<${Date.now()}-${Math.random().toString(36)}@highbredbullies.com>`,
+        'X-Priority': '1',
+        'Reply-To': 'gpass1979@gmail.com',
+        'X-Mailer': 'High Bred Bullies Platform'
+      }
     });
-
-    console.log(`Email sent to ${to}`);
+    console.log('Email sent successfully to', to, '- Message ID:', info.messageId);
     return true;
   } catch (error) {
-    console.error('Email error:', error.message);
+    console.error('Failed to send email:', error);
     return false;
   }
 }
+
+initializeEmailService();
 
 // Verify connection with actual database schema
 pool.connect()
@@ -333,7 +377,8 @@ async function startServer() {
           }
 
           // Send password reset email
-          const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+          if (emailTransporter) {
+            const resetLink = `${req.headers.origin || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
             
             const emailHtml = `
               <!DOCTYPE html>
@@ -403,11 +448,23 @@ async function startServer() {
               </html>
             `;
 
-          await sendEmail({
-            to: user.username,
-            subject: 'Reset Your High Bred Bullies Password',
-            html: emailHtml
-          });
+            try {
+              const success = await sendEmail({
+                to: user.username,
+                subject: 'Reset Your High Bred Bullies Password',
+                html: emailHtml
+              });
+              if (success) {
+                console.log(`Password reset email sent to ${user.username}`);
+              } else {
+                console.error('Failed to send password reset email');
+              }
+            } catch (emailError) {
+              console.error('Failed to send password reset email:', emailError);
+            }
+          } else {
+            console.log(`Password reset token for ${user.username}: ${resetToken}`);
+          }
           
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
