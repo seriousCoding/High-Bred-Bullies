@@ -568,20 +568,8 @@ async function startServer() {
             console.log(`Password reset code for ${user.username}: ${resetCode}`);
           }
           
-          // For development/testing - include reset code when email delivery may be restricted
-          const isAdmin = email === 'gpass1979@gmail.com';
-          const response = {
-            message: 'If the email exists, a reset link has been sent'
-          };
-          
-          // Include reset code for testing when SMTP delivery is restricted to verified recipients
-          if (!isAdmin && process.env.NODE_ENV !== 'production') {
-            response.resetCode = resetCode;
-            response.note = 'Reset code provided for testing - check email for full instructions';
-          }
-          
           res.writeHead(200);
-          res.end(JSON.stringify(response));
+          res.end(JSON.stringify({ message: 'If the email exists, a reset link has been sent' }));
         } catch (error) {
           console.error('Password reset request error:', error);
           res.writeHead(500);
