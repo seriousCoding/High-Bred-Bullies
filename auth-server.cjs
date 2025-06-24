@@ -23,6 +23,12 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
 
+// Debug SMTP environment variables
+console.log('🔧 SMTP Configuration Check:');
+console.log('SMTP_HOST:', process.env.SMTP_HOST || 'NOT_SET');
+console.log('SMTP_USER:', process.env.SMTP_USER || 'NOT_SET');
+console.log('SMTP_PASS:', process.env.SMTP_PASS ? 'SET' : 'NOT_SET');
+
 // NEVER USE REPLIT DATABASE - ALWAYS USE EXTERNAL POSTGRESQL
 const pool = new Pool({
   host: '50.193.77.237',
