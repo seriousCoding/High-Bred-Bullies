@@ -461,34 +461,22 @@ async function startServer() {
           const user = userResult.rows[0];
           console.log('✅ Found user for password reset:', { id: user.id, email: user.username });
           
-          // Generate 6-digit reset code
+          // Generate 6-digit reset code  
           const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+          console.log('Generated reset code:', resetToken);
 
-          // Store multiple reset tokens - append to existing valid tokens
+          // Store reset token directly (simplified approach)
           try {
-            // Get current user data to check existing tokens
-            const currentUser = await pool.query('SELECT reset_token, reset_token_expires FROM user_profiles WHERE id = $1', [user.id]);
-            const userData = currentUser.rows[0] || {};
-            
-            const currentTokens = userData.reset_token ? userData.reset_token.split(',') : [];
-            const currentExpiry = userData.reset_token_expires ? new Date(userData.reset_token_expires) : new Date();
-            
-            // Keep current tokens if they haven't expired
-            const validTokens = [];
-            if (currentTokens.length > 0 && currentExpiry > new Date()) {
-              validTokens.push(...currentTokens);
-            }
-            
-            // Add new token
-            validTokens.push(resetToken);
-            
-            // Store comma-separated tokens with latest expiry
-            await pool.query(
-              'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
-              [validTokens.join(','), new Date(Date.now() + 3600000), user.id] // 1 hour expiry
+            // Store single reset token with 1 hour expiry
+            const result = await pool.query(
+              'UPDATE user_profiles SET reset_token = $1, reset_token_expires = $2 WHERE id = $3 RETURNING id',
+              [resetToken, new Date(Date.now() + 3600000), user.id]
             );
-            
-            console.log('Password reset token stored for user:', user.id);
+            if (result.rowCount > 0) {
+              console.log('✅ Password reset token stored successfully for user:', user.id);
+            } else {
+              console.error('❌ Failed to store reset token - no rows updated');
+            }
           } catch (dbError) {
             console.error('Database error storing reset token:', dbError);
           }
