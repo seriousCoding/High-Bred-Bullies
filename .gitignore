@@ -11,8 +11,7 @@ dist-ssr/
 build/
 .vite/
 
-# Environment variables
-.env
+# Environment variables (keep .env for production)
 .env.local
 .env.development.local
 .env.test.local
